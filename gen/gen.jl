@@ -1,12 +1,8 @@
 import Clang
 
-if !haskey(ENV, "HIGHS_PATH")
-    error("Set the location of the HiGHS source.")
-end
+const HIGHS_DIR = haskey(ENV, "HIGHS_PATH") ? ENV["HIGHS_PATH"] : joinpath(@__DIR__, "../deps/usr")
 
-const HIGHS_DIR = joinpath(@__DIR__, ENV["HIGHS_PATH"])
-
-const header_file = joinpath(HIGHS_DIR, "src", "interfaces", "highs_c_api.h")
+const header_file = joinpath(HIGHS_DIR, "include", "interfaces", "highs_c_api.h")
 const LIB_HEADERS = [header_file]
 
 const ctx = Clang.DefaultContext()
@@ -16,7 +12,7 @@ Clang.parse_headers!(ctx, LIB_HEADERS,
 )
 
 ctx.libname = "libhighs"
-ctx.options["is_function_strictly_typed"] = false
+ctx.options["is_function_strictly_typed"] = true
 ctx.options["is_struct_mutable"] = false
 
 const api_file = joinpath(@__DIR__, "../src/wrapper", "$(ctx.libname)_api.jl")
