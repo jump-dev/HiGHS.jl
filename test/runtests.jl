@@ -36,8 +36,8 @@ end
     rowvalue, rowdual = (Array{Cdouble, 1}(undef, n_row),  Array{Cdouble, 1}(undef, n_row))
     colbasisstatus, rowbasisstatus = (Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row))
 
-    modelstatus = Ref{Cint}(55)
+    modelstatus = Ref{Cint}(42)
     status = HiGHS.Highs_call(n_col, n_row, n_nz, colcost, collower, colupper, rowlower, rowupper, matstart, matindex, matvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
     @test status == 0
-    @test modelstatus == 11 # optimal
+    @test modelstatus[] == 11 # optimal
 end
