@@ -14,7 +14,7 @@ function test_model()
     return (cc, cl, cu, rl, ru, astart, aindex, avalue)
 end
 
-@testset "C API" begin
+@testset "Direct C call" begin
     (colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue) = test_model()
     n_col = convert(Cint, size(colcost, 1))
     n_row = convert(Cint, size(rowlower, 1))
@@ -37,7 +37,14 @@ end
     colbasisstatus, rowbasisstatus = (Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row))
 
     modelstatus = Ref{Cint}(42)
-    status = HiGHS.Highs_call(n_col, n_row, n_nz, colcost, collower, colupper, rowlower, rowupper, matstart, matindex, matvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+    status = HiGHS.CWrapper.Highs_call(n_col, n_row, n_nz, colcost, collower, colupper, rowlower, rowupper, matstart, matindex, matvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
     @test status == 0
     @test modelstatus[] == 11 # optimal
+end
+
+@testset "Managed HiGHS" begin
+    @test_nowarn finalize(HiGHS.ManagedHiGHS())
+    managed_h = HiGHS.ManagedHiGHS()
+    @test HiGHS.free_highs(managed_h)
+    @test !HiGHS.free_highs(managed_h)
 end
