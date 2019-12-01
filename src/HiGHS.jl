@@ -18,4 +18,12 @@ end # module CWrapper
 
 include("c_model.jl")
 
+module MOIWrapper
+
+import HiGHS.CWrapper
+import HiGHS: ManagedHiGHS
+
+include("MOI_wrapper.jl")
+end # module MOIWrapper
+
 end # module HiGHS
