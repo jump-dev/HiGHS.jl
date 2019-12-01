@@ -51,6 +51,14 @@ end
 MOI.supports(::Optimizer, ::MOI.SolverName) = true
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
+MOI.supports(::Optimizer, param::MOI.RawParameter) = true
+
+function MOI.set(o::Optimizer, param::MOI.RawParameter, value)
+    # TODO check parameter
+    CWrapper.Highs_setOptionValue(o, param.name, value)
+    return nothing
+end
+
 const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.ObjectiveSense,
     MOI.NumberOfVariables,
@@ -60,8 +68,8 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.ListOfConstraints,
     MOI.ObjectiveFunctionType,
     MOI.ObjectiveValue,
-    MOI.DualObjectiveValue,
-    # MOI.SolveTime,  # TODO
+    MOI.DualObjectiveValue, # TODO
+    MOI.SolveTime,  # TODO
     MOI.SimplexIterations,
     MOI.BarrierIterations,
     MOI.RawSolver,
@@ -80,6 +88,10 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSens
     sense_code = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     _ = CWrapper.Highs_changeObjectiveSense(o.model.inner, sense_code)
     return nothing
+end
+
+function MOI.get(o::Optimizer, ::MOI.ObjectiveValue)
+    return CWrapper.Highs_getObjectiveValue(o.model.inner)
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfVariables)
