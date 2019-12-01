@@ -14,9 +14,8 @@ module CWrapper
 import HiGHS.libhighs
 include(joinpath("wrapper", "libhighs_api.jl"))
 include(joinpath("wrapper", "libhighs_common.jl"))
-end
+end # module CWrapper
 
 include("c_model.jl")
-end # module CWrapper
 
 end # module HiGHS
