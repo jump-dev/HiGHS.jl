@@ -11,13 +11,13 @@ function MOI.empty!(o::Optimizer)
 end
 
 function MOI.add_variable(o::Optimizer)
-    idx = Highs_addCol(o.model.inner, 0.0, -Inf, Inf, 0, Cint[], Cint[])
+    idx = CWrapper.Highs_addCol(o.model.inner, 0.0, -Inf, Inf, Cint(0), Cint[], Cint[])
     return MOI.VariableIndex(Int(idx))
 end
 
 function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Interval}
-    idx = CWrapper.Highs_addCol(o.model.inner, 0.0, set.lower, set.upper, 0, Cint[], Cint[])
-    return (MOI.VariableIndex(Int(idx)), MOI.ConstraintIndex{MOI.SingleVariable, S}(S))
+    idx = CWrapper.Highs_addCol(o.model.inner, 0.0, Cdouble(set.lower), Cdouble(set.upper), Cint(0), Cint[], Cint[])
+    return (MOI.VariableIndex(Int(idx)), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(idx))
 end
 
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)

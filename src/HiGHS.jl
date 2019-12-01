@@ -1,5 +1,7 @@
 module HiGHS
 
+export ManagedHiGHS
+
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
@@ -25,5 +27,7 @@ import HiGHS: ManagedHiGHS
 
 include("MOI_wrapper.jl")
 end # module MOIWrapper
+
+import .MOIWrapper: Optimizer
 
 end # module HiGHS

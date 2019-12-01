@@ -48,3 +48,5 @@ end
     @test HiGHS.free_highs(managed_h)
     @test !HiGHS.free_highs(managed_h)
 end
+
+include("MOI_wrapper.jl")
