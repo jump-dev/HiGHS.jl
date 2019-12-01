@@ -17,5 +17,6 @@ include(joinpath("wrapper", "libhighs_common.jl"))
 end
 
 include("c_model.jl")
+end # module CWrapper
 
-end # module
+end # module HiGHS
