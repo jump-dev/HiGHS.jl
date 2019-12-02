@@ -7,7 +7,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 end
 
 function MOI.empty!(o::Optimizer)
-    CWrapper.reset_model!(o.model)
+    reset_model!(o.model)
 end
 
 function MOI.add_variable(o::Optimizer)
@@ -88,10 +88,6 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSens
     sense_code = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     _ = CWrapper.Highs_changeObjectiveSense(o.model.inner, sense_code)
     return nothing
-end
-
-function MOI.get(o::Optimizer, ::MOI.ObjectiveValue)
-    return CWrapper.Highs_getObjectiveValue(o.model.inner)
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfVariables)

@@ -47,6 +47,6 @@ function reset_model!(mhgs::ManagedHiGHS)
     GC.@preserve mhgs begin
         CWrapper.Highs_destroy(mhgs.inner)
     end
-    mhgs.model = CWrapper.Highs_create()
+    mhgs.inner = CWrapper.Highs_create()
     return true
 end

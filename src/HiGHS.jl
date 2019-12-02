@@ -23,7 +23,7 @@ include("c_model.jl")
 module MOIWrapper
 
 import HiGHS.CWrapper
-import HiGHS: ManagedHiGHS
+import HiGHS: ManagedHiGHS, reset_model!
 
 include("MOI_wrapper.jl")
 end # module MOIWrapper
