@@ -80,4 +80,5 @@ end
     )
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
+    @test MOI.get(o, MOI.SimplexIterations()) > 0
 end
