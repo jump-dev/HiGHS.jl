@@ -121,7 +121,7 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: 
 
     for term in func.terms
         j = term.variable_index.value
-        coefficients[j] = Cdouble(term.coefficient)
+        coefficients[j+1] = Cdouble(term.coefficient)
     end
 
     coefficients_ptr = pointer(coefficients)
@@ -142,7 +142,7 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.Scala
     null_ptr_double = Ptr{Cdouble}()
     _ = CWrapper.Highs_getColsByRange(
         o.model.inner,
-        Cint(0), Cint(total_ncols),
+        Cint(0), Cint(total_ncols - 1),
         pointer_from_objref(num_cols_obtained), coefficients_ptr,
         null_ptr_double, null_ptr_double, # lower, upper
         pointer_from_objref(num_nz), null_ptr, null_ptr, null_ptr_double

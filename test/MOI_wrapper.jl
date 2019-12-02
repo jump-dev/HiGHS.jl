@@ -30,4 +30,26 @@ end
             MOI.ScalarAffineTerm(2.0, x),
         ], 0.0,
     )
+
+    MOI.empty!(o)
+    (x1, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
+    (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(1.0, 2.0))
+    MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x1.value), 2.0)
+    HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x2.value), -1.0)
+    F = MOI.get(o, MOI.ObjectiveFunctionType())
+    @test F <: MOI.ScalarAffineFunction{Float64}
+    obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
+    @test obj_func ≈ MOI.ScalarAffineFunction([
+            MOI.ScalarAffineTerm(2.0, x1),
+            MOI.ScalarAffineTerm(-1.0, x2),
+        ], 0.0,
+    )
+    MOI.set(o, MOI.ObjectiveFunction{F}(), obj_func)
+    obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
+    @test obj_func ≈ MOI.ScalarAffineFunction([
+            MOI.ScalarAffineTerm(2.0, x1),
+            MOI.ScalarAffineTerm(-1.0, x2),
+        ], 0.0,
+    )
 end
