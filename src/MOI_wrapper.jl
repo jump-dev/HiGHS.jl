@@ -46,7 +46,7 @@ function MOI.add_constraint(o::Optimizer, func::MOI.ScalarAffineFunction, set::M
     coefficients = Vector{Cdouble}(undef, number_nonzeros)
     col_indices = Vector{Cint}(undef, number_nonzeros)
     for j in Base.OneTo(number_nonzeros)
-        term = func.terms[i]
+        term = func.terms[j]
         coefficients[j] = term.coefficient
         col_indices[j] = Cint(term.variable_index.value)
     end
@@ -147,7 +147,6 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.Scala
         null_ptr_double, null_ptr_double, # lower, upper
         pointer_from_objref(num_nz), null_ptr, null_ptr, null_ptr_double
     )
-    # TODO continue
     terms = Vector{MOI.ScalarAffineTerm{Float64}}()
     sizehint!(terms, total_ncols)
     for col_idx in Base.OneTo(total_ncols)
@@ -173,7 +172,7 @@ function MOI.get(o::Optimizer, attr::MOI.ObjectiveValue)
 end
 
 function MOI.get(o::Optimizer, ::MOI.SimplexIterations)
-    res = Highs_getIterationCount(o.model.inner)
+    res = CWrapper.Highs_getIterationCount(o.model.inner)
     return Int(res)
 end
 
