@@ -17,9 +17,12 @@ end
     (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
     HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 1.0)
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    @test MOI.get(o, MOI.ResultCount()) == 0
     MOI.optimize!(o)
+    @test MOI.get(o, MOI.ResultCount()) == 1
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ -3
     MOI.empty!(o)
+    @test MOI.get(o, MOI.ResultCount()) == 0
     (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 2.0)
@@ -52,6 +55,7 @@ end
             MOI.ScalarAffineTerm(-1.0, x2),
         ], 0.0,
     )
+    @test all(MOI.get(o, MOI.ListOfVariableIndices()) .== [x1, x2])
 end
 
 @testset "Linear constraints" begin
@@ -70,6 +74,7 @@ end
             ], 0.0,
         )
     )
+    @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 0
     MOI.add_constraint(o,
         MOI.ScalarAffineFunction(
             [
@@ -78,6 +83,7 @@ end
             ], 0.0,
         ), MOI.Interval(0.0, 7.5),
     )
+    @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 1
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
     @test MOI.get(o, MOI.SimplexIterations()) > 0

@@ -63,6 +63,7 @@ MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
 MOI.supports(::Optimizer, param::MOI.RawParameter) = true
 
+# setting HiGHS options
 function MOI.set(o::Optimizer, param::MOI.RawParameter, value)
     # TODO check parameter
     CWrapper.Highs_setOptionValue(o, param.name, value)
@@ -74,14 +75,14 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.NumberOfVariables,
     MOI.ListOfVariableIndices,
     MOI.ListOfConstraintIndices,
-    MOI.NumberOfConstraints,
-    MOI.ListOfConstraints,
+    MOI.NumberOfConstraints, # TODO single variables
+    MOI.ListOfConstraints, # TODO single variables
     MOI.ObjectiveFunctionType,
     MOI.ObjectiveValue,
     MOI.DualObjectiveValue, # TODO
     MOI.SolveTime,  # TODO
     MOI.SimplexIterations,
-    MOI.BarrierIterations,
+    MOI.BarrierIterations, # TODO when options work
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
@@ -110,6 +111,11 @@ end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfVariables)
     return Int(CWrapper.Highs_getNumCols(o.model.inner))
+end
+
+function MOI.get(o::Optimizer, ::MOI.ListOfVariableIndices)
+    ncols = MOI.get(o, MOI.NumberOfVariables())
+    return [MOI.VariableIndex(j) for j in 0:(ncols-1)]
 end
 
 MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType) = MOI.ScalarAffineFunction{Float64}
