@@ -138,8 +138,8 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.Scala
     coefficients_ptr = pointer(coefficients)
     num_cols_obtained = Ref(Cint(0))
     num_nz = Ref(Cint(0))
-    null_ptr = Ptr{Cint}()
-    null_ptr_double = Ptr{Cdouble}()
+    null_ptr = Ptr{Cint}(0)
+    null_ptr_double = Ptr{Cdouble}(0)
     _ = CWrapper.Highs_getColsByRange(
         o.model.inner,
         Cint(0), Cint(total_ncols - 1),
