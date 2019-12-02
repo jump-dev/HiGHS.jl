@@ -31,8 +31,8 @@ function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Inte
 end
 
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
-    var_idx = sg.variable.value
-    _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, set.lower, set.upper)
+    var_idx = Cint(sg.variable.value)
+    _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
     return nothing
 end
 

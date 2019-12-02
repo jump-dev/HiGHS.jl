@@ -1,5 +1,6 @@
 import MathOptInterface
 const MOI = MathOptInterface
+import HiGHS
 
 @testset "MOI variable count and empty" begin
     o = HiGHS.Optimizer()
@@ -56,6 +57,16 @@ end
         ], 0.0,
     )
     @test all(MOI.get(o, MOI.ListOfVariableIndices()) .== [x1, x2])
+    # add constraint variable equivalent to add constraint
+    MOI.empty!(o)
+    x = MOI.add_variable(o)
+    _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
+    HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 1.0)
+    MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    @test MOI.get(o, MOI.ResultCount()) == 0
+    MOI.optimize!(o)
+    @test MOI.get(o, MOI.ResultCount()) == 1
+    @test MOI.get(o, MOI.ObjectiveValue()) ≈ -3
 end
 
 @testset "Linear constraints" begin
