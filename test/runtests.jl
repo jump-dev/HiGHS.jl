@@ -19,11 +19,11 @@ end
     n_col = convert(Cint, size(colcost, 1))
     n_row = convert(Cint, size(rowlower, 1))
     n_nz = convert(Cint, size(aindex, 1))
-    
+
     colcost = convert(Array{Cdouble}, colcost)
     collower = convert(Array{Cdouble}, collower)
     colupper = convert(Array{Cdouble}, colupper)
-    
+
     rowlower = convert(Array{Cdouble}, rowlower)
     rowupper = convert(Array{Cdouble}, rowupper)
     matstart = convert(Array{Cint}, astart)
@@ -31,7 +31,7 @@ end
     matvalue = convert(Array{Cdouble}, avalue)
 
     # solution = HighsSolution(Array{Cdouble, 1}(undef, n_col), Array{Cdouble, 1}(undef, n_col), Array{Cdouble, 1}(undef, n_row),  Array{Cdouble, 1}(undef, n_row))
-    # basis = HighsBasis(Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row)) 
+    # basis = HighsBasis(Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row))
     colvalue, coldual = (Array{Cdouble, 1}(undef, n_col), Array{Cdouble, 1}(undef, n_col))
     rowvalue, rowdual = (Array{Cdouble, 1}(undef, n_row),  Array{Cdouble, 1}(undef, n_row))
     colbasisstatus, rowbasisstatus = (Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row))
@@ -48,3 +48,5 @@ end
     @test HiGHS.free_highs(managed_h)
     @test !HiGHS.free_highs(managed_h)
 end
+
+include("MOI_wrapper.jl")

@@ -1,5 +1,7 @@
 module HiGHS
 
+export ManagedHiGHS
+
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
@@ -17,5 +19,15 @@ include(joinpath("wrapper", "libhighs_common.jl"))
 end # module CWrapper
 
 include("c_model.jl")
+
+module MOIWrapper
+
+import HiGHS.CWrapper
+import HiGHS: ManagedHiGHS, reset_model!
+
+include("MOI_wrapper.jl")
+end # module MOIWrapper
+
+import .MOIWrapper: Optimizer
 
 end # module HiGHS
