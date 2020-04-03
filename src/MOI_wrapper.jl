@@ -10,12 +10,18 @@ end
 function MOI.empty!(o::Optimizer)
     reset_model!(o.model)
     o.objective_sense = MOI.FEASIBILITY_SENSE
-    return nothing
+    return
+end
+
+function MOI.is_empty(o::Optimizer)
+    return CWrapper.Highs_getNumRows(o.model.inner) == 0 &&
+      CWrapper.Highs_getNumCols(o.model.inner) == 0 &&
+      o.objective_sense == MOI.FEASIBILITY_SENSE
 end
 
 function MOI.optimize!(o::Optimizer)
     CWrapper.Highs_run(o.model.inner)
-    return nothing
+    return
 end
 
 function MOI.add_variable(o::Optimizer)
@@ -33,7 +39,7 @@ end
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
     var_idx = Cint(sg.variable.value)
     _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
-    return nothing
+    return
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}})
@@ -134,7 +140,7 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: 
     mask = pointer(ones(Cint, total_ncols))
 
     CWrapper.Highs_changeColsCostByMask(o.model.inner, mask, coefficients_ptr)
-    return nothing
+    return
 end
 
 function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.ScalarAffineFunction{Float64}}

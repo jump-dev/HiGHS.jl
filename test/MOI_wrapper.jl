@@ -1,6 +1,11 @@
 import MathOptInterface
-const MOI = MathOptInterface
 import HiGHS
+
+const MOI = MathOptInterface
+
+@testset "SolverName" begin
+    @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
+end
 
 @testset "MOI variable count and empty" begin
     o = HiGHS.Optimizer()
