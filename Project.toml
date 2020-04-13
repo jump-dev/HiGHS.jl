@@ -3,12 +3,10 @@ uuid = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 version = "0.1.0"
 
 [deps]
-BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [compat]
-BinaryProvider = "0.5"
 MathOptInterface = "0.9"
 julia = "1"
 

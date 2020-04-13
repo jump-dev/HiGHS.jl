@@ -101,7 +101,7 @@ MOI.get(o::Optimizer, ::MOI.RawSolver) = o.model
 
 function MOI.get(o::Optimizer, ::MOI.ResultCount)
     status = CWrapper.Highs_getModelStatus(o.model.inner)
-    status == 11 ? 1 : 0
+    status == 9 ? 1 : 0
 end
 
 function MOI.get(o::Optimizer, ::MOI.ObjectiveSense)
@@ -172,20 +172,21 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.Scala
     return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
 end
 
-function Highs_getColsByRange(highs, from_col::Cint, to_col::Cint, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getColsByRange, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-end
+# function Highs_getColsByRange(highs, from_col::Cint, to_col::Cint, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    # ccall((:Highs_getColsByRange, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+# end
 
 function MOI.get(o::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(o, attr)
-    res = CWrapper.Highs_getObjectiveValue(o.model.inner)
-    # BUG linked to https://github.com/ERGO-Code/HiGHS/issues/209
-    return o.objective_sense === MOI.MAX_SENSE ? -res : res
+    value = Ref{Cdouble}()
+    CWrapper.Highs_getHighsDoubleInfoValue(o.model.inner, "objective_function_value", value);
+    return value[]
 end
 
 function MOI.get(o::Optimizer, ::MOI.SimplexIterations)
-    res = CWrapper.Highs_getIterationCount(o.model.inner)
-    return Int(res)
+    simplex_iteration_count = Ref{Cint}(0)
+    CWrapper.Highs_getHighsIntInfoValue(o.model.inner, "simplex_iteration_count", simplex_iteration_count)
+    return Int(simplex_iteration_count[])
 end
 
 function MOI.get(o::Optimizer, ::MOI.BarrierIterations)

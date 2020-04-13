@@ -2,7 +2,8 @@ import Clang
 
 const HIGHS_DIR = haskey(ENV, "HIGHS_PATH") ? ENV["HIGHS_PATH"] : joinpath(@__DIR__, "../deps/usr")
 
-const header_file = joinpath(HIGHS_DIR, "include", "interfaces", "highs_c_api.h")
+const header_file = joinpath(HIGHS_DIR, "src/interfaces/highs_c_api.h")
+
 const LIB_HEADERS = [header_file]
 
 const ctx = Clang.DefaultContext()
