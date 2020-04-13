@@ -14,24 +14,68 @@ function Highs_destroy(highs)
     ccall((:Highs_destroy, libhighs), Cvoid, (Ptr{Cvoid},), highs)
 end
 
+function Highs_readModel(highs, filename)
+    ccall((:Highs_readModel, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
+end
+
+function Highs_writeModel(highs, filename)
+    ccall((:Highs_writeModel, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
+end
+
 function Highs_run(highs)
     ccall((:Highs_run, libhighs), Cint, (Ptr{Cvoid},), highs)
 end
 
-function Highs_readFromFile(highs, filename)
-    ccall((:Highs_readFromFile, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
+function Highs_writeSolution(highs, filename)
+    ccall((:Highs_writeSolution, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
 end
 
-function Highs_writeToFile(highs, filename)
-    ccall((:Highs_writeToFile, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
+function Highs_passLp(highs, numcol::Cint, numrow::Cint, numnz::Cint, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
+    ccall((:Highs_passLp, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
 end
 
-function Highs_loadModel(highs, numcol::Cint, numrow::Cint, numnz::Cint, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
-    ccall((:Highs_loadModel, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
+function Highs_setHighsBoolOptionValue(highs, option, value::Cint)
+    ccall((:Highs_setHighsBoolOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cint), highs, option, value)
 end
 
-function Highs_setOptionValue(highs, option, value)
-    ccall((:Highs_setOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cstring), highs, option, value)
+function Highs_setHighsIntOptionValue(highs, option, value::Cint)
+    ccall((:Highs_setHighsIntOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cint), highs, option, value)
+end
+
+function Highs_setHighsDoubleOptionValue(highs, option, value::Cdouble)
+    ccall((:Highs_setHighsDoubleOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cdouble), highs, option, value)
+end
+
+function Highs_setHighsStringOptionValue(highs, option, value)
+    ccall((:Highs_setHighsStringOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cstring), highs, option, value)
+end
+
+function Highs_setHighsOptionValue(highs, option, value)
+    ccall((:Highs_setHighsOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cstring), highs, option, value)
+end
+
+function Highs_getHighsBoolOptionValue(highs, option, value)
+    ccall((:Highs_getHighsBoolOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cint}), highs, option, value)
+end
+
+function Highs_getHighsIntOptionValue(highs, option, value)
+    ccall((:Highs_getHighsIntOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cint}), highs, option, value)
+end
+
+function Highs_getHighsDoubleOptionValue(highs, option, value)
+    ccall((:Highs_getHighsDoubleOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cdouble}), highs, option, value)
+end
+
+function Highs_getHighsStringOptionValue(highs, option, value)
+    ccall((:Highs_getHighsStringOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cstring), highs, option, value)
+end
+
+function Highs_getHighsIntInfoValue(highs, info, value)
+    ccall((:Highs_getHighsIntInfoValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cint}), highs, info, value)
+end
+
+function Highs_getHighsDoubleInfoValue(highs, info, value)
+    ccall((:Highs_getHighsDoubleInfoValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cdouble}), highs, info, value)
 end
 
 function Highs_getSolution(highs, colvalue, coldual, rowvalue, rowdual)
@@ -42,12 +86,36 @@ function Highs_getBasis(highs, colstatus, rowstatus)
     ccall((:Highs_getBasis, libhighs), Cvoid, (Ptr{Cvoid}, Ptr{Cint}, Ptr{Cint}), highs, colstatus, rowstatus)
 end
 
-function Highs_getObjectiveValue(highs)
-    ccall((:Highs_getObjectiveValue, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+function Highs_getModelStatus(highs, scaled_model::Cint)
+    ccall((:Highs_getModelStatus, libhighs), Cint, (Ptr{Cvoid}, Cint), highs, scaled_model)
 end
 
-function Highs_getIterationCount(highs)
-    ccall((:Highs_getIterationCount, libhighs), Cint, (Ptr{Cvoid},), highs)
+function Highs_getBasicVariables(highs, basic_variables)
+    ccall((:Highs_getBasicVariables, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}), highs, basic_variables)
+end
+
+function Highs_getBasisInverseRow(highs, row::Cint, row_vector, row_num_nz, row_indices)
+    ccall((:Highs_getBasisInverseRow, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, row, row_vector, row_num_nz, row_indices)
+end
+
+function Highs_getBasisInverseCol(highs, col::Cint, col_vector, col_num_nz, col_indices)
+    ccall((:Highs_getBasisInverseCol, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, col, col_vector, col_num_nz, col_indices)
+end
+
+function Highs_getBasisSolve(highs, rhs, solution_vector, solution_num_nz, solution_indices)
+    ccall((:Highs_getBasisSolve, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, rhs, solution_vector, solution_num_nz, solution_indices)
+end
+
+function Highs_getBasisTransposeSolve(highs, rhs, solution_vector, solution_nz, solution_indices)
+    ccall((:Highs_getBasisTransposeSolve, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, rhs, solution_vector, solution_nz, solution_indices)
+end
+
+function Highs_getReducedRow(highs, row::Cint, row_vector, row_num_nz, row_indices)
+    ccall((:Highs_getReducedRow, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, row, row_vector, row_num_nz, row_indices)
+end
+
+function Highs_getReducedColumn(highs, col::Cint, col_vector, col_num_nz, col_indices)
+    ccall((:Highs_getReducedColumn, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, col, col_vector, col_num_nz, col_indices)
 end
 
 function Highs_addRow(highs, lower::Cdouble, upper::Cdouble, num_new_nz::Cint, indices, values)
@@ -110,6 +178,10 @@ function Highs_changeRowsBoundsByMask(highs, mask, lower, upper)
     ccall((:Highs_changeRowsBoundsByMask, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
 end
 
+function Highs_getObjectiveSense(highs, sense)
+    ccall((:Highs_getObjectiveSense, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}), highs, sense)
+end
+
 function Highs_getColsByRange(highs, from_col::Cint, to_col::Cint, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
     ccall((:Highs_getColsByRange, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
@@ -168,36 +240,4 @@ end
 
 function Highs_getNumNz(highs)
     ccall((:Highs_getNumNz, libhighs), Cint, (Ptr{Cvoid},), highs)
-end
-
-function Highs_getModelStatus(highs)
-    ccall((:Highs_getModelStatus, libhighs), Cint, (Ptr{Cvoid},), highs)
-end
-
-function Highs_getBasicVariables(highs, basic_variables)
-    ccall((:Highs_getBasicVariables, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}), highs, basic_variables)
-end
-
-function Highs_getBasisInverseRow(highs, row::Cint, row_vector, row_num_nz, row_indices)
-    ccall((:Highs_getBasisInverseRow, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, row, row_vector, row_num_nz, row_indices)
-end
-
-function Highs_getBasisInverseCol(highs, col::Cint, col_vector, col_num_nz, col_indices)
-    ccall((:Highs_getBasisInverseCol, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, col, col_vector, col_num_nz, col_indices)
-end
-
-function Highs_getBasisSolve(highs, rhs, solution_vector, solution_num_nz, solution_indices)
-    ccall((:Highs_getBasisSolve, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, rhs, solution_vector, solution_num_nz, solution_indices)
-end
-
-function Highs_getBasisTransposeSolve(highs, rhs, solution_vector, solution_nz, solution_indices)
-    ccall((:Highs_getBasisTransposeSolve, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, rhs, solution_vector, solution_nz, solution_indices)
-end
-
-function Highs_getReducedRow(highs, row::Cint, row_vector, row_num_nz, row_indices)
-    ccall((:Highs_getReducedRow, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, row, row_vector, row_num_nz, row_indices)
-end
-
-function Highs_getReducedColumn(highs, col::Cint, col_vector, col_num_nz, col_indices)
-    ccall((:Highs_getReducedColumn, libhighs), Cint, (Ptr{Cvoid}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}), highs, col, col_vector, col_num_nz, col_indices)
 end
