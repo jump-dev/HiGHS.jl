@@ -3,7 +3,7 @@ import HiGHS
 
 const MOI = MathOptInterface
 
-@testset "Attributes and options" begin
+@testset "Attributes" begin
     o = HiGHS.Optimizer()
     @test MOI.get(o, MOI.SolverName()) == "HiGHS"
     @test MOI.get(o, MOI.TimeLimitSec()) > 10000
@@ -109,4 +109,19 @@ end
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
     @test MOI.get(o, MOI.SimplexIterations()) > 0
+end
+
+@testset "HiGHS custom options" begin
+    o = HiGHS.Optimizer()
+    @test MOI.get(o, MOI.RawParameter("solver")) == "choose"
+    MOI.set(o, MOI.RawParameter("solver"), "simplex")
+    @test MOI.get(o, MOI.RawParameter("solver")) == "simplex"
+
+    @test MOI.get(o, MOI.RawParameter("message_level")) == 4
+    MOI.set(o, MOI.RawParameter("message_level"), 1)
+    @test MOI.get(o, MOI.RawParameter("message_level")) == 1
+
+    @test MOI.get(o, MOI.RawParameter("time_limit")) > 1000
+    MOI.set(o, MOI.RawParameter("time_limit"), 1000.0)
+    @test MOI.get(o, MOI.RawParameter("time_limit")) ≈ 1000
 end

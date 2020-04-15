@@ -23,7 +23,7 @@ function set_option(highs, option, value::AbstractFloat)
 end
 
 function set_option(highs, option, value::String)
-    Highs_setHighsStringOptionValue(highs, option, Cstring(value))
+    Highs_setHighsStringOptionValue(highs, option, value)
 end
 
 """
@@ -45,9 +45,16 @@ function get_option(highs, option, ::Type{Bool})
     return Bool(value[])
 end
 
+function get_option(highs, option, ::Type{T}) where {T <: AbstractFloat}
+    value = Ref{Cdouble}()
+    Highs_getHighsDoubleOptionValue(highs, option, value)
+    return T(value[])
+end
+
+
 function get_option(highs, option, ::Type{String})
     p = pointer("")
-    Highs_getHighsBoolOptionValue(highs, option, s)
+    Highs_getHighsStringOptionValue(highs, option, p)
     return unsafe_string(p)
 end
 
