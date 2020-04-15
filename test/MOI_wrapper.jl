@@ -3,8 +3,12 @@ import HiGHS
 
 const MOI = MathOptInterface
 
-@testset "SolverName" begin
-    @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
+@testset "Attributes and options" begin
+    o = HiGHS.Optimizer()
+    @test MOI.get(o, MOI.SolverName()) == "HiGHS"
+    @test MOI.get(o, MOI.TimeLimitSec()) > 10000
+    MOI.set(o, MOI.TimeLimitSec(), 500)
+    @test MOI.get(o, MOI.TimeLimitSec()) ≈ 500
 end
 
 @testset "MOI variable count and empty" begin

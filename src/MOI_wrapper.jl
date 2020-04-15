@@ -71,9 +71,20 @@ MOI.supports(::Optimizer, param::MOI.RawParameter) = true
 
 # setting HiGHS options
 function MOI.set(o::Optimizer, param::MOI.RawParameter, value)
-    # TODO check parameter
-    CWrapper.Highs_setOptionValue(o, param.name, value)
+    CWrapper.set_option(o.model.inner, param.name, value)
     return nothing
+end
+
+function MOI.get(o::Optimizer, param::MOI.RawParameter)
+    return if param.name in options_string
+        CWrapper.get_option(o.model.inner, param.name, String)
+    elseif param.name in options_int
+        CWrapper.get_option(o.model.inner, param.name, Int)
+    elseif param.name in options_double
+        CWrapper.get_option(o.model.inner, param.name, Float64)        
+    else
+        throw(ArgumentError("Parameter $(param.name) is not supported"))
+    end
 end
 
 const SUPPORTED_MODEL_ATTRIBUTES = Union{
@@ -92,6 +103,7 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
+    MOI.Silent,
     # MOI.TerminationStatus,
     # MOI.PrimalStatus,
     # MOI.DualStatus
@@ -172,10 +184,6 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.Scala
     return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
 end
 
-# function Highs_getColsByRange(highs, from_col::Cint, to_col::Cint, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    # ccall((:Highs_getColsByRange, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-# end
-
 function MOI.get(o::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(o, attr)
     value = Ref{Cdouble}()
@@ -191,4 +199,15 @@ end
 
 function MOI.get(o::Optimizer, ::MOI.BarrierIterations)
     return 0
+end
+
+function MOI.get(o::Optimizer, ::MOI.TimeLimitSec)
+    value = Ref{Cdouble}()
+    CWrapper.Highs_getHighsDoubleOptionValue(o.model.inner, "time_limit", value)
+    return value[]
+end
+
+function MOI.set(o::Optimizer, ::MOI.TimeLimitSec, value)
+    CWrapper.set_option(o.model.inner, "time_limit", Float64(value))
+    return
 end
