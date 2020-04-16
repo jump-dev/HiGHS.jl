@@ -51,12 +51,12 @@ function get_option(highs, option, ::Type{T}) where {T <: AbstractFloat}
     return T(value[])
 end
 
-
 function get_option(highs, option, ::Type{String})
     v = Vector{Cchar}(undef, 100)
     p = pointer(v)
     Highs_getHighsStringOptionValue(highs, option, p)
-    return unsafe_string(p)
+    GC.@preserve v s = unsafe_string(p)
+    return s
 end
 
 # convenience to accomodate/ignore scale argument
