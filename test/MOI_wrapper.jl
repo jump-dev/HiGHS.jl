@@ -6,8 +6,12 @@ const MOIT = MOI.Test
 
 const CONFIG = MOIT.TestConfig()
 
-@testset "SolverName" begin
-    @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
+@testset "Attributes" begin
+    o = HiGHS.Optimizer()
+    @test MOI.get(o, MOI.SolverName()) == "HiGHS"
+    @test MOI.get(o, MOI.TimeLimitSec()) > 10000
+    MOI.set(o, MOI.TimeLimitSec(), 500)
+    @test MOI.get(o, MOI.TimeLimitSec()) == 500.0
 end
 
 @testset "MOI variable count and empty" begin
@@ -112,4 +116,19 @@ end
 
 @testset "Variable names" begin
     MOIT.variablenames(HiGHS.Optimizer(), CONFIG)
+end
+
+@testset "HiGHS custom options" begin
+    o = HiGHS.Optimizer()
+    @test MOI.get(o, MOI.RawParameter("solver")) == "choose"
+    MOI.set(o, MOI.RawParameter("solver"), "simplex")
+    @test MOI.get(o, MOI.RawParameter("solver")) == "simplex"
+
+    @test MOI.get(o, MOI.RawParameter("message_level")) == 4
+    MOI.set(o, MOI.RawParameter("message_level"), 1)
+    @test MOI.get(o, MOI.RawParameter("message_level")) == 1
+
+    @test MOI.get(o, MOI.RawParameter("time_limit")) > 1000
+    MOI.set(o, MOI.RawParameter("time_limit"), 1000.0)
+    @test MOI.get(o, MOI.RawParameter("time_limit")) == 1000.0
 end
