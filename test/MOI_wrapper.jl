@@ -8,7 +8,7 @@ const MOI = MathOptInterface
     @test MOI.get(o, MOI.SolverName()) == "HiGHS"
     @test MOI.get(o, MOI.TimeLimitSec()) > 10000
     MOI.set(o, MOI.TimeLimitSec(), 500)
-    @test MOI.get(o, MOI.TimeLimitSec()) ≈ 500
+    @test MOI.get(o, MOI.TimeLimitSec()) == 500.0
 end
 
 @testset "MOI variable count and empty" begin
@@ -123,5 +123,5 @@ end
 
     @test MOI.get(o, MOI.RawParameter("time_limit")) > 1000
     MOI.set(o, MOI.RawParameter("time_limit"), 1000.0)
-    @test MOI.get(o, MOI.RawParameter("time_limit")) ≈ 1000
+    @test MOI.get(o, MOI.RawParameter("time_limit")) == 1000.0
 end
