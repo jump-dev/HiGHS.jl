@@ -123,6 +123,7 @@ end
     MOI.set(o, MOI.VariableName(), y, "y")
     y2 = MOI.get(o, MOI.VariableIndex, "y")
     @test y == y2
+    @test MOI.get(o, MOI.VariableIndex, "y0") === nothing
 end
 
 @testset "HiGHS custom options" begin
