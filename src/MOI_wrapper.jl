@@ -11,6 +11,7 @@ end
 function MOI.empty!(o::Optimizer)
     reset_model!(o.model)
     o.objective_sense = MOI.FEASIBILITY_SENSE
+    empty!(o.variable_map)
     return
 end
 
@@ -37,6 +38,8 @@ function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Inte
     return (MOI.VariableIndex(col_idx), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(col_idx))
 end
 
+MOI.supports_constraint(::Optimizer, ::MOI.SingleVariable, ::MOI.Interval) = true
+
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
     var_idx = Cint(sg.variable.value)
     _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
@@ -47,6 +50,8 @@ function MOI.get(o::Optimizer, ::MOI.NumberOfConstraints{MOI.ScalarAffineFunctio
     nrows = CWrapper.Highs_getNumRows(o.model.inner)
     return Int(nrows)
 end
+
+MOI.supports_constraint(::Optimizer, ::MOI.ScalarAffineFunction, ::MOI.Interval) = true
 
 function MOI.add_constraint(o::Optimizer, func::MOI.ScalarAffineFunction, set::MOI.Interval)
     number_nonzeros = length(func.terms)
@@ -143,6 +148,8 @@ end
 
 MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType) = MOI.ScalarAffineFunction{Float64}
 
+MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}) = true
+
 function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: MOI.ScalarAffineFunction{Float64}}
     # TODO treat constant in objective
     total_ncols = MOI.get(o, MOI.NumberOfVariables())
@@ -217,8 +224,8 @@ end
 
 function MOI.get(o::Optimizer, ::Type{MOI.VariableIndex}, name::String)
     for (vi, vname) in o.variable_map
-        if vname == vi
-            return vname
+        if vname == name
+            return vi
         end
     end
     return nothing

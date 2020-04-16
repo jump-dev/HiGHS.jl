@@ -115,7 +115,13 @@ end
 end
 
 @testset "Variable names" begin
-    MOIT.variablenames(HiGHS.Optimizer(), CONFIG)
+    o = HiGHS.Optimizer()
+    MOIT.variablenames(o, CONFIG)
+    MOI.empty!(o)
+    y = MOI.add_variable(o)
+    MOI.set(o, MOI.VariableName(), y, "y")
+    y2 = MOI.get(o, MOI.VariableIndex, "y")
+    @test y == y2
 end
 
 @testset "HiGHS custom options" begin
