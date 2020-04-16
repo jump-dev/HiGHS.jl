@@ -89,6 +89,7 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.DualObjectiveValue, # TODO
     # MOI.SolveTime,  # TODO
     MOI.SimplexIterations,
+    MOI.BarrierIterations,
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
