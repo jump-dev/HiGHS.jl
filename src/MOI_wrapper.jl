@@ -4,12 +4,14 @@ const MOI = MathOptInterface
 mutable struct Optimizer <: MOI.AbstractOptimizer
     model::ManagedHiGHS
     objective_sense::MOI.OptimizationSense
-    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE)
+    variable_map::Dict{MOI.VariableIndex, String}
+    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE, Dict{MOI.VariableIndex, String}())
 end
 
 function MOI.empty!(o::Optimizer)
     reset_model!(o.model)
     o.objective_sense = MOI.FEASIBILITY_SENSE
+    empty!(o.variable_map)
     return
 end
 
@@ -36,6 +38,8 @@ function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Inte
     return (MOI.VariableIndex(col_idx), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(col_idx))
 end
 
+MOI.supports_constraint(::Optimizer, ::MOI.SingleVariable, ::MOI.Interval) = true
+
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
     var_idx = Cint(sg.variable.value)
     _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
@@ -46,6 +50,8 @@ function MOI.get(o::Optimizer, ::MOI.NumberOfConstraints{MOI.ScalarAffineFunctio
     nrows = CWrapper.Highs_getNumRows(o.model.inner)
     return Int(nrows)
 end
+
+MOI.supports_constraint(::Optimizer, ::MOI.ScalarAffineFunction, ::MOI.Interval) = true
 
 function MOI.add_constraint(o::Optimizer, func::MOI.ScalarAffineFunction, set::MOI.Interval)
     number_nonzeros = length(func.terms)
@@ -96,10 +102,10 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.ListOfConstraints, # TODO single variables
     MOI.ObjectiveFunctionType,
     MOI.ObjectiveValue,
-    MOI.DualObjectiveValue, # TODO
-    MOI.SolveTime,  # TODO
+    # MOI.DualObjectiveValue, # TODO
+    # MOI.SolveTime,  # TODO
     MOI.SimplexIterations,
-    MOI.BarrierIterations, # TODO when options work
+    MOI.BarrierIterations,
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
@@ -108,6 +114,10 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.PrimalStatus,
     # MOI.DualStatus
 }
+
+MOI.supports(::Optimizer, ::SUPPORTED_MODEL_ATTRIBUTES) = true
+
+MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 
 MOI.get(o::Optimizer, ::MOI.RawSolver) = o.model
 
@@ -137,6 +147,8 @@ function MOI.get(o::Optimizer, ::MOI.ListOfVariableIndices)
 end
 
 MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType) = MOI.ScalarAffineFunction{Float64}
+
+MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}) = true
 
 function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: MOI.ScalarAffineFunction{Float64}}
     # TODO treat constant in objective
@@ -199,6 +211,24 @@ end
 
 function MOI.get(o::Optimizer, ::MOI.BarrierIterations)
     return 0
+end
+
+function MOI.get(o::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
+    return get(o.variable_map, v, "")
+end
+
+function MOI.set(o::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex, name::String)
+    o.variable_map[v] = name
+    return
+end
+
+function MOI.get(o::Optimizer, ::Type{MOI.VariableIndex}, name::String)
+    for (vi, vname) in o.variable_map
+        if vname == name
+            return vi
+        end
+    end
+    return nothing
 end
 
 function MOI.get(o::Optimizer, ::MOI.TimeLimitSec)

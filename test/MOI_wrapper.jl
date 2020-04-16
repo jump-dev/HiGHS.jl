@@ -2,6 +2,9 @@ import MathOptInterface
 import HiGHS
 
 const MOI = MathOptInterface
+const MOIT = MOI.Test
+
+const CONFIG = MOIT.TestConfig()
 
 @testset "Attributes" begin
     o = HiGHS.Optimizer()
@@ -109,6 +112,18 @@ end
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
     @test MOI.get(o, MOI.SimplexIterations()) > 0
+    @test MOI.get(o, MOI.BarrierIterations()) == 0
+end
+
+@testset "Variable names" begin
+    o = HiGHS.Optimizer()
+    MOIT.variablenames(o, CONFIG)
+    MOI.empty!(o)
+    y = MOI.add_variable(o)
+    MOI.set(o, MOI.VariableName(), y, "y")
+    y2 = MOI.get(o, MOI.VariableIndex, "y")
+    @test y == y2
+    @test MOI.get(o, MOI.VariableIndex, "y0") === nothing
 end
 
 @testset "HiGHS custom options" begin
