@@ -53,7 +53,7 @@ end
 
 
 function get_option(highs, option, ::Type{String})
-    p = pointer("")
+    p = pointer(String(fill(UInt8(0), 100)))
     Highs_getHighsStringOptionValue(highs, option, p)
     return unsafe_string(p)
 end
