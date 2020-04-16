@@ -17,15 +17,8 @@ include(joinpath("wrapper", "api_helpers.jl"))
 end # module CWrapper
 
 include("c_model.jl")
-
-module MOIWrapper
-
-import HiGHS.CWrapper
-import HiGHS: ManagedHiGHS, reset_model!
+include("options.jl")
 
 include("MOI_wrapper.jl")
-end # module MOIWrapper
-
-import .MOIWrapper: Optimizer
 
 end # module HiGHS
