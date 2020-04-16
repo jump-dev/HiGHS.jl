@@ -2,10 +2,9 @@ import MathOptInterface
 import HiGHS
 
 const MOI = MathOptInterface
-const CONFIG = MOIT.TestConfig()
-
 const MOIT = MOI.Test
-const MOIB = MOI.Bridges
+
+const CONFIG = MOIT.TestConfig()
 
 @testset "SolverName" begin
     @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
@@ -112,5 +111,5 @@ end
 end
 
 @testset "Variable names" begin
-    MOI.Test.variablenames(HiGHS.Optimizer(), CONFIG)
+    MOIT.variablenames(HiGHS.Optimizer(), CONFIG)
 end
