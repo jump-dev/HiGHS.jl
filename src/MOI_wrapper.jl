@@ -4,7 +4,8 @@ const MOI = MathOptInterface
 mutable struct Optimizer <: MOI.AbstractOptimizer
     model::ManagedHiGHS
     objective_sense::MOI.OptimizationSense
-    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE)
+    variable_map::Dict{MOI.VariableIndex, String}
+    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE, Dict{MOI.VariableIndex, String}())
 end
 
 function MOI.empty!(o::Optimizer)
@@ -85,10 +86,9 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.ListOfConstraints, # TODO single variables
     MOI.ObjectiveFunctionType,
     MOI.ObjectiveValue,
-    MOI.DualObjectiveValue, # TODO
-    MOI.SolveTime,  # TODO
+    # MOI.DualObjectiveValue, # TODO
+    # MOI.SolveTime,  # TODO
     MOI.SimplexIterations,
-    MOI.BarrierIterations, # TODO when options work
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
@@ -96,6 +96,10 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.PrimalStatus,
     # MOI.DualStatus
 }
+
+MOI.supports(::Optimizer, ::SUPPORTED_MODEL_ATTRIBUTES) = true
+
+MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 
 MOI.get(o::Optimizer, ::MOI.RawSolver) = o.model
 
@@ -191,4 +195,22 @@ end
 
 function MOI.get(o::Optimizer, ::MOI.BarrierIterations)
     return 0
+end
+
+function MOI.get(o::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
+    return get(o.variable_map, v, "")
+end
+
+function MOI.set(o::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex, name::String)
+    o.variable_map[v] = name
+    return
+end
+
+function MOI.get(o::Optimizer, ::Type{MOI.VariableIndex}, name::String)
+    for (vi, vname) in o.variable_map
+        if vname == vi
+            return vname
+        end
+    end
+    return nothing
 end
