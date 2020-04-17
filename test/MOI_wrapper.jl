@@ -42,7 +42,7 @@ end
     MOI.optimize!(o)
     # BUG in HiGHS
     # see https://github.com/ERGO-Code/HiGHS/issues/316
-    # @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
+    @test_broken MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
     obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
     @test obj_func ≈ MOI.ScalarAffineFunction([
             MOI.ScalarAffineTerm(2.0, x),

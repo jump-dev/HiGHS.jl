@@ -153,18 +153,32 @@ MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float
 function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: MOI.ScalarAffineFunction{Float64}}
     # TODO treat constant in objective
     total_ncols = MOI.get(o, MOI.NumberOfVariables())
-    coefficients  = zeros(Cdouble, total_ncols)
-
+    coefficients = zeros(Cdouble, total_ncols)
     for term in func.terms
         j = term.variable_index.value
         coefficients[j+1] = Cdouble(term.coefficient)
     end
-
     coefficients_ptr = pointer(coefficients)
     mask = pointer(ones(Cint, total_ncols))
-
     CWrapper.Highs_changeColsCostByMask(o.model.inner, mask, coefficients_ptr)
     return
+end
+
+function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}})
+    # TODO treat constant in objective
+    ncols = MOI.get(o, MOI.NumberOfVariables())
+    num_cols = Ref{Cint}(0)
+    costs = Vector{Cdouble}(undef, ncols)
+    CWrapper.Highs_getColsByRange(o.model.inner, Cint(0), Cint(ncols-1), num_cols, costs, C_NULL, C_NULL, Ref{Cint}(0), C_NULL, C_NULL, C_NULL)
+    num_cols[] == ncols || error("Unexpected number of columns, inconsistent HiGHS state")
+    terms = Vector{MOI.ScalarAffineTerm{Float64}}()
+    for (j, cost) in enumerate(costs)
+        if cost != 0.0
+            var_idx = MOI.VariableIndex(j-1)
+            push!(terms, MOI.ScalarAffineTerm(cost, var_idx))
+        end
+    end
+    return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
 end
 
 function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.ScalarAffineFunction{Float64}}
