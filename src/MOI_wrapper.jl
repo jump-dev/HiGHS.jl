@@ -47,12 +47,55 @@ function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Inte
     return (MOI.VariableIndex(col_idx), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(col_idx))
 end
 
-MOI.supports_constraint(::Optimizer, ::MOI.SingleVariable, ::MOI.Interval) = true
-
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
     var_idx = Cint(sg.variable.value)
     _ = CWrapper.Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
     return
+end
+
+MOI.supports_constraint(::Optimizer, ::MOI.SingleVariable, ::Union{MOI.Interval, MOI.LessThan, MOI.GreaterThan}) = true
+
+function MOI.get(o::Optimizer, ::MOI.ConstraintFunction, ci::MOI.ConstraintIndex{MOI.SingleVariable, <: Union{MOI.Interval, MOI.LessThan, MOI.GreaterThan}})
+    return MOI.SingleVariable(MOI.VariableIndex(ci.value))
+end
+
+function MOI.get(o::Optimizer, ::MOI.ConstraintSet, ci::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}})
+    var_idx = Cint(ci.value)
+    num_col = Ref{Cint}(0)
+    num_nz = Ref{Cint}(0)
+    lower = Ref{Cdouble}()
+    upper = Ref{Cdouble}()
+    _ = CWrapper.Highs_getColsByRange(o.model.inner, var_idx, var_idx, num_col, C_NULL, lower, upper, num_nz, C_NULL, C_NULL, C_NULL)
+    num_col[] == 1 || error("Unexpected HiGHS state, number of columns should be one for valid range, is $(num_col[])")
+    return MOI.Interval(lower[], upper[])
+end
+
+function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.LessThan)
+    ci_interval = MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(sg.variable.value)
+    interval_set = MOI.get(o, MOI.ConstraintSet(), ci_interval)
+    if set.upper <= interval_set.upper
+        _ = CWrapper.Highs_changeColBounds(o.model.inner, Cint(sg.variable.value), Cdouble(interval_set.lower), Cdouble(set.upper))
+    end
+    return MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}(sg.variable.value)
+end
+
+function MOI.get(o::Optimizer, ::MOI.ConstraintSet, ci::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}})
+    interval_set = MOI.get(o, MOI.ConstraintSet(), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(ci.value))
+    return MOI.LessThan(interval_set.upper)
+end
+
+function MOI.get(o::Optimizer, ::MOI.ConstraintSet, ci::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}})
+    interval_set = MOI.get(o, MOI.ConstraintSet(), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(ci.value))
+    return MOI.GreaterThan(interval_set.lower)
+end
+
+function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.GreaterThan)
+    ci_interval = MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(sg.variable.value)
+    interval_set = MOI.get(o, MOI.ConstraintSet(), ci_interval)
+    if set.lower >= interval_set.lower
+        _ = CWrapper.Highs_changeColBounds(o.model.inner, Cint(sg.variable.value), Cdouble(set.lower), Cdouble(interval_set.upper))
+    end
+    return MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}(sg.variable.value)
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}})
