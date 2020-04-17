@@ -98,6 +98,19 @@ end
     end
 
     @testset "Constant in objective function" begin
+        MOI.empty!(o)
+        x = MOI.add_variable(o)
+        _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
+        MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        obj_func = MOI.ScalarAffineFunction(
+            [MOI.ScalarAffineTerm(1.0, x)], 3.0,
+        )
+        MOI.set(o, MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
+        MOI.optimize!(o)
+        @test MOI.get(o, MOI.ResultCount()) == 1
+        @test MOI.get(o, MOI.ObjectiveValue()) ≈ 0
+        obj_func = MOI.get(o, MOI.ObjectiveFunction{typeof(obj_func)}())
+        @test MOI.constant(obj_func) ≈ 3
     end
 end
 
