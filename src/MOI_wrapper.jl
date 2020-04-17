@@ -109,7 +109,7 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.RawSolver,
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
-    MOI.Silent,
+    # MOI.Silent, # TODO
     # MOI.TerminationStatus,
     # MOI.PrimalStatus,
     # MOI.DualStatus
@@ -169,42 +169,19 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{
     ncols = MOI.get(o, MOI.NumberOfVariables())
     num_cols = Ref{Cint}(0)
     costs = Vector{Cdouble}(undef, ncols)
-    CWrapper.Highs_getColsByRange(o.model.inner, Cint(0), Cint(ncols-1), num_cols, costs, C_NULL, C_NULL, Ref{Cint}(0), C_NULL, C_NULL, C_NULL)
+    _ = CWrapper.Highs_getColsByRange(
+        o.model.inner,
+        Cint(0), Cint(ncols-1), # column range
+        num_cols, costs,
+        C_NULL, C_NULL, # lower, upper
+        Ref{Cint}(0), C_NULL, C_NULL, C_NULL # coefficients
+    )
     num_cols[] == ncols || error("Unexpected number of columns, inconsistent HiGHS state")
     terms = Vector{MOI.ScalarAffineTerm{Float64}}()
     for (j, cost) in enumerate(costs)
         if cost != 0.0
             var_idx = MOI.VariableIndex(j-1)
             push!(terms, MOI.ScalarAffineTerm(cost, var_idx))
-        end
-    end
-    return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
-end
-
-function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{F}) where {F <: MOI.ScalarAffineFunction{Float64}}
-    total_ncols = MOI.get(o, MOI.NumberOfVariables())
-    coefficients  = zeros(Cdouble, total_ncols)
-
-    coefficients_ptr = pointer(coefficients)
-    num_cols_obtained = Ref(Cint(0))
-    num_nz = Ref(Cint(0))
-    null_ptr = Ptr{Cint}(0)
-    null_ptr_double = Ptr{Cdouble}(0)
-    _ = CWrapper.Highs_getColsByRange(
-        o.model.inner,
-        Cint(0), Cint(total_ncols - 1),
-        pointer_from_objref(num_cols_obtained), coefficients_ptr,
-        null_ptr_double, null_ptr_double, # lower, upper
-        pointer_from_objref(num_nz), null_ptr, null_ptr, null_ptr_double
-    )
-    terms = Vector{MOI.ScalarAffineTerm{Float64}}()
-    sizehint!(terms, total_ncols)
-    for col_idx in Base.OneTo(total_ncols)
-        if !≈(coefficients[col_idx], 0)
-            push!(
-                terms,
-                MOI.ScalarAffineTerm{Float64}(coefficients[col_idx], MOI.VariableIndex(col_idx - 1))
-            )
         end
     end
     return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
