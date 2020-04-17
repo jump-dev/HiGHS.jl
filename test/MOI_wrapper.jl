@@ -110,7 +110,11 @@ end
         @test MOI.get(o, MOI.ResultCount()) == 1
         @test MOI.get(o, MOI.ObjectiveValue()) ≈ 0
         obj_func = MOI.get(o, MOI.ObjectiveFunction{typeof(obj_func)}())
-        @test MOI.constant(obj_func) ≈ 3
+        @test MOI.constant(obj_func) ≈ 3        
+        MOI.set(o, MOI.ObjectiveSense(), MOI.FEASIBILITY_SENSE)
+        obj_func = MOI.get(o, MOI.ObjectiveFunction{typeof(obj_func)}())
+        @test MOI.constant(obj_func) ≈ 0
+        @test isempty(obj_func.terms)
     end
 end
 
