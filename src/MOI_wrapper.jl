@@ -22,6 +22,12 @@ function MOI.is_empty(o::Optimizer)
 end
 
 function MOI.optimize!(o::Optimizer)
+    if o.objective_sense == MOI.FEASIBILITY_SENSE
+        obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+        if any(!=(0.0), obj_func.terms)
+            error("Feasibility sense with non-constant objective function, set the sense to min/max, the objective to 0 or reset the sense to feasibility to erase the objective")
+        end
+    end
     CWrapper.Highs_run(o.model.inner)
     return
 end
@@ -134,6 +140,10 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSens
     sense_code = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     _ = CWrapper.Highs_changeObjectiveSense(o.model.inner, sense_code)
     o.objective_sense = sense
+    # if feasibility sense set, erase the function
+    if sense == MOI.FEASIBILITY_SENSE
+        MOI.set(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), MOI.ScalarAffineFunction{Float64}([], 0))
+    end
     return nothing
 end
 
