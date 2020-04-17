@@ -5,23 +5,32 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     model::ManagedHiGHS
     objective_sense::MOI.OptimizationSense
     variable_map::Dict{MOI.VariableIndex, String}
-    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE, Dict{MOI.VariableIndex, String}())
+    objective_constant::Float64
+    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE, Dict{MOI.VariableIndex, String}(), 0.0)
 end
 
 function MOI.empty!(o::Optimizer)
     reset_model!(o.model)
     o.objective_sense = MOI.FEASIBILITY_SENSE
     empty!(o.variable_map)
+    o.objective_constant = 0.0
     return
 end
 
 function MOI.is_empty(o::Optimizer)
     return CWrapper.Highs_getNumRows(o.model.inner) == 0 &&
       CWrapper.Highs_getNumCols(o.model.inner) == 0 &&
-      o.objective_sense == MOI.FEASIBILITY_SENSE
+      o.objective_sense == MOI.FEASIBILITY_SENSE &&
+      o.objective_constant == 0.0
 end
 
 function MOI.optimize!(o::Optimizer)
+    if o.objective_sense == MOI.FEASIBILITY_SENSE
+        obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+        if any(!=(0.0), obj_func.terms)
+            error("Feasibility sense with non-constant objective function, set the sense to min/max, the objective to 0 or reset the sense to feasibility to erase the objective")
+        end
+    end
     CWrapper.Highs_run(o.model.inner)
     return
 end
@@ -134,6 +143,10 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSens
     sense_code = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     _ = CWrapper.Highs_changeObjectiveSense(o.model.inner, sense_code)
     o.objective_sense = sense
+    # if feasibility sense set, erase the function
+    if sense == MOI.FEASIBILITY_SENSE
+        MOI.set(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), MOI.ScalarAffineFunction{Float64}([], 0))
+    end
     return nothing
 end
 
@@ -151,7 +164,6 @@ MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType) = MOI.ScalarAffineFunction{Flo
 MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}) = true
 
 function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: MOI.ScalarAffineFunction{Float64}}
-    # TODO treat constant in objective
     total_ncols = MOI.get(o, MOI.NumberOfVariables())
     coefficients = zeros(Cdouble, total_ncols)
     for term in func.terms
@@ -161,11 +173,11 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: 
     coefficients_ptr = pointer(coefficients)
     mask = pointer(ones(Cint, total_ncols))
     CWrapper.Highs_changeColsCostByMask(o.model.inner, mask, coefficients_ptr)
+    o.objective_constant = MOI.constant(func)
     return
 end
 
 function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}})
-    # TODO treat constant in objective
     ncols = MOI.get(o, MOI.NumberOfVariables())
     num_cols = Ref{Cint}(0)
     costs = Vector{Cdouble}(undef, ncols)
@@ -184,14 +196,14 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{
             push!(terms, MOI.ScalarAffineTerm(cost, var_idx))
         end
     end
-    return MOI.ScalarAffineFunction{Float64}(terms, 0.0)
+    return MOI.ScalarAffineFunction{Float64}(terms, o.objective_constant)
 end
 
 function MOI.get(o::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(o, attr)
     value = Ref{Cdouble}()
     CWrapper.Highs_getHighsDoubleInfoValue(o.model.inner, "objective_function_value", value);
-    return value[]
+    return o.objective_constant + value[]
 end
 
 function MOI.get(o::Optimizer, ::MOI.SimplexIterations)
