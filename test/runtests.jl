@@ -37,7 +37,7 @@ end
     colbasisstatus, rowbasisstatus = (Array{Cint, 1}(undef, n_col), Array{Cint, 1}(undef, n_row))
 
     modelstatus = Ref{Cint}(42)
-    status = HiGHS.CWrapper.Highs_call(n_col, n_row, n_nz, colcost, collower, colupper, rowlower, rowupper, matstart, matindex, matvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+    status = HiGHS.Highs_call(n_col, n_row, n_nz, colcost, collower, colupper, rowlower, rowupper, matstart, matindex, matvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
     @test status == 0
     @test modelstatus[] == 9 # optimal
 end
