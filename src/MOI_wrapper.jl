@@ -6,6 +6,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     objective_sense::MOI.OptimizationSense
     variable_map::Dict{MOI.VariableIndex, String}
     objective_constant::Float64
+
+    """
+        Optimizer()
+
+    Create a new Optimizer object.
+    """
     function Optimizer()
         ptr = Highs_create()
         if ptr == C_NULL
@@ -173,7 +179,7 @@ function MOI.get(o::Optimizer, param::MOI.RawParameter)
     return _get_option(o, param.name, param_type)
 end
 
-const SUPPORTED_MODEL_ATTRIBUTES = Union{
+const _SUPPORTED_MODEL_ATTRIBUTES = Union{
     MOI.ObjectiveSense,
     MOI.NumberOfVariables,
     MOI.ListOfVariableIndices,
@@ -195,7 +201,7 @@ const SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.DualStatus
 }
 
-MOI.supports(::Optimizer, ::SUPPORTED_MODEL_ATTRIBUTES) = true
+MOI.supports(::Optimizer, ::_SUPPORTED_MODEL_ATTRIBUTES) = true
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 
