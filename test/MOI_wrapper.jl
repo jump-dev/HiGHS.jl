@@ -49,9 +49,7 @@ end
         MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
         HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 2.0)
         MOI.optimize!(o)
-        # BUG in HiGHS
-        # see https://github.com/ERGO-Code/HiGHS/issues/316
-        @test_broken MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
+        @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
         obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
         @test obj_func ≈ MOI.ScalarAffineFunction([
                 MOI.ScalarAffineTerm(2.0, x),
@@ -69,7 +67,7 @@ end
         @test F <: MOI.ScalarAffineFunction{Float64}
         obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
         @test MOI.supports(o, MOI.ObjectiveFunction{F}())
-        @test all(MOI.get(o, MOI.ListOfVariableIndices()) .== [x1, x2])        
+        @test all(MOI.get(o, MOI.ListOfVariableIndices()) .== [x1, x2])
         @test obj_func ≈ MOI.ScalarAffineFunction([
                 MOI.ScalarAffineTerm(2.0, x1),
                 MOI.ScalarAffineTerm(-1.0, x2),
@@ -91,7 +89,7 @@ end
             ], 0.0,
         )
     end
-    
+
     @testset "Constrained variable equivalent to add constraint" begin
         MOI.empty!(o)
         x = MOI.add_variable(o)
@@ -117,7 +115,7 @@ end
         @test MOI.get(o, MOI.ResultCount()) == 1
         @test MOI.get(o, MOI.ObjectiveValue()) ≈ 0
         obj_func = MOI.get(o, MOI.ObjectiveFunction{typeof(obj_func)}())
-        @test MOI.constant(obj_func) ≈ 3        
+        @test MOI.constant(obj_func) ≈ 3
         MOI.set(o, MOI.ObjectiveSense(), MOI.FEASIBILITY_SENSE)
         obj_func = MOI.get(o, MOI.ObjectiveFunction{typeof(obj_func)}())
         @test MOI.constant(obj_func) ≈ 0
@@ -132,7 +130,7 @@ end
     o = HiGHS.Optimizer()
     (x1, _) = MOI.add_constrained_variable(o, MOI.Interval(0.0, 5.0))
     (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(0.0, 5.0))
-    MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)    
+    MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     func = MOI.ScalarAffineFunction(
         [
             MOI.ScalarAffineTerm(1.0, x1),
@@ -140,7 +138,7 @@ end
         ], 0.0,
     )
     @test MOI.supports_constraint(o, func, MOI.Interval(0, 1))
-    MOI.set(o, MOI.ObjectiveFunction{typeof(func)}(), func)    
+    MOI.set(o, MOI.ObjectiveFunction{typeof(func)}(), func)
     @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 0
     MOI.add_constraint(o,
         MOI.ScalarAffineFunction(
