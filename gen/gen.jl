@@ -5,7 +5,7 @@ const LIBHIGHS_HEADERS = [
     joinpath(HiGHS_jll.artifact_dir, "include", "interfaces", "highs_c_api.h"),
 ]
 
-const GEN_DIR = joinpath(dirname(@__DIR__), "src", "wrapper")
+const GEN_DIR = joinpath(@__DIR__, "..", "src", "wrapper")
 if !isdir(GEN_DIR)
     mkdir(GEN_DIR)
 end
