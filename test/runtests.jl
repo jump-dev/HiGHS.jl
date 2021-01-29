@@ -42,11 +42,4 @@ end
     @test modelstatus[] == 9 # optimal
 end
 
-@testset "Managed HiGHS" begin
-    @test_nowarn finalize(HiGHS.ManagedHiGHS())
-    managed_h = HiGHS.ManagedHiGHS()
-    @test HiGHS.free_highs(managed_h)
-    @test !HiGHS.free_highs(managed_h)
-end
-
 include("MOI_wrapper.jl")

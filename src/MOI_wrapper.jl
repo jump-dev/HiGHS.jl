@@ -1,70 +1,33 @@
-
-mutable struct ManagedHiGHS
-    inner::Ptr{Cvoid}
-
-    function ManagedHiGHS()
-        mghs = new(
-            Highs_create()
-        )
-        # register the memory cleanup function
-        finalizer(mghs) do m
-            success = free_highs(m)
-            if !success
-                @warn "Memory free failure, possible leak."
-            end
-        end
-    end
-end
-
-"""
-Release references and free memory and return a boolean
-indicating the success of the operation.
-"""
-function free_highs(mhgs::ManagedHiGHS)
-    # Avoid double-free (ManagedHiGHS will set the pointers to NULL).
-    if mhgs.inner == C_NULL
-        return false
-    end
-    # only mhgs.inner is GC-protected during ccall!
-    GC.@preserve mhgs begin
-        Highs_destroy(mhgs.inner)
-    end
-    mhgs.inner = C_NULL
-    return true
-end
-
-"""
-    reset_model!(mhgs::ManagedHiGHS)
-
-Deletes the inner HiGHS model and recreates one.
-"""
-function reset_model!(mhgs::ManagedHiGHS)
-    # Avoid double-free (ManagedHiGHS will set the pointers to NULL).
-    if mhgs.inner == C_NULL
-        return false
-    end
-    # only mhgs.inner is GC-protected during ccall!
-    GC.@preserve mhgs begin
-        Highs_destroy(mhgs.inner)
-    end
-    mhgs.inner = Highs_create()
-    return true
-end
-
-
 import MathOptInterface
 const MOI = MathOptInterface
 
 mutable struct Optimizer <: MOI.AbstractOptimizer
-    model::ManagedHiGHS
+    inner::Ptr{Cvoid}
     objective_sense::MOI.OptimizationSense
     variable_map::Dict{MOI.VariableIndex, String}
     objective_constant::Float64
-    Optimizer() = new(ManagedHiGHS(), MOI.FEASIBILITY_SENSE, Dict{MOI.VariableIndex, String}(), 0.0)
+    function Optimizer()
+        ptr = Highs_create()
+        if ptr == C_NULL
+            error("Unable to create an internal model via the C API.")
+        end
+        model = new(
+            ptr,
+            MOI.FEASIBILITY_SENSE,
+            Dict{MOI.VariableIndex, String}(),
+            0.0,
+        )
+        finalizer(Highs_destroy, model)
+        return model
+    end
 end
 
+Base.cconvert(::Type{Ptr{Cvoid}}, model::Optimizer) = model
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
+
 function MOI.empty!(o::Optimizer)
-    reset_model!(o.model)
+    Highs_destroy(o)
+    o.inner = Highs_create()
     o.objective_sense = MOI.FEASIBILITY_SENSE
     empty!(o.variable_map)
     o.objective_constant = 0.0
@@ -72,8 +35,8 @@ function MOI.empty!(o::Optimizer)
 end
 
 function MOI.is_empty(o::Optimizer)
-    return Highs_getNumRows(o.model.inner) == 0 &&
-      Highs_getNumCols(o.model.inner) == 0 &&
+    return Highs_getNumRows(o) == 0 &&
+      Highs_getNumCols(o) == 0 &&
       o.objective_sense == MOI.FEASIBILITY_SENSE &&
       o.objective_constant == 0.0
 end
@@ -85,18 +48,18 @@ function MOI.optimize!(o::Optimizer)
             error("Feasibility sense with non-constant objective function, set the sense to min/max, the objective to 0 or reset the sense to feasibility to erase the objective")
         end
     end
-    Highs_run(o.model.inner)
+    Highs_run(o)
     return
 end
 
 function MOI.add_variable(o::Optimizer)
-    _ = Highs_addCol(o.model.inner, 0.0, -Inf, Inf, Cint(0), Cint[], Cint[])
+    _ = Highs_addCol(o, 0.0, -Inf, Inf, Cint(0), Cint[], Cint[])
     col_idx = MOI.get(o, MOI.NumberOfVariables()) - 1
     return MOI.VariableIndex(col_idx)
 end
 
 function MOI.add_constrained_variable(o::Optimizer, set::S) where {S <: MOI.Interval}
-    _ = Highs_addCol(o.model.inner, 0.0, Cdouble(set.lower), Cdouble(set.upper), Cint(0), Cint[], Cint[])
+    _ = Highs_addCol(o, 0.0, Cdouble(set.lower), Cdouble(set.upper), Cint(0), Cint[], Cint[])
     col_idx = MOI.get(o, MOI.NumberOfVariables()) - 1
     return (MOI.VariableIndex(col_idx), MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}(col_idx))
 end
@@ -105,12 +68,12 @@ MOI.supports_constraint(::Optimizer, ::MOI.SingleVariable, ::MOI.Interval) = tru
 
 function MOI.add_constraint(o::Optimizer, sg::MOI.SingleVariable, set::MOI.Interval)
     var_idx = Cint(sg.variable.value)
-    _ = Highs_changeColBounds(o.model.inner, var_idx, Cdouble(set.lower), Cdouble(set.upper))
+    _ = Highs_changeColBounds(o, var_idx, Cdouble(set.lower), Cdouble(set.upper))
     return
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}})
-    nrows = Highs_getNumRows(o.model.inner)
+    nrows = Highs_getNumRows(o)
     return Int(nrows)
 end
 
@@ -129,7 +92,7 @@ function MOI.add_constraint(o::Optimizer, func::MOI.ScalarAffineFunction, set::M
     col_indices_ptr = pointer(col_indices)
     lower = convert(Cdouble, set.lower - func.constant)
     upper = convert(Cdouble, set.upper - func.constant)
-    row_idx = Highs_addRow(o.model.inner, lower, upper, Cint(number_nonzeros), col_indices_ptr, coefficients_ptr)
+    row_idx = Highs_addRow(o, lower, upper, Cint(number_nonzeros), col_indices_ptr, coefficients_ptr)
     return MOI.ConstraintIndex{typeof(func), typeof(set)}(row_idx)
 end
 
@@ -140,17 +103,17 @@ MOI.supports(::Optimizer, param::MOI.RawParameter) = true
 
 # setting HiGHS options
 function MOI.set(o::Optimizer, param::MOI.RawParameter, value)
-    set_option(o.model.inner, param.name, value)
+    set_option(o, param.name, value)
     return nothing
 end
 
 function MOI.get(o::Optimizer, param::MOI.RawParameter)
     return if param.name in options_string
-        get_option(o.model.inner, param.name, String)
+        get_option(o, param.name, String)
     elseif param.name in options_int
-        get_option(o.model.inner, param.name, Int)
+        get_option(o, param.name, Int)
     elseif param.name in options_double
-        get_option(o.model.inner, param.name, Float64)
+        get_option(o, param.name, Float64)
     else
         throw(ArgumentError("Parameter $(param.name) is not supported"))
     end
@@ -182,10 +145,10 @@ MOI.supports(::Optimizer, ::SUPPORTED_MODEL_ATTRIBUTES) = true
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 
-MOI.get(o::Optimizer, ::MOI.RawSolver) = o.model
+MOI.get(o::Optimizer, ::MOI.RawSolver) = o
 
 function MOI.get(o::Optimizer, ::MOI.ResultCount)
-    status = Highs_getModelStatus(o.model.inner)
+    status = Highs_getModelStatus(o)
     status == 9 ? 1 : 0
 end
 
@@ -195,7 +158,7 @@ end
 
 function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
     sense_code = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
-    _ = Highs_changeObjectiveSense(o.model.inner, sense_code)
+    _ = Highs_changeObjectiveSense(o, sense_code)
     o.objective_sense = sense
     # if feasibility sense set, erase the function
     if sense == MOI.FEASIBILITY_SENSE
@@ -205,7 +168,7 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSens
 end
 
 function MOI.get(o::Optimizer, ::MOI.NumberOfVariables)
-    return Int(Highs_getNumCols(o.model.inner))
+    return Int(Highs_getNumCols(o))
 end
 
 function MOI.get(o::Optimizer, ::MOI.ListOfVariableIndices)
@@ -226,7 +189,7 @@ function MOI.set(o::Optimizer, ::MOI.ObjectiveFunction{F}, func::F) where {F <: 
     end
     coefficients_ptr = pointer(coefficients)
     mask = pointer(ones(Cint, total_ncols))
-    Highs_changeColsCostByMask(o.model.inner, mask, coefficients_ptr)
+    Highs_changeColsCostByMask(o, mask, coefficients_ptr)
     o.objective_constant = MOI.constant(func)
     return
 end
@@ -235,14 +198,16 @@ function MOI.get(o::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{
     ncols = MOI.get(o, MOI.NumberOfVariables())
     num_cols = Ref{Cint}(0)
     costs = Vector{Cdouble}(undef, ncols)
-    _ = Highs_getColsByRange(
-        o.model.inner,
-        Cint(0), Cint(ncols-1), # column range
-        num_cols, costs,
-        C_NULL, C_NULL, # lower, upper
-        Ref{Cint}(0), C_NULL, C_NULL, C_NULL # coefficients
-    )
-    num_cols[] == ncols || error("Unexpected number of columns, inconsistent HiGHS state")
+    if ncols > 0
+        _ = Highs_getColsByRange(
+            o,
+            Cint(0), Cint(ncols-1), # column range
+            num_cols, costs,
+            C_NULL, C_NULL, # lower, upper
+            Ref{Cint}(0), C_NULL, C_NULL, C_NULL # coefficients
+        )
+        num_cols[] == ncols || error("Unexpected number of columns, inconsistent HiGHS state")
+    end
     terms = Vector{MOI.ScalarAffineTerm{Float64}}()
     for (j, cost) in enumerate(costs)
         if cost != 0.0
@@ -256,13 +221,13 @@ end
 function MOI.get(o::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(o, attr)
     value = Ref{Cdouble}()
-    Highs_getHighsDoubleInfoValue(o.model.inner, "objective_function_value", value);
+    Highs_getHighsDoubleInfoValue(o, "objective_function_value", value);
     return o.objective_constant + value[]
 end
 
 function MOI.get(o::Optimizer, ::MOI.SimplexIterations)
     simplex_iteration_count = Ref{Cint}(0)
-    Highs_getHighsIntInfoValue(o.model.inner, "simplex_iteration_count", simplex_iteration_count)
+    Highs_getHighsIntInfoValue(o, "simplex_iteration_count", simplex_iteration_count)
     return Int(simplex_iteration_count[])
 end
 
@@ -290,12 +255,12 @@ end
 
 function MOI.get(o::Optimizer, ::MOI.TimeLimitSec)
     value = Ref{Cdouble}()
-    Highs_getHighsDoubleOptionValue(o.model.inner, "time_limit", value)
+    Highs_getHighsDoubleOptionValue(o, "time_limit", value)
     return value[]
 end
 
 function MOI.set(o::Optimizer, ::MOI.TimeLimitSec, value)
-    set_option(o.model.inner, "time_limit", Float64(value))
+    set_option(o, "time_limit", Float64(value))
     return
 end
 
