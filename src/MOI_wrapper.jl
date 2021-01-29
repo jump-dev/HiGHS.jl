@@ -25,6 +25,11 @@ end
 Base.cconvert(::Type{Ptr{Cvoid}}, model::Optimizer) = model
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 
+function _check_ret(model::Optimizer, ret::Cint)
+    # TODO: errors for invalid return codes!
+    return nothing
+end
+
 function MOI.empty!(o::Optimizer)
     Highs_destroy(o)
     o.inner = Highs_create()
@@ -102,21 +107,70 @@ MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 MOI.supports(::Optimizer, param::MOI.RawParameter) = true
 
 # setting HiGHS options
-function MOI.set(o::Optimizer, param::MOI.RawParameter, value)
-    set_option(o, param.name, value)
-    return nothing
+function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Integer)
+    ret = Highs_setHighsIntOptionValue(model, param.name, Cint(value))
+    return _check_ret(model, ret)
 end
 
+function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Bool)
+    ret = Highs_setHighsBoolOptionValue(model, param.name, Cint(value))
+    return _check_ret(model, ret)
+end
+
+function MOI.set(model::Optimizer, param::MOI.RawParameter, value::AbstractFloat)
+    ret = Highs_setHighsDoubleOptionValue(model, param.name, Cdouble(value))
+    return _check_ret(model, ret)
+end
+
+function MOI.set(model::Optimizer, param::MOI.RawParameter, value::String)
+    ret = Highs_setHighsStringOptionValue(model, param.name, value)
+    return _check_ret(model, ret)
+end
+
+function _get_option(model::Optimizer, option::String, ::Type{Cint})
+    value = Ref{Cint}(0)
+    Highs_getHighsIntOptionValue(model, option, value)
+    return value[]
+end
+
+function _get_option(model::Optimizer, option::String, ::Type{Bool})
+    value = Ref{Cint}(0)
+    Highs_getHighsBoolOptionValue(model, option, value)
+    return Bool(value[])
+end
+
+function _get_option(model::Optimizer, option::String, ::Type{Cdouble})
+    value = Ref{Cdouble}()
+    Highs_getHighsDoubleOptionValue(model, option, value)
+    return value[]
+end
+
+function _get_option(model::Optimizer, option::String, ::Type{String})
+    buffer = Vector{Cchar}(undef, 100)
+    bufferP = pointer(buffer)
+    GC.@preserve buffer begin
+        Highs_getHighsStringOptionValue(model, option, bufferP)
+        return unsafe_string(bufferP)
+    end
+end
+
+const _OPTIONS = Dict{String,DataType}(
+    "presolve" => String,
+    "solver" => String,
+    "parallel" => String,
+    "simplex_strategy" => Cint,
+    "simplex_iteration_limit" => Cint,
+    "highs_min_threads" => Cint,
+    "message_level" => Cint,
+    "time_limit" => Cdouble,
+)
+
 function MOI.get(o::Optimizer, param::MOI.RawParameter)
-    return if param.name in options_string
-        get_option(o, param.name, String)
-    elseif param.name in options_int
-        get_option(o, param.name, Int)
-    elseif param.name in options_double
-        get_option(o, param.name, Float64)
-    else
+    param_type = get(_OPTIONS, param.name, nothing)
+    if param_type === nothing
         throw(ArgumentError("Parameter $(param.name) is not supported"))
     end
+    return _get_option(o, param.name, param_type)
 end
 
 const SUPPORTED_MODEL_ATTRIBUTES = Union{
@@ -148,8 +202,8 @@ MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 MOI.get(o::Optimizer, ::MOI.RawSolver) = o
 
 function MOI.get(o::Optimizer, ::MOI.ResultCount)
-    status = Highs_getModelStatus(o)
-    status == 9 ? 1 : 0
+    status = Highs_getModelStatus(o, Cint(0))
+    return status == 9 ? 1 : 0
 end
 
 function MOI.get(o::Optimizer, ::MOI.ObjectiveSense)
@@ -254,84 +308,14 @@ function MOI.get(o::Optimizer, ::Type{MOI.VariableIndex}, name::String)
 end
 
 function MOI.get(o::Optimizer, ::MOI.TimeLimitSec)
-    value = Ref{Cdouble}()
-    Highs_getHighsDoubleOptionValue(o, "time_limit", value)
-    return value[]
+    return MOI.get(o, MOI.RawParameter("time_limit"))
 end
 
-function MOI.set(o::Optimizer, ::MOI.TimeLimitSec, value)
-    set_option(o, "time_limit", Float64(value))
+function MOI.set(o::Optimizer, ::MOI.TimeLimitSec, value::Real)
+    return MOI.set(o, MOI.RawParameter("time_limit"), Cdouble(value))
+end
+
+function MOI.set(o::Optimizer, ::MOI.TimeLimitSec, ::Nothing)
+    # TODO(odow): handle default time limit?
     return
-end
-
-# Completes the generated wrapper with default methods
-
-# TODO update these to leverage dispatch
-
-"""
-    set_option(highs, option, value::T)
-
-Sets the option to the value, dispatches on
-the value type T to call appropriate HiGHS function.
-"""
-function set_option end
-
-function set_option(highs, option, value::Integer)
-    Highs_setHighsIntOptionValue(highs, option, Cint(value))
-end
-
-function set_option(highs, option, value::Bool)
-    Highs_setHighsBoolOptionValue(highs, option, Cint(value))
-end
-
-function set_option(highs, option, value::AbstractFloat)
-    Highs_setHighsDoubleOptionValue(highs, option, Cdouble(value))
-end
-
-function set_option(highs, option, value::String)
-    Highs_setHighsStringOptionValue(highs, option, value)
-end
-
-# add all options methods here
-
-const options_string = ["presolve", "solver", "parallel"]
-const options_int = ["simplex_strategy", "simplex_iteration_limit", "highs_min_threads", "message_level"]
-const options_double = ["time_limit"]
-
-"""
-    get_option(highs, option, T)
-
-Gets the option of type T on the HiGHS side.
-"""
-function get_option end
-
-function get_option(highs, option, ::Type{T}) where {T <: Integer}
-    value = Ref{Cint}(0)
-    Highs_getHighsIntOptionValue(highs, option, value)
-    return T(value[])
-end
-
-function get_option(highs, option, ::Type{Bool})
-    value = Ref{Cint}(0)
-    Highs_getHighsBoolOptionValue(highs, option, value)
-    return Bool(value[])
-end
-
-function get_option(highs, option, ::Type{T}) where {T <: AbstractFloat}
-    value = Ref{Cdouble}()
-    Highs_getHighsDoubleOptionValue(highs, option, value)
-    return T(value[])
-end
-
-function get_option(highs, option, ::Type{String})
-    v = Vector{Cchar}(undef, 100)
-    p = pointer(v)
-    Highs_getHighsStringOptionValue(highs, option, p)
-    GC.@preserve v s = unsafe_string(p)
-    return s
-end
-
-# convenience to accomodate/ignore scale argument
-function Highs_getModelStatus(highs)
-    Highs_getModelStatus(highs, Cint(0))
 end
