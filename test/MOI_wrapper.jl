@@ -14,7 +14,7 @@ const CONFIG = MOIT.TestConfig()
     MOI.set(o, MOI.TimeLimitSec(), 500)
     @test MOI.get(o, MOI.TimeLimitSec()) == 500.0
     @test MOI.supports(o, MOI.RawSolver())
-    @test MOI.get(o, MOI.RawSolver()) == o.model
+    @test MOI.get(o, MOI.RawSolver()) == o
 end
 
 @testset "MOI variable count and empty" begin
@@ -33,7 +33,7 @@ end
     o = HiGHS.Optimizer()
     @testset "Getting objective value" begin
         (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
-        HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 1.0)
+        HiGHS.Highs_changeColCost(o, Cint(x.value), 1.0)
         @test MOI.get(o, MOI.ObjectiveSense()) == MOI.FEASIBILITY_SENSE
         MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
         @test MOI.get(o, MOI.ObjectiveSense()) == MOI.MIN_SENSE
@@ -47,7 +47,7 @@ end
         @test MOI.get(o, MOI.ResultCount()) == 0
         (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
         MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-        HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 2.0)
+        HiGHS.Highs_changeColCost(o, Cint(x.value), 2.0)
         MOI.optimize!(o)
         @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
         obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
@@ -61,8 +61,8 @@ end
         (x1, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
         (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(1.0, 2.0))
         MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-        HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x1.value), 2.0)
-        HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x2.value), -1.0)
+        HiGHS.Highs_changeColCost(o, Cint(x1.value), 2.0)
+        HiGHS.Highs_changeColCost(o, Cint(x2.value), -1.0)
         F = MOI.get(o, MOI.ObjectiveFunctionType())
         @test F <: MOI.ScalarAffineFunction{Float64}
         obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
@@ -94,7 +94,7 @@ end
         MOI.empty!(o)
         x = MOI.add_variable(o)
         _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
-        HiGHS.CWrapper.Highs_changeColCost(o.model.inner, Cint(x.value), 1.0)
+        HiGHS.Highs_changeColCost(o, Cint(x.value), 1.0)
         MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
         @test MOI.get(o, MOI.ResultCount()) == 0
         MOI.optimize!(o)
