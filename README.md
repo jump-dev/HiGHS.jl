@@ -1,3 +1,6 @@
+**Warning: The MathOptInterface wrapper is still under development. It is missing**
+**a lot of features.**
+
 # HiGHS.jl
 
 [![Build Status](https://github.com/jump-dev/HiGHS.jl/workflows/CI/badge.svg?branch=master)](https://github.com/jump-dev/HiGHS.jl/actions?query=workflow%3ACI)
