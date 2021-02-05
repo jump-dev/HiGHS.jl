@@ -200,9 +200,9 @@ const _SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.PrimalStatus,
     # MOI.DualStatus
 }
-@enum HiGHS_ModelStatus begin
-    NOTSET 
-    LOADERROR 
+@enum HighsModelStatus begin
+    NOTSET = 0
+    LOAD_ERROR 
     MODEL_ERROR 
     PRESOLVE_ERROR 
     SOLVE_ERROR 
@@ -224,14 +224,14 @@ MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 MOI.get(o::Optimizer, ::MOI.RawSolver) = o
 
 function MOI.get(o::Optimizer, ::MOI.ResultCount)
-    status = HiGHS_ModelStatus(Highs_getModelStatus(o, Cint(0)))
+    status = HighsModelStatus(Highs_getModelStatus(o, Cint(0)))
     return status == OPTIMAL ? 1 : 0
 end
 function MOI.get(o::Optimizer, ::MOI.ObjectiveSense)
     return o.objective_sense
 end
 function MOI.get(o::Optimizer, ::MOI.TerminationStatus)
-    status = HiGHS_ModelStatus(Highs_getModelStatus(o.inner, Cint(0)))
+    status = HighsModelStatus(Highs_getModelStatus(o.inner, Cint(0)))
     if status == OPTIMAL
         return MOI.OPTIMAL
     elseif status == PRIMAL_INFEASIBLE
@@ -239,7 +239,7 @@ function MOI.get(o::Optimizer, ::MOI.TerminationStatus)
     elseif status == DUAL_INFEASIBLE
         return MOI.DUAL_INFEASIBLE
     elseif status == REACHED_ITERATION_LIMIT
-        return MOI.REACHED_ITERATION_LIMIT
+        return MOI.ITERATION_LIMIT
     elseif status == REACHED_TIME_LIMIT
         return MOI.TIME_LIMIT
     elseif status == MODEL_ERROR
