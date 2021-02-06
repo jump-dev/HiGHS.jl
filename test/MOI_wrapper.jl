@@ -51,6 +51,7 @@ end
         MOI.optimize!(o)
         @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
         obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+        @test MOI.get(o, MOI.TerminationStatus()) == MOI.OPTIMAL
         @test obj_func ≈ MOI.ScalarAffineFunction([
                 MOI.ScalarAffineTerm(2.0, x),
             ], 0.0,

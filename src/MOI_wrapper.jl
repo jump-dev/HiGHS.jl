@@ -196,11 +196,27 @@ const _SUPPORTED_MODEL_ATTRIBUTES = Union{
     # MOI.RawStatusString,  # TODO
     MOI.ResultCount,
     # MOI.Silent, # TODO
-    # MOI.TerminationStatus,
+    MOI.TerminationStatus,
     # MOI.PrimalStatus,
     # MOI.DualStatus
 }
-
+@enum HighsModelStatus begin
+    NOTSET = 0
+    LOAD_ERROR 
+    MODEL_ERROR 
+    PRESOLVE_ERROR 
+    SOLVE_ERROR 
+    POSTSOLVE_ERROR 
+    MODEL_EMPTY 
+    PRIMAL_INFEASIBLE
+    PRIMAL_UNBOUNDED
+    OPTIMAL
+    REACHED_DUAL_OBJECTIVE_VALUE_UPPER_BOUND
+    REACHED_TIME_LIMIT
+    REACHED_ITERATION_LIMIT
+    PRIMAL_DUAL_INFEASIBLE
+    DUAL_INFEASIBLE
+end
 MOI.supports(::Optimizer, ::_SUPPORTED_MODEL_ATTRIBUTES) = true
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
@@ -208,12 +224,29 @@ MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 MOI.get(o::Optimizer, ::MOI.RawSolver) = o
 
 function MOI.get(o::Optimizer, ::MOI.ResultCount)
-    status = Highs_getModelStatus(o, Cint(0))
-    return status == 9 ? 1 : 0
+    status = HighsModelStatus(Highs_getModelStatus(o, Cint(0)))
+    return status == OPTIMAL ? 1 : 0
 end
-
 function MOI.get(o::Optimizer, ::MOI.ObjectiveSense)
     return o.objective_sense
+end
+function MOI.get(o::Optimizer, ::MOI.TerminationStatus)
+    status = HighsModelStatus(Highs_getModelStatus(o.inner, Cint(0)))
+    if status == OPTIMAL
+        return MOI.OPTIMAL
+    elseif status == PRIMAL_INFEASIBLE
+        return MOI.INFEASIBLE
+    elseif status == DUAL_INFEASIBLE
+        return MOI.DUAL_INFEASIBLE
+    elseif status == REACHED_ITERATION_LIMIT
+        return MOI.ITERATION_LIMIT
+    elseif status == REACHED_TIME_LIMIT
+        return MOI.TIME_LIMIT
+    elseif status == MODEL_ERROR
+        return MOI.INVALID_MODEL
+    else
+        return MOI.OTHER_ERROR
+    end
 end
 
 function MOI.set(o::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
