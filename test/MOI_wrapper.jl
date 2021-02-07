@@ -6,26 +6,171 @@ using Test
 
 const MOI = MathOptInterface
 
-const CONFIG = MOI.Test.TestConfig()
+const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(
+    HiGHS.Optimizer(), Float64
+)
+# TODO(odow): HiGHS is not silent.
+MOI.set(OPTIMIZER, MOI.Silent(), true)
+
+const CONFIG = MOI.Test.TestConfig(
+    # TODO(odow): add support for modifying the constraint matrix.
+    modify_lhs = false,
+    # TODO(odow): add infeasibility certificates.
+    infeas_certificates = false,
+    # TODO(odow): add support for MOI.ConstraintBasisStatus.
+    basis = false,
+)
+
+function test_basic_constraint_tests()
+    MOI.Test.basic_constraint_tests(OPTIMIZER, CONFIG)
+end
+
+function test_unittest()
+    MOI.Test.unittest(
+        OPTIMIZER,
+        CONFIG,
+        String[
+            # TODO(odow):
+            # Add support for MOI.ObjectiveBound.
+            "solve_objbound_edge_cases",
+            # Add support for MOI.NumberOfThreads.
+            "number_threads",
+
+            # These are excluded because HiGHS does not support them.
+            "delete_soc_variables",
+            "solve_integer_edge_cases",
+            "solve_qcp_edge_cases",
+            "solve_qp_edge_cases",
+            "solve_zero_one_with_bounds_1",
+            "solve_zero_one_with_bounds_2",
+            "solve_zero_one_with_bounds_3",
+        ],
+    )
+end
+
+# function test_modificationtest()
+#     # TODO(odow): HiGHS doesn't support modifying the constraint matrix, so use
+#     # a caching optimizer.
+#     cache = MOI.Utilities.CachingOptimizer(
+#         MOI.Utilities.Model{Float64}(), OPTIMIZER
+#     )
+#     MOI.Test.modificationtest(
+#         cache,
+#         CONFIG,
+#         String[
+#             # TODO(odow): investigate test failure.
+#             "solve_transform_singlevariable_lessthan",
+#         ],
+#     )
+# end
+
+function test_contlineartest()
+    MOI.Test.contlineartest(
+        OPTIMIZER,
+        CONFIG,
+        String[
+            # TODO(odow): investigate segfault in linear8b.
+            #
+            # libc++abi.dylib: terminating with uncaught exception of type std::out_of_range: vector
+            # signal (6): Abort trap: 6
+            # in expression starting at /Users/oscar/.julia/dev/HiGHS/test/MOI_wrapper.jl:405
+            # __pthread_kill at /usr/lib/system/libsystem_kernel.dylib (unknown line)
+            # Allocations: 32714941 (Pool: 32701824; Big: 13117); GC: 36
+            # ERROR: Package HiGHS errored during testing (received signal: 6)
+            "linear8b",
+
+            # VariablePrimalStart not supported.
+            "partial_start",
+
+        ]
+    )
+end
+
+function test_lintest()
+    MOI.Test.lintest(OPTIMIZER, CONFIG)
+end
+
+function test_SolverName()
+    @test MOI.get(OPTIMIZER, MOI.SolverName()) == "HiGHS"
+end
+
+function test_default_objective()
+    MOI.Test.default_objective_test(OPTIMIZER)
+end
+
+function test_default_status_test()
+    MOI.Test.default_status_test(OPTIMIZER)
+end
+
+function test_nametest()
+    MOI.Test.nametest(OPTIMIZER)
+end
+
+function test_validtest()
+    MOI.Test.validtest(OPTIMIZER)
+end
+
+function test_emptytest()
+    MOI.Test.emptytest(OPTIMIZER)
+end
+
+function test_orderedindicestest()
+    MOI.Test.orderedindicestest(OPTIMIZER)
+end
+
+function test_copytest()
+    MOI.Test.copytest(
+        OPTIMIZER,
+        MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
+    )
+end
+
+function test_scalar_function_constant_not_zero()
+    MOI.Test.scalar_function_constant_not_zero(OPTIMIZER)
+end
+
+function test_supports_constrainttest()
+    # supports_constrainttest needs VectorOfVariables-in-Zeros,
+    # MOI.Test.supports_constrainttest(HiGHS.Optimizer(), Float64, Float32)
+    # but supports_constrainttest is broken via bridges:
+    MOI.empty!(OPTIMIZER)
+    MOI.add_variable(OPTIMIZER)
+    @test  MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Float64})
+    @test  MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Float64}, MOI.EqualTo{Float64})
+    # This test is broken for some reason:
+    @test_broken !MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Int}, MOI.EqualTo{Float64})
+    @test !MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Int}, MOI.EqualTo{Int})
+    @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Int})
+    @test  MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Zeros)
+    @test !MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.EqualTo{Float64})
+    @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.Zeros)
+    @test !MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Test.UnknownVectorSet)
+end
+
+function test_set_lower_bound_twice()
+    MOI.Test.set_lower_bound_twice(HiGHS.Optimizer(), Float64)
+end
+
+function test_set_upper_bound_twice()
+    MOI.Test.set_upper_bound_twice(HiGHS.Optimizer(), Float64)
+end
 
 function test_Attributes()
     o = HiGHS.Optimizer()
-    @test MOI.supports(o, MOI.SolverName())
     @test MOI.get(o, MOI.SolverName()) == "HiGHS"
     @test MOI.get(o, MOI.TimeLimitSec()) > 10000
     MOI.set(o, MOI.TimeLimitSec(), 500)
     @test MOI.get(o, MOI.TimeLimitSec()) == 500.0
-    @test MOI.supports(o, MOI.RawSolver())
     @test MOI.get(o, MOI.RawSolver()) == o
 end
 
 function test_MOI_variable_count_and_empty()
     o = HiGHS.Optimizer()
+    @test MOI.get(o, MOI.NumberOfVariables()) == 0
     x1 = MOI.add_variable(o)
-    @test x1.value == 0
-    @test MOI.supports_constraint(o, MOI.SingleVariable(x1), MOI.Interval(0, 1))
-    (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(0, 1))
-    @test x2.value == 1
+    @test MOI.get(o, MOI.NumberOfVariables()) == 1
+    @test MOI.supports_constraint(o, MOI.SingleVariable, MOI.Interval{Float64})
+    x2, _ = MOI.add_constrained_variable(o, MOI.Interval(0.0, 1.0))
     @test MOI.get(o, MOI.NumberOfVariables()) == 2
     MOI.empty!(o)
     @test MOI.get(o, MOI.NumberOfVariables()) == 0
@@ -33,8 +178,13 @@ end
 
 function test_Getting_objective_value()
     o = HiGHS.Optimizer()
+    MOI.set(o, MOI.Silent(), true)
     (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
-    HiGHS.Highs_changeColCost(o, Cint(x.value), 1.0)
+    MOI.set(
+        o,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0),
+    )
     @test MOI.get(o, MOI.ObjectiveSense()) == MOI.FEASIBILITY_SENSE
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     @test MOI.get(o, MOI.ObjectiveSense()) == MOI.MIN_SENSE
@@ -46,10 +196,15 @@ end
 
 function test_Max_in_box()
     o = HiGHS.Optimizer()
+    MOI.set(o, MOI.Silent(), true)
     @test MOI.get(o, MOI.ResultCount()) == 0
     (x, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-    HiGHS.Highs_changeColCost(o, Cint(x.value), 2.0)
+    MOI.set(
+        o,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(2.0, x)], 0.0),
+    )
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
     obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
@@ -65,8 +220,13 @@ function test_Objective_function_obtained_from_model_corresponds()
     (x1, _) = MOI.add_constrained_variable(o, MOI.Interval(-3.0, 6.0))
     (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(1.0, 2.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    HiGHS.Highs_changeColCost(o, Cint(x1.value), 2.0)
-    HiGHS.Highs_changeColCost(o, Cint(x2.value), -1.0)
+    MOI.set(
+        o,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(
+            MOI.ScalarAffineTerm.([2.0, -1.0], [x1, x2]), 0.0
+        ),
+    )
     F = MOI.get(o, MOI.ObjectiveFunctionType())
     @test F <: MOI.ScalarAffineFunction{Float64}
     obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
@@ -96,9 +256,14 @@ end
 
 function test_Constrained_variable_equivalent_to_add_constraint()
     o = HiGHS.Optimizer()
+    MOI.set(o, MOI.Silent(), true)
     x = MOI.add_variable(o)
     _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
-    HiGHS.Highs_changeColCost(o, Cint(x.value), 1.0)
+    MOI.set(
+        o,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0),
+    )
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     @test MOI.get(o, MOI.ResultCount()) == 0
     MOI.optimize!(o)
@@ -108,6 +273,7 @@ end
 
 function test_Constant_in_objective_function()
     o = HiGHS.Optimizer()
+    MOI.set(o, MOI.Silent(), true)
     x = MOI.add_variable(o)
     _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
@@ -131,6 +297,7 @@ function test_Linear_constraints()
     # st 0 <= x{1,2} <= 5
     # 0 <= x1 + x2 <= 7.5
     o = HiGHS.Optimizer()
+    MOI.set(o, MOI.Silent(), true)
     (x1, _) = MOI.add_constrained_variable(o, MOI.Interval(0.0, 5.0))
     (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(0.0, 5.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
@@ -140,7 +307,7 @@ function test_Linear_constraints()
             MOI.ScalarAffineTerm(2.0, x2),
         ], 0.0,
     )
-    @test MOI.supports_constraint(o, func, MOI.Interval(0, 1))
+    @test MOI.supports_constraint(o, typeof(func), MOI.Interval{Float64})
     MOI.set(o, MOI.ObjectiveFunction{typeof(func)}(), func)
     @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 0
     MOI.add_constraint(o,
@@ -155,7 +322,6 @@ function test_Linear_constraints()
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
     @test MOI.get(o, MOI.SimplexIterations()) > 0
-    @test MOI.get(o, MOI.BarrierIterations()) == 0
 end
 
 function test_Variable_names()
@@ -212,7 +378,6 @@ function test_Model_empty()
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
         MOI.ScalarAffineFunction{Float64}([MOI.ScalarAffineTerm(1.0, x)], 0.0)
     )
-    @test_throws ErrorException MOI.optimize!(o)
 end
 
 function runtests()
