@@ -1,6 +1,9 @@
-import HiGHS
+module TestCHighs
+
+using HiGHS
 using Test
-function test_model()
+
+function small_test_model()
     cc = [1.0, -2.0]
     cl = [0.0, 0.0]
     cu = [10.0, 10.0]
@@ -12,8 +15,8 @@ function test_model()
     return (cc, cl, cu, rl, ru, astart, aindex, avalue)
 end
 
-@testset "Direct C call" begin
-    (colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue) = test_model()
+function test_Direct_C_call() 
+    (colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue) = small_test_model()
     n_col = convert(Cint, size(colcost, 1))
     n_row = convert(Cint, size(rowlower, 1))
     n_nz = convert(Cint, size(aindex, 1))
@@ -39,3 +42,49 @@ end
     @test status == 0
     @test modelstatus[] == 9 # optimal
 end
+
+function test_create()
+        ptr = Highs_create()
+        @test ptr != C_NULL
+
+        objective = Highs_getObjectiveValue(ptr)
+        @test objective == 0.0
+
+        # model status, the second parameter is 
+        # bool scaled_model       
+        modelstatus = Highs_getModelStatus(ptr, false)
+        @test modelstatus[] == 0 # uninitialized LP
+
+        Highs_destroy(ptr)
+end
+
+# The ipx code will be updated in the next HiGHS_jll.
+# In this release it should be missing, the code below checks that.
+# todo:galabovaa edit test after update of HiGHS_jll
+function test_ipx()
+        ptr = Highs_create()
+        @test ptr != C_NULL
+
+        Highs_setHighsStringOptionValue(ptr, "solver", "ipm")
+
+        Highs_run(ptr)
+
+        modelstatus = Highs_getModelStatus(ptr, false)
+        @test modelstatus[] != 9 # not optimal 
+
+        Highs_destroy(ptr)
+end
+
+function runtests()
+    for name in names(@__MODULE__; all = true)
+        if startswith(string(name), "test_")
+            @testset "$(name)" begin
+                getfield(@__MODULE__, name)()
+            end
+        end
+    end
+end
+
+end 
+
+TestCHighs.runtests()
