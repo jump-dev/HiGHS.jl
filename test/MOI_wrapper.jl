@@ -48,35 +48,22 @@ function test_unittest()
     )
 end
 
-# function test_modificationtest()
-#     # TODO(odow): HiGHS doesn't support modifying the constraint matrix, so use
-#     # a caching optimizer.
-#     cache = MOI.Utilities.CachingOptimizer(
-#         MOI.Utilities.Model{Float64}(), OPTIMIZER
-#     )
-#     MOI.Test.modificationtest(
-#         cache,
-#         CONFIG,
-#         String[
-#             # TODO(odow): investigate test failure.
-#             "solve_transform_singlevariable_lessthan",
-#         ],
-#     )
-# end
+function test_modificationtest()
+    # TODO(odow): HiGHS doesn't support modifying the constraint matrix, so use
+    # a caching optimizer.
+    MOI.empty!(OPTIMIZER)
+    cache = MOI.Utilities.CachingOptimizer(
+        MOI.Utilities.Model{Float64}(), OPTIMIZER,
+    )
+    MOI.Test.modificationtest(cache, CONFIG)
+end
 
 function test_contlineartest()
     MOI.Test.contlineartest(
         OPTIMIZER,
         CONFIG,
         String[
-            # TODO(odow): investigate segfault in linear8b.
-            #
-            # libc++abi.dylib: terminating with uncaught exception of type std::out_of_range: vector
-            # signal (6): Abort trap: 6
-            # in expression starting at /Users/oscar/.julia/dev/HiGHS/test/MOI_wrapper.jl:405
-            # __pthread_kill at /usr/lib/system/libsystem_kernel.dylib (unknown line)
-            # Allocations: 32714941 (Pool: 32701824; Big: 13117); GC: 36
-            # ERROR: Package HiGHS errored during testing (received signal: 6)
+            # Upstream segfault. Reported: https://github.com/ERGO-Code/HiGHS/issues/448
             "linear8b",
 
             # VariablePrimalStart not supported.

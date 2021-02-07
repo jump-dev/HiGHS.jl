@@ -277,6 +277,10 @@ MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
 
+function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike; kws...)
+    return MOI.Utilities.automatic_copy_to(dest, src; kws...)
+end
+
 function MOI.get(::Optimizer, ::MOI.ListOfVariableAttributesSet)
     return MOI.AbstractVariableAttribute[MOI.VariableName()]
 end
@@ -885,6 +889,7 @@ function MOI.delete(
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, info.lower, Inf)
     _check_bool_ret(model, ret)
+    info.upper = Inf
     if info.bound == _BOUND_LESS_AND_GREATER_THAN
         info.bound = _BOUND_GREATER_THAN
     else
@@ -903,6 +908,7 @@ function MOI.delete(
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, info.upper)
     _check_bool_ret(model, ret)
+    info.lower = -Inf
     if info.bound == _BOUND_LESS_AND_GREATER_THAN
         info.bound = _BOUND_LESS_THAN
     else
@@ -921,6 +927,7 @@ function MOI.delete(
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, Inf)
     _check_bool_ret(model, ret)
+    info.lower, info.upper = -Inf, Inf
     info.bound = _BOUND_NONE
     info.greaterthan_interval_or_equalto_name = ""
     model.name_to_constraint_index = nothing
@@ -935,6 +942,7 @@ function MOI.delete(
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, Inf)
     _check_bool_ret(model, ret)
+    info.lower, info.upper = -Inf, Inf
     info.bound = _BOUND_NONE
     info.greaterthan_interval_or_equalto_name = ""
     model.name_to_constraint_index = nothing
@@ -1519,6 +1527,10 @@ function MOI.get(
     return model.solution.rowvalue[row(model, c) + 1]
 end
 
+function _dual_multiplier(model::Optimizer)
+    return MOI.get(model, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? -1 : 1
+end
+
 """
     _signed_dual(model::Optimizer, dual::Float64, ::Type{Set})
 
@@ -1530,32 +1542,17 @@ function _signed_dual end
 function _signed_dual(
     model::Optimizer, dual::Float64, ::Type{MOI.LessThan{Float64}}
 )
-    sense = MOI.get(model, MOI.ObjectiveSense())
-    if sense == MOI.MIN_SENSE && dual < 0
-        return dual
-    elseif sense == MOI.MAX_SENSE && dual > 0
-        return -dual
-    else
-        return 0.0
-    end
+    return min(_dual_multiplier(model) * dual, 0.0)
 end
 
 function _signed_dual(
     model::Optimizer, dual::Float64, ::Type{MOI.GreaterThan{Float64}}
 )
-    sense = MOI.get(model, MOI.ObjectiveSense())
-    if sense == MOI.MIN_SENSE && dual > 0
-        return dual
-    elseif sense == MOI.MAX_SENSE && dual < 0
-        return -dual
-    else
-        return 0.0
-    end
+    return max(_dual_multiplier(model) * dual, 0.0)
 end
 
-function _signed_dual(model::Optimizer, dual::Float64, S::Any)
-    sense = MOI.get(model, MOI.ObjectiveSense())
-    return sense == MOI.MAX_SENSE ? -dual : dual
+function _signed_dual(model::Optimizer, dual::Float64, ::Any)
+    return _dual_multiplier(model) * dual
 end
 
 function MOI.get(
