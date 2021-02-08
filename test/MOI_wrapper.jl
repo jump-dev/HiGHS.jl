@@ -421,7 +421,7 @@ function test_option_unknown_option()
     model = HiGHS.Optimizer()
     err = ErrorException(
         "Encountered an error in HiGHS: OptionStatus::UNKNOWN_OPTION. " *
-        "Check the log for details."
+        "Check the log for details.",
     )
     @test_throws err MOI.set(model, MOI.RawParameter("presolve"), 1)
     @test_throws err MOI.set(model, MOI.RawParameter("message_level"), -1)

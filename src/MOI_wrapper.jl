@@ -232,7 +232,7 @@ function MOI.empty!(model::Optimizer)
     if ret == 2
         error(
             "Encountered an error in HiGHS: HighsStatus::Error. " *
-            "Check the log for details"
+            "Check the log for details",
         )
     end
     model.objective_constant = 0.0
@@ -351,7 +351,7 @@ function _check_option_status(ret::Cint)
     codes = ["NO_FILE", "UNKNOWN_OPTION", "ILLEGAL_VALUE"]
     error(
         "Encountered an error in HiGHS: OptionStatus::$(codes[ret]). " *
-        "Check the log for details."
+        "Check the log for details.",
     )
     return
 end
@@ -1433,7 +1433,7 @@ function MOI.optimize!(model::Optimizer)
     if ret == 2
         error(
             "Encountered an error in HiGHS: HighsStatus::Error. " *
-            "Check the log for details"
+            "Check the log for details",
         )
     end
     model.optimize_called = true
