@@ -7,7 +7,6 @@ using Test
 const MOI = MathOptInterface
 
 const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-# TODO(odow): HiGHS is not silent.
 MOI.set(OPTIMIZER, MOI.Silent(), true)
 
 const CONFIG = MOI.Test.TestConfig(
