@@ -1625,8 +1625,5 @@ function MOI.get(
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
     dual = model.solution.rowdual[row(model, c)+1]
-    # TODO(odow): Ask HiGHS why their convention for row duals is the opposite
-    # of their convention for column duals. I guess because they transform the
-    # constraints into `Ax - Iy = 0`?
     return _signed_dual(model, -dual, S)
 end
