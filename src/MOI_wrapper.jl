@@ -182,11 +182,15 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     Create a new Optimizer object.
     """
     function Optimizer()
+        ptr = Highs_create()
+        if ptr == C_NULL
+            error("Unable to create an internal model via the C API.")
+        end
         model = new(
-            C_NULL,
+            ptr,
             "",
             false,
-            false,
+            true,
             0.0,
             _variable_info_dict(),
             _constraint_info_dict(),
@@ -224,12 +228,12 @@ function Base.show(io::IO, model::Optimizer)
 end
 
 function MOI.empty!(model::Optimizer)
-    if model.inner != C_NULL
-        Highs_destroy(model)
-    end
-    model.inner = Highs_create()
-    if model.inner == C_NULL
-        error("Unable to create an internal model via the C API.")
+    ret = Highs_clearModel(model)
+    if ret == 2
+        error(
+            "Encountered an error in HiGHS: HighsStatus::Error. " *
+            "Check the log for details"
+        )
     end
     model.objective_constant = 0.0
     model.is_feasibility = true
@@ -442,8 +446,12 @@ MOI.supports(::Optimizer, ::MOI.Silent) = true
 MOI.get(model::Optimizer, ::MOI.Silent) = model.silent
 
 function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
+    if flag
+        Highs_runQuiet(model)
+    elseif model.silent && !flag
+        @warn("Unable to restore printing. Sorry.")
+    end
     model.silent = flag
-    MOI.set(model, MOI.RawParameter("message_level"), flag ? 0 : 1)
     return
 end
 
