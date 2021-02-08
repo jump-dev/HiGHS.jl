@@ -49,8 +49,6 @@ mutable struct _VariableInfo
     bound::_BoundEnum
     lower::Float64
     upper::Float64
-    # Storage for constraint names associated with variables because HiGHS
-    # can only store names for variables and proper constraints.
     # We can perform an optimization and only store two strings for the
     # constraint names because, at most, there can be two SingleVariable
     # constraints, e.g., LessThan, GreaterThan.
@@ -64,16 +62,12 @@ mutable struct _VariableInfo
     end
 end
 
-struct ConstraintKey
-    value::Int64
+function _variable_info_dict()
+    return CleverDicts.CleverDict{MOI.VariableIndex,_VariableInfo}(
+        x::MOI.VariableIndex -> x.value,
+        x::Int64 -> MOI.VariableIndex(x),
+    )
 end
-CleverDicts.key_to_index(k::ConstraintKey) = k.value
-CleverDicts.index_to_key(::Type{ConstraintKey}, index) = ConstraintKey(index)
-
-_HASH(x) = CleverDicts.key_to_index(x)
-_INVERSE_HASH_V(x) = CleverDicts.index_to_key(MOI.VariableIndex, x)
-_INVERSE_HASH_C(x) = CleverDicts.index_to_key(ConstraintKey, x)
-
 
 """
     _ConstraintInfo
@@ -105,6 +99,17 @@ end
 
 function _ConstraintInfo(set::MOI.EqualTo{Float64})
     _ConstraintInfo("", 0, _ROW_TYPE_EQUAL_TO, set.value, set.value)
+end
+
+struct _ConstraintKey
+    value::Int64
+end
+
+function _constraint_info_dict()
+    return CleverDicts.CleverDict{_ConstraintKey,_ConstraintInfo}(
+        x::_ConstraintKey -> x.value,
+        x::Int64 -> _ConstraintKey(x),
+    )
 end
 
 """
@@ -158,19 +163,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # HiGHS doesn't support constants in the objective function.
     objective_constant::Float64
 
-    variable_info::CleverDicts.CleverDict{
-        MOI.VariableIndex,
-        _VariableInfo,
-        typeof(_HASH),
-        typeof(_INVERSE_HASH_V),
-    }
-
-    affine_constraint_info::CleverDicts.CleverDict{
-        ConstraintKey,
-        _ConstraintInfo,
-        typeof(_HASH),
-        typeof(_INVERSE_HASH_C),
-    }
+    variable_info::typeof(_variable_info_dict())
+    affine_constraint_info::typeof(_constraint_info_dict())
 
     # Mappings from variable and constraint names to their indices. These are
     # lazily built on-demand, so most of the time, they are `nothing`.
@@ -199,8 +193,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             false,
             false,
             0.0,
-            CleverDicts.CleverDict{MOI.VariableIndex,_VariableInfo}(_HASH, _INVERSE_HASH_V),
-            CleverDicts.CleverDict{ConstraintKey,_ConstraintInfo}(_HASH, _INVERSE_HASH_C),
+            _variable_info_dict(),
+            _constraint_info_dict(),
             nothing,
             nothing,
             false,
@@ -235,11 +229,13 @@ function _check_bool_ret(::Optimizer, ret::Cint)
     return
 end
 
-###
-###
-###
-
-Base.show(io::IO, ::Optimizer) = print(io, "A HiGHS model")
+function Base.show(io::IO, ::Optimizer)
+    print(
+        io,
+        "A HiGHS model with $(Highs_getNumCols(model)) columns and " *
+        "$(Highs_getNumRows(model)) rows."
+    )
+end
 
 function MOI.empty!(model::Optimizer)
     if model.inner != C_NULL
@@ -1078,7 +1074,7 @@ function _info(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
 )
-    key = ConstraintKey(c.value)
+    key = _ConstraintKey(c.value)
     if haskey(model.affine_constraint_info, key)
         return model.affine_constraint_info[key]
     end
@@ -1096,7 +1092,7 @@ function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}
 ) where {S<:_SCALAR_SETS}
-    key = ConstraintKey(c.value)
+    key = _ConstraintKey(c.value)
     info = get(model.affine_constraint_info, key, nothing)
     if info === nothing
         return false
@@ -1168,7 +1164,7 @@ function MOI.delete(
             info.row -= 1
         end
     end
-    key = ConstraintKey(c.value)
+    key = _ConstraintKey(c.value)
     delete!(model.affine_constraint_info, key)
     model.name_to_constraint_index = nothing
     return
