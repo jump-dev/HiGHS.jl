@@ -6,9 +6,7 @@ using Test
 
 const MOI = MathOptInterface
 
-const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(
-    HiGHS.Optimizer(), Float64
-)
+const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
 # TODO(odow): HiGHS is not silent.
 MOI.set(OPTIMIZER, MOI.Silent(), true)
 
@@ -22,11 +20,11 @@ const CONFIG = MOI.Test.TestConfig(
 )
 
 function test_basic_constraint_tests()
-    MOI.Test.basic_constraint_tests(OPTIMIZER, CONFIG)
+    return MOI.Test.basic_constraint_tests(OPTIMIZER, CONFIG)
 end
 
 function test_unittest()
-    MOI.Test.unittest(
+    return MOI.Test.unittest(
         OPTIMIZER,
         CONFIG,
         String[
@@ -53,13 +51,14 @@ function test_modificationtest()
     # a caching optimizer.
     MOI.empty!(OPTIMIZER)
     cache = MOI.Utilities.CachingOptimizer(
-        MOI.Utilities.Model{Float64}(), OPTIMIZER,
+        MOI.Utilities.Model{Float64}(),
+        OPTIMIZER,
     )
-    MOI.Test.modificationtest(cache, CONFIG)
+    return MOI.Test.modificationtest(cache, CONFIG)
 end
 
 function test_contlineartest()
-    MOI.Test.contlineartest(
+    return MOI.Test.contlineartest(
         OPTIMIZER,
         CONFIG,
         String[
@@ -68,13 +67,12 @@ function test_contlineartest()
 
             # VariablePrimalStart not supported.
             "partial_start",
-
-        ]
+        ],
     )
 end
 
 function test_lintest()
-    MOI.Test.lintest(OPTIMIZER, CONFIG)
+    return MOI.Test.lintest(OPTIMIZER, CONFIG)
 end
 
 function test_SolverName()
@@ -82,38 +80,38 @@ function test_SolverName()
 end
 
 function test_default_objective()
-    MOI.Test.default_objective_test(OPTIMIZER)
+    return MOI.Test.default_objective_test(OPTIMIZER)
 end
 
 function test_default_status_test()
-    MOI.Test.default_status_test(OPTIMIZER)
+    return MOI.Test.default_status_test(OPTIMIZER)
 end
 
 function test_nametest()
-    MOI.Test.nametest(OPTIMIZER)
+    return MOI.Test.nametest(OPTIMIZER)
 end
 
 function test_validtest()
-    MOI.Test.validtest(OPTIMIZER)
+    return MOI.Test.validtest(OPTIMIZER)
 end
 
 function test_emptytest()
-    MOI.Test.emptytest(OPTIMIZER)
+    return MOI.Test.emptytest(OPTIMIZER)
 end
 
 function test_orderedindicestest()
-    MOI.Test.orderedindicestest(OPTIMIZER)
+    return MOI.Test.orderedindicestest(OPTIMIZER)
 end
 
 function test_copytest()
-    MOI.Test.copytest(
+    return MOI.Test.copytest(
         OPTIMIZER,
-        MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
+        MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64),
     )
 end
 
 function test_scalar_function_constant_not_zero()
-    MOI.Test.scalar_function_constant_not_zero(OPTIMIZER)
+    return MOI.Test.scalar_function_constant_not_zero(OPTIMIZER)
 end
 
 function test_supports_constrainttest()
@@ -122,24 +120,52 @@ function test_supports_constrainttest()
     # but supports_constrainttest is broken via bridges:
     MOI.empty!(OPTIMIZER)
     MOI.add_variable(OPTIMIZER)
-    @test  MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Float64})
-    @test  MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Float64}, MOI.EqualTo{Float64})
+    @test MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.SingleVariable,
+        MOI.EqualTo{Float64},
+    )
+    @test MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.ScalarAffineFunction{Float64},
+        MOI.EqualTo{Float64},
+    )
     # This test is broken for some reason:
-    @test_broken !MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Int}, MOI.EqualTo{Float64})
-    @test !MOI.supports_constraint(OPTIMIZER, MOI.ScalarAffineFunction{Int}, MOI.EqualTo{Int})
-    @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Int})
-    @test  MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Zeros)
-    @test !MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.EqualTo{Float64})
+    @test_broken !MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.ScalarAffineFunction{Int},
+        MOI.EqualTo{Float64},
+    )
+    @test !MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.ScalarAffineFunction{Int},
+        MOI.EqualTo{Int},
+    )
+    @test !MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.SingleVariable,
+        MOI.EqualTo{Int},
+    )
+    @test MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Zeros)
+    @test !MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.VectorOfVariables,
+        MOI.EqualTo{Float64},
+    )
     @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.Zeros)
-    @test !MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Test.UnknownVectorSet)
+    @test !MOI.supports_constraint(
+        OPTIMIZER,
+        MOI.VectorOfVariables,
+        MOI.Test.UnknownVectorSet,
+    )
 end
 
 function test_set_lower_bound_twice()
-    MOI.Test.set_lower_bound_twice(HiGHS.Optimizer(), Float64)
+    return MOI.Test.set_lower_bound_twice(HiGHS.Optimizer(), Float64)
 end
 
 function test_set_upper_bound_twice()
-    MOI.Test.set_upper_bound_twice(HiGHS.Optimizer(), Float64)
+    return MOI.Test.set_upper_bound_twice(HiGHS.Optimizer(), Float64)
 end
 
 function test_Attributes()
@@ -194,12 +220,11 @@ function test_Max_in_box()
     )
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 2 * 6
-    obj_func = MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+    obj_func =
+        MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
     @test MOI.get(o, MOI.TerminationStatus()) == MOI.OPTIMAL
-    @test obj_func ≈ MOI.ScalarAffineFunction([
-            MOI.ScalarAffineTerm(2.0, x),
-        ], 0.0,
-    )
+    @test obj_func ≈
+          MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(2.0, x)], 0.0)
 end
 
 function test_Objective_function_obtained_from_model_corresponds()
@@ -211,7 +236,8 @@ function test_Objective_function_obtained_from_model_corresponds()
         o,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
         MOI.ScalarAffineFunction(
-            MOI.ScalarAffineTerm.([2.0, -1.0], [x1, x2]), 0.0
+            MOI.ScalarAffineTerm.([2.0, -1.0], [x1, x2]),
+            0.0,
         ),
     )
     F = MOI.get(o, MOI.ObjectiveFunctionType())
@@ -219,25 +245,22 @@ function test_Objective_function_obtained_from_model_corresponds()
     obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
     @test MOI.supports(o, MOI.ObjectiveFunction{F}())
     @test all(MOI.get(o, MOI.ListOfVariableIndices()) .== [x1, x2])
-    @test obj_func ≈ MOI.ScalarAffineFunction([
-            MOI.ScalarAffineTerm(2.0, x1),
-            MOI.ScalarAffineTerm(-1.0, x2),
-        ], 0.0,
+    @test obj_func ≈ MOI.ScalarAffineFunction(
+        [MOI.ScalarAffineTerm(2.0, x1), MOI.ScalarAffineTerm(-1.0, x2)],
+        0.0,
     )
     MOI.set(o, MOI.ObjectiveFunction{F}(), obj_func)
     obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
-    @test obj_func ≈ MOI.ScalarAffineFunction([
-            MOI.ScalarAffineTerm(2.0, x1),
-            MOI.ScalarAffineTerm(-1.0, x2),
-        ], 0.0,
+    @test obj_func ≈ MOI.ScalarAffineFunction(
+        [MOI.ScalarAffineTerm(2.0, x1), MOI.ScalarAffineTerm(-1.0, x2)],
+        0.0,
     )
     obj_func.terms[1] = MOI.ScalarAffineTerm(3.0, x1)
     MOI.set(o, MOI.ObjectiveFunction{F}(), obj_func)
     obj_func = MOI.get(o, MOI.ObjectiveFunction{F}())
-    @test obj_func ≈ MOI.ScalarAffineFunction([
-            MOI.ScalarAffineTerm(3.0, x1),
-            MOI.ScalarAffineTerm(-1.0, x2),
-        ], 0.0,
+    @test obj_func ≈ MOI.ScalarAffineFunction(
+        [MOI.ScalarAffineTerm(3.0, x1), MOI.ScalarAffineTerm(-1.0, x2)],
+        0.0,
     )
 end
 
@@ -264,9 +287,7 @@ function test_Constant_in_objective_function()
     x = MOI.add_variable(o)
     _ = MOI.add_constraint(o, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    obj_func = MOI.ScalarAffineFunction(
-        [MOI.ScalarAffineTerm(1.0, x)], 3.0,
-    )
+    obj_func = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 3.0)
     MOI.set(o, MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ResultCount()) == 1
@@ -289,23 +310,33 @@ function test_Linear_constraints()
     (x2, _) = MOI.add_constrained_variable(o, MOI.Interval(0.0, 5.0))
     MOI.set(o, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     func = MOI.ScalarAffineFunction(
-        [
-            MOI.ScalarAffineTerm(1.0, x1),
-            MOI.ScalarAffineTerm(2.0, x2),
-        ], 0.0,
+        [MOI.ScalarAffineTerm(1.0, x1), MOI.ScalarAffineTerm(2.0, x2)],
+        0.0,
     )
     @test MOI.supports_constraint(o, typeof(func), MOI.Interval{Float64})
     MOI.set(o, MOI.ObjectiveFunction{typeof(func)}(), func)
-    @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 0
-    MOI.add_constraint(o,
+    @test MOI.get(
+        o,
+        MOI.NumberOfConstraints{
+            MOI.ScalarAffineFunction{Float64},
+            MOI.Interval{Float64},
+        }(),
+    ) == 0
+    MOI.add_constraint(
+        o,
         MOI.ScalarAffineFunction(
-            [
-                MOI.ScalarAffineTerm(1.0, x1),
-                MOI.ScalarAffineTerm(1.0, x2),
-            ], 0.0,
-        ), MOI.Interval(0.0, 7.5),
+            [MOI.ScalarAffineTerm(1.0, x1), MOI.ScalarAffineTerm(1.0, x2)],
+            0.0,
+        ),
+        MOI.Interval(0.0, 7.5),
     )
-    @test MOI.get(o, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64}}()) == 1
+    @test MOI.get(
+        o,
+        MOI.NumberOfConstraints{
+            MOI.ScalarAffineFunction{Float64},
+            MOI.Interval{Float64},
+        }(),
+    ) == 1
     MOI.optimize!(o)
     @test MOI.get(o, MOI.ObjectiveValue()) ≈ 12.5
     @test MOI.get(o, MOI.SimplexIterations()) > 0
@@ -347,23 +378,26 @@ function test_Model_empty()
     MOI.set(
         o,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        MOI.ScalarAffineFunction{Float64}([], 0.0)
+        MOI.ScalarAffineFunction{Float64}([], 0.0),
     )
     @test MOI.is_empty(o)
     MOI.set(
         o,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        MOI.ScalarAffineFunction{Float64}([], 3.0)
+        MOI.ScalarAffineFunction{Float64}([], 3.0),
     )
     @test !MOI.is_empty(o)
     MOI.set(o, MOI.ObjectiveSense(), MOI.FEASIBILITY_SENSE)
     @test MOI.is_empty(o)
-    @test MOI.get(o, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()) ≈ MOI.ScalarAffineFunction{Float64}([], 0.0)
-    x = MOI.add_variable(o)
-    MOI.set(
+    @test MOI.get(
         o,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        MOI.ScalarAffineFunction{Float64}([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+    ) ≈ MOI.ScalarAffineFunction{Float64}([], 0.0)
+    x = MOI.add_variable(o)
+    return MOI.set(
+        o,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction{Float64}([MOI.ScalarAffineTerm(1.0, x)], 0.0),
     )
 end
 

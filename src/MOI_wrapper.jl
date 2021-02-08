@@ -3,11 +3,6 @@ import MathOptInterface
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
-_bounds(s::MOI.GreaterThan{Float64}) = s.lower, Inf
-_bounds(s::MOI.LessThan{Float64}) = -Inf, s.upper
-_bounds(s::MOI.EqualTo{Float64}) = s.value, s.value
-_bounds(s::MOI.Interval{Float64}) = s.lower, s.upper
-
 @enum(
     _RowType,
     _ROW_TYPE_LESSTHAN,
@@ -15,6 +10,16 @@ _bounds(s::MOI.Interval{Float64}) = s.lower, s.upper
     _ROW_TYPE_INTERVAL,
     _ROW_TYPE_EQUAL_TO,
 )
+
+_row_type(::MOI.GreaterThan{Float64}) = _ROW_TYPE_GREATERTHAN
+_row_type(::MOI.LessThan{Float64}) = _ROW_TYPE_LESSTHAN
+_row_type(::MOI.EqualTo{Float64}) = _ROW_TYPE_EQUAL_TO
+_row_type(::MOI.Interval{Float64}) = _ROW_TYPE_INTERVAL
+
+_bounds(s::MOI.GreaterThan{Float64}) = s.lower, Inf
+_bounds(s::MOI.LessThan{Float64}) = -Inf, s.upper
+_bounds(s::MOI.EqualTo{Float64}) = s.value, s.value
+_bounds(s::MOI.Interval{Float64}) = s.lower, s.upper
 
 @enum(
     _BoundEnum,
@@ -56,7 +61,9 @@ mutable struct _VariableInfo
     greaterthan_interval_or_equalto_name::String
 
     function _VariableInfo(
-        index::MOI.VariableIndex, column::Cint, bound::_BoundEnum = _BOUND_NONE,
+        index::MOI.VariableIndex,
+        column::Cint,
+        bound::_BoundEnum = _BOUND_NONE,
     )
         return new(index, "", column, bound, -Inf, Inf, "", "")
     end
@@ -85,22 +92,10 @@ mutable struct _ConstraintInfo
     upper::Float64
 end
 
-function _ConstraintInfo(set::MOI.LessThan{Float64})
-    _ConstraintInfo("", 0, _ROW_TYPE_LESSTHAN, -Inf, set.upper)
+function _ConstraintInfo(set::_SCALAR_SETS)
+    lower, upper = _bounds(set)
+    return _ConstraintInfo("", 0, _row_type(set), lower, upper)
 end
-
-function _ConstraintInfo(set::MOI.GreaterThan{Float64})
-    _ConstraintInfo("", 0, _ROW_TYPE_GREATERTHAN, set.lower, Inf)
-end
-
-function _ConstraintInfo(set::MOI.Interval{Float64})
-    _ConstraintInfo("", 0, _ROW_TYPE_INTERVAL, set.lower, set.upper)
-end
-
-function _ConstraintInfo(set::MOI.EqualTo{Float64})
-    _ConstraintInfo("", 0, _ROW_TYPE_EQUAL_TO, set.value, set.value)
-end
-
 struct _ConstraintKey
     value::Int64
 end
@@ -216,7 +211,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 function _check_ret(::Optimizer, ret::Cint)
     if ret != Cint(0)
         error(
-            "Encountered error code $(ret) in HiGHS. Check the log for details."
+            "Encountered error code $(ret) in HiGHS. Check the log for details.",
         )
     end
     return
@@ -230,10 +225,10 @@ function _check_bool_ret(::Optimizer, ret::Cint)
 end
 
 function Base.show(io::IO, ::Optimizer)
-    print(
+    return print(
         io,
         "A HiGHS model with $(Highs_getNumCols(model)) columns and " *
-        "$(Highs_getNumRows(model)) rows."
+        "$(Highs_getNumRows(model)) rows.",
     )
 end
 
@@ -257,14 +252,14 @@ end
 
 function MOI.is_empty(model::Optimizer)
     return Highs_getNumCols(model) == 0 &&
-        Highs_getNumRows(model) == 0 &&
-        iszero(model.objective_constant) &&
-        model.is_feasibility &&
-        isempty(model.variable_info) &&
-        isempty(model.affine_constraint_info) &&
-        model.name_to_variable === nothing &&
-        model.name_to_constraint_index === nothing &&
-        model.optimize_called == false
+           Highs_getNumRows(model) == 0 &&
+           iszero(model.objective_constant) &&
+           model.is_feasibility &&
+           isempty(model.variable_info) &&
+           isempty(model.affine_constraint_info) &&
+           model.name_to_variable === nothing &&
+           model.name_to_constraint_index === nothing &&
+           model.optimize_called == false
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
@@ -284,7 +279,7 @@ end
 function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
     attributes = [
         MOI.ObjectiveSense(),
-        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
     ]
     if MOI.get(model, MOI.Name()) != ""
         push!(attributes, MOI.Name())
@@ -363,7 +358,11 @@ function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Bool)
     return _check_ret(model, ret)
 end
 
-function MOI.set(model::Optimizer, param::MOI.RawParameter, value::AbstractFloat)
+function MOI.set(
+    model::Optimizer,
+    param::MOI.RawParameter,
+    value::AbstractFloat,
+)
     ret = Highs_setHighsDoubleOptionValue(model, param.name, Cdouble(value))
     return _check_ret(model, ret)
 end
@@ -467,7 +466,7 @@ function _info(model::Optimizer, key::MOI.VariableIndex)
     if haskey(model.variable_info, key)
         return model.variable_info[key]
     end
-    throw(MOI.InvalidIndex(key))
+    return throw(MOI.InvalidIndex(key))
 end
 
 """
@@ -481,7 +480,8 @@ function MOI.add_variable(model::Optimizer)
     # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
     # because we need `add_item` to tell us what the `VariableIndex` is.
     index = CleverDicts.add_item(
-        model.variable_info, _VariableInfo(MOI.VariableIndex(0), Cint(0))
+        model.variable_info,
+        _VariableInfo(MOI.VariableIndex(0), Cint(0)),
     )
     info = _info(model, index)
     # Now, set `.index` and `.column`.
@@ -516,7 +516,9 @@ end
 #
 
 function MOI.supports(
-    ::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}
+    ::Optimizer,
+    ::MOI.VariableName,
+    ::Type{MOI.VariableIndex},
 )
     return true
 end
@@ -540,7 +542,10 @@ function MOI.get(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex, name::String
+    model::Optimizer,
+    ::MOI.VariableName,
+    v::MOI.VariableIndex,
+    name::String,
 )
     info = _info(model, v)
     info.name = name
@@ -570,7 +575,9 @@ end
 MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 
 function MOI.set(
-    model::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense
+    model::Optimizer,
+    ::MOI.ObjectiveSense,
+    sense::MOI.OptimizationSense,
 )
     x = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     ret = Highs_changeObjectiveSense(model, x)
@@ -579,9 +586,8 @@ function MOI.set(
         model.is_feasibility = true
         # TODO(odow): cache the mask.
         n = MOI.get(model, MOI.NumberOfVariables())
-        ret = Highs_changeColsCostByMask(
-            model, ones(Cint, n), zeros(Cdouble, n)
-        )
+        ret =
+            Highs_changeColsCostByMask(model, ones(Cint, n), zeros(Cdouble, n))
         _check_bool_ret(model, ret)
         model.objective_constant = 0.0
     else
@@ -620,7 +626,7 @@ function MOI.set(
     obj = zeros(Float64, num_vars)
     for term in f.terms
         col = column(model, term.variable_index)
-        obj[col + 1] += term.coefficient
+        obj[col+1] += term.coefficient
     end
     # TODO(odow): cache the mask.
     mask = ones(Cint, num_vars)
@@ -637,7 +643,8 @@ function MOI.get(
     ncols = MOI.get(model, MOI.NumberOfVariables())
     if ncols == 0
         return MOI.ScalarAffineFunction{Float64}(
-            MOI.ScalarAffineTerm{Float64}[], model.objective_constant
+            MOI.ScalarAffineTerm{Float64}[],
+            model.objective_constant,
         )
     end
     num_colsP, nnzP = Ref{Cint}(0), Ref{Cint}(0)
@@ -657,9 +664,9 @@ function MOI.get(
     )
     return MOI.ScalarAffineFunction{Float64}(
         MOI.ScalarAffineTerm{Float64}[
-            MOI.ScalarAffineTerm(costs[info.column + 1], index)
-            for (index, info) in model.variable_info
-            if !iszero(costs[info.column + 1])
+            MOI.ScalarAffineTerm(costs[info.column+1], index) for
+            (index, info) in model.variable_info if
+            !iszero(costs[info.column+1])
         ],
         model.objective_constant,
     )
@@ -667,7 +674,8 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
     obj = MOI.get(
-        model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
     )
     return convert(F, obj)
 end
@@ -675,7 +683,7 @@ end
 function MOI.modify(
     model::Optimizer,
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
-    chg::MOI.ScalarConstantChange{Float64}
+    chg::MOI.ScalarConstantChange{Float64},
 )
     model.objective_constant = chg.new_constant
     return
@@ -684,10 +692,12 @@ end
 function MOI.modify(
     model::Optimizer,
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
-    chg::MOI.ScalarCoefficientChange{Float64}
+    chg::MOI.ScalarCoefficientChange{Float64},
 )
     ret = Highs_changeColCost(
-        model, column(model, chg.variable), chg.new_coefficient,
+        model,
+        column(model, chg.variable),
+        chg.new_coefficient,
     )
     _check_bool_ret(model, ret)
     return
@@ -698,7 +708,9 @@ end
 ###
 
 function MOI.supports_constraint(
-    ::Optimizer, ::Type{MOI.SingleVariable}, ::Type{<:_SCALAR_SETS}
+    ::Optimizer,
+    ::Type{MOI.SingleVariable},
+    ::Type{<:_SCALAR_SETS},
 )
     return true
 end
@@ -716,17 +728,19 @@ _bound_enums(::Type{MOI.Interval{Float64}}) = (_BOUND_INTERVAL,)
 _bound_enums(::Type{MOI.EqualTo{Float64}}) = (_BOUND_EQUAL_TO,)
 
 function MOI.get(
-    model::Optimizer, ::MOI.ListOfConstraintIndices{MOI.SingleVariable,S}
+    model::Optimizer,
+    ::MOI.ListOfConstraintIndices{MOI.SingleVariable,S},
 ) where {S<:_SCALAR_SETS}
-    indices = MOI.ConstraintIndex{MOI.SingleVariable, S}[
-        MOI.ConstraintIndex{MOI.SingleVariable,S}(key.value)
-        for (key, info) in model.variable_info if info.bound in _bound_enums(S)
+    indices = MOI.ConstraintIndex{MOI.SingleVariable,S}[
+        MOI.ConstraintIndex{MOI.SingleVariable,S}(key.value) for
+        (key, info) in model.variable_info if info.bound in _bound_enums(S)
     ]
     return sort!(indices, by = x -> x.value)
 end
 
 function _info(
-    model::Optimizer, c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any}
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
 )
     var_index = MOI.VariableIndex(c.value)
     if haskey(model.variable_info, var_index)
@@ -757,7 +771,7 @@ function MOI.is_valid(
     if haskey(model.variable_info, MOI.VariableIndex(c.value))
         info = _info(model, c)
         return info.bound == _BOUND_LESS_THAN ||
-            info.bound == _BOUND_LESS_AND_GREATER_THAN
+               info.bound == _BOUND_LESS_AND_GREATER_THAN
     end
     return false
 end
@@ -769,7 +783,7 @@ function MOI.is_valid(
     if haskey(model.variable_info, MOI.VariableIndex(c.value))
         info = _info(model, c)
         return info.bound == _BOUND_GREATER_THAN ||
-            info.bound == _BOUND_LESS_AND_GREATER_THAN
+               info.bound == _BOUND_LESS_AND_GREATER_THAN
     end
     return false
 end
@@ -779,7 +793,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Interval{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-        _info(model, c).bound == _BOUND_INTERVAL
+           _info(model, c).bound == _BOUND_INTERVAL
 end
 
 function MOI.is_valid(
@@ -787,7 +801,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.EqualTo{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-        _info(model, c).bound == _BOUND_EQUAL_TO
+           _info(model, c).bound == _BOUND_EQUAL_TO
 end
 
 function MOI.get(
@@ -809,7 +823,9 @@ function MOI.set(
 end
 
 function _throw_if_existing_lower(
-    bound::_BoundEnum, ::Type{S}, variable::MOI.VariableIndex,
+    bound::_BoundEnum,
+    ::Type{S},
+    variable::MOI.VariableIndex,
 ) where {S<:MOI.AbstractSet}
     if bound == _BOUND_LESS_AND_GREATER_THAN
         throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(variable))
@@ -824,7 +840,9 @@ function _throw_if_existing_lower(
 end
 
 function _throw_if_existing_upper(
-    bound::_BoundEnum, ::Type{S}, variable::MOI.VariableIndex
+    bound::_BoundEnum,
+    ::Type{S},
+    variable::MOI.VariableIndex,
 ) where {S<:MOI.AbstractSet}
     if bound == _BOUND_LESS_AND_GREATER_THAN
         throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(variable))
@@ -839,8 +857,10 @@ function _throw_if_existing_upper(
 end
 
 function MOI.add_constraint(
-    model::Optimizer, f::MOI.SingleVariable, s::S
-) where {S <: _SCALAR_SETS}
+    model::Optimizer,
+    f::MOI.SingleVariable,
+    s::S,
+) where {S<:_SCALAR_SETS}
     info = _info(model, f.variable)
     if S <: MOI.LessThan{Float64}
         _throw_if_existing_upper(info.bound, S, f.variable)
@@ -1011,7 +1031,7 @@ end
 function MOI.supports(
     ::Optimizer,
     ::MOI.ConstraintName,
-    ::Type{<:MOI.ConstraintIndex{MOI.SingleVariable,<:_SCALAR_SETS}}
+    ::Type{<:MOI.ConstraintIndex{MOI.SingleVariable,<:_SCALAR_SETS}},
 )
     return true
 end
@@ -1056,7 +1076,7 @@ function MOI.supports_constraint(
     ::Type{MOI.ScalarAffineFunction{Float64}},
     ::Type{<:_SCALAR_SETS},
 )
-   return true
+    return true
 end
 
 function MOI.get(
@@ -1078,7 +1098,7 @@ function _info(
     if haskey(model.affine_constraint_info, key)
         return model.affine_constraint_info[key]
     end
-    throw(MOI.InvalidIndex(c))
+    return throw(MOI.InvalidIndex(c))
 end
 
 function row(
@@ -1090,7 +1110,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     key = _ConstraintKey(c.value)
     info = get(model.affine_constraint_info, key, nothing)
@@ -1116,7 +1136,8 @@ function _indices_and_coefficients(
 end
 
 function _indices_and_coefficients(
-    model::Optimizer, f::MOI.ScalarAffineFunction{Float64}
+    model::Optimizer,
+    f::MOI.ScalarAffineFunction{Float64},
 )
     f_canon = MOI.Utilities.canonical(f)
     nnz = length(f_canon.terms)
@@ -1131,11 +1152,13 @@ function MOI.add_constraint(
     s::_SCALAR_SETS,
 )
     if !iszero(f.constant)
-        throw(MOI.ScalarFunctionConstantNotZero{Float64,typeof(f),typeof(s)}(f.constant))
+        throw(
+            MOI.ScalarFunctionConstantNotZero{Float64,typeof(f),typeof(s)}(
+                f.constant,
+            ),
+        )
     end
-    key = CleverDicts.add_item(
-        model.affine_constraint_info, _ConstraintInfo(s)
-    )
+    key = CleverDicts.add_item(model.affine_constraint_info, _ConstraintInfo(s))
     model.affine_constraint_info[key].row =
         Cint(length(model.affine_constraint_info) - 1)
     indices, coefficients = _indices_and_coefficients(model, f)
@@ -1154,7 +1177,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS}
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
 )
     r = row(model, c)
     ret = Highs_deleteRowsByRange(model, r, r)
@@ -1232,9 +1255,9 @@ function MOI.get(
     return MOI.ScalarAffineFunction(
         MOI.ScalarAffineTerm{Float64}[
             MOI.ScalarAffineTerm(
-                val, model.variable_info[CleverDicts.LinearIndex(col + 1)].index
-            )
-            for (col, val) in zip(matrix_index, matrix_value) if !iszero(val)
+                val,
+                model.variable_info[CleverDicts.LinearIndex(col + 1)].index,
+            ) for (col, val) in zip(matrix_index, matrix_value) if !iszero(val)
         ],
         0.0,
     )
@@ -1243,7 +1266,9 @@ end
 function MOI.supports(
     ::Optimizer,
     ::MOI.ConstraintName,
-    ::Type{<:MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS}}
+    ::Type{
+        <:MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
+    },
 )
     return true
 end
@@ -1251,7 +1276,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:Any},
 )
     return _info(model, c).name
 end
@@ -1259,7 +1284,7 @@ end
 function MOI.set(
     model::Optimizer,
     ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:Any},
     name::String,
 )
     info = _info(model, c)
@@ -1283,7 +1308,9 @@ function MOI.get(model::Optimizer, ::Type{MOI.ConstraintIndex}, name::String)
 end
 
 function MOI.get(
-    model::Optimizer, C::Type{MOI.ConstraintIndex{F,S}}, name::String
+    model::Optimizer,
+    C::Type{MOI.ConstraintIndex{F,S}},
+    name::String,
 ) where {F,S}
     index = MOI.get(model, MOI.ConstraintIndex, name)
     if index isa C
@@ -1293,7 +1320,8 @@ function MOI.get(
 end
 
 function _rebuild_name_to_constraint_index(model::Optimizer)
-    model.name_to_constraint_index = Dict{String,Union{Nothing,MOI.ConstraintIndex}}()
+    model.name_to_constraint_index =
+        Dict{String,Union{Nothing,MOI.ConstraintIndex}}()
     for (key, info) in model.affine_constraint_info
         if isempty(info.name)
             continue
@@ -1302,7 +1330,7 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
         _set_name_to_constraint_index(
             model,
             info.name,
-            MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value)
+            MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value),
         )
     end
     for (key, info) in model.variable_info
@@ -1310,7 +1338,9 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
             _set_name_to_constraint_index(
                 model,
                 info.lessthan_name,
-                MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}}(key.value)
+                MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}}(
+                    key.value,
+                ),
             )
         end
         if !isempty(info.greaterthan_interval_or_equalto_name)
@@ -1335,7 +1365,9 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
 end
 
 function _set_name_to_constraint_index(
-    model::Optimizer, name::String, index::MOI.ConstraintIndex
+    model::Optimizer,
+    name::String,
+    index::MOI.ConstraintIndex,
 )
     if haskey(model.name_to_constraint_index, name)
         model.name_to_constraint_index[name] = nothing
@@ -1502,13 +1534,13 @@ function MOI.get(
     x::MOI.VariableIndex,
 )
     MOI.check_result_index_bounds(model, attr)
-    return model.solution.colvalue[column(model, x) + 1]
+    return model.solution.colvalue[column(model, x)+1]
 end
 
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintPrimal,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,<:_SCALAR_SETS}
+    c::MOI.ConstraintIndex{MOI.SingleVariable,<:_SCALAR_SETS},
 )
     MOI.check_result_index_bounds(model, attr)
     return MOI.get(model, MOI.VariablePrimal(), MOI.VariableIndex(c.value))
@@ -1520,7 +1552,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
 )
     MOI.check_result_index_bounds(model, attr)
-    return model.solution.rowvalue[row(model, c) + 1]
+    return model.solution.rowvalue[row(model, c)+1]
 end
 
 function _dual_multiplier(model::Optimizer)
@@ -1536,13 +1568,17 @@ to the lower or upper bound. It can be wrong by at most the solver's tolerance.
 function _signed_dual end
 
 function _signed_dual(
-    model::Optimizer, dual::Float64, ::Type{MOI.LessThan{Float64}}
+    model::Optimizer,
+    dual::Float64,
+    ::Type{MOI.LessThan{Float64}},
 )
     return min(_dual_multiplier(model) * dual, 0.0)
 end
 
 function _signed_dual(
-    model::Optimizer, dual::Float64, ::Type{MOI.GreaterThan{Float64}}
+    model::Optimizer,
+    dual::Float64,
+    ::Type{MOI.GreaterThan{Float64}},
 )
     return max(_dual_multiplier(model) * dual, 0.0)
 end
@@ -1557,7 +1593,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable,S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    reduced_cost = model.solution.coldual[column(model, c) + 1]
+    reduced_cost = model.solution.coldual[column(model, c)+1]
     return _signed_dual(model, reduced_cost, S)
 end
 
@@ -1567,7 +1603,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    dual = model.solution.rowdual[row(model, c) + 1]
+    dual = model.solution.rowdual[row(model, c)+1]
     # TODO(odow): Ask HiGHS why their convention for row duals is the opposite
     # of their convention for column duals. I guess because they transform the
     # constraints into `Ax - Iy = 0`?
