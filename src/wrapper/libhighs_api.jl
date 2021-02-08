@@ -1,3 +1,5 @@
+#! format: off
+
 # Julia wrapper for header: highs_c_api.h
 # Automatically generated using Clang.jl
 

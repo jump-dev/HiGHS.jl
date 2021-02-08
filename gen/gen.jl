@@ -1,9 +1,8 @@
 import Clang
 import HiGHS_jll
 
-const LIBHIGHS_HEADERS = [
-    joinpath(HiGHS_jll.artifact_dir, "include", "interfaces", "highs_c_api.h"),
-]
+const LIBHIGHS_HEADERS =
+    [joinpath(HiGHS_jll.artifact_dir, "include", "interfaces", "highs_c_api.h")]
 
 const GEN_DIR = joinpath(@__DIR__, "..", "src", "wrapper")
 if !isdir(GEN_DIR)
@@ -20,5 +19,16 @@ wc = Clang.init(
 )
 
 run(wc)
+
+function manual_corrections()
+    format_off = "#! format: off\n\n"
+    for file in ["libhighs_api.jl"]
+        filename = joinpath(GEN_DIR, file)
+        content = read(filename, String)
+        write(filename, format_off * content)
+    end
+end
+
+manual_corrections()
 
 rm(joinpath(GEN_DIR, "LibTemplate.jl"))
