@@ -401,6 +401,34 @@ function test_Model_empty()
     )
 end
 
+function test_show()
+    model = HiGHS.Optimizer()
+    @test sprint(show, model) == "A HiGHS model with 0 columns and 0 rows."
+    return
+end
+
+function test_options()
+    model = HiGHS.Optimizer()
+    for key in keys(HiGHS._OPTIONS)
+        v = MOI.get(model, MOI.RawParameter(key))
+        MOI.set(model, MOI.RawParameter(key), v)
+        v2 = MOI.get(model, MOI.RawParameter(key))
+        @test v == v2
+    end
+    return
+end
+
+function test_option_unknown_option()
+    model = HiGHS.Optimizer()
+    err = ErrorException(
+        "Encountered an error in HiGHS: OptionStatus::UNKNOWN_OPTION. " *
+        "Check the log for details."
+    )
+    @test_throws err MOI.set(model, MOI.RawParameter("presolve"), 1)
+    @test_throws err MOI.set(model, MOI.RawParameter("message_level"), -1)
+    return
+end
+
 function runtests()
     for name in names(@__MODULE__; all = true)
         if startswith(string(name), "test_")

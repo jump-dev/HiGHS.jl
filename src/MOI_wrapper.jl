@@ -204,27 +204,18 @@ end
 Base.cconvert(::Type{Ptr{Cvoid}}, model::Optimizer) = model
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 
-### HiGHS has "interesting" error returns. Sometimes it uses non-zero to
-### indicate an error, and sometimes it uses true (1) to indicate success and
-### false (0) to indicate an error. Annoyingly inconsistent.
-
-function _check_ret(::Optimizer, ret::Cint)
-    if ret != Cint(0)
-        error(
-            "Encountered error code $(ret) in HiGHS. Check the log for details.",
-        )
-    end
-    return
-end
-
-function _check_bool_ret(::Optimizer, ret::Cint)
-    if ret != Cint(1)
+function _check_ret(ret::Cint)
+    if ret == Cint(1)
+        return  # Cint(1) is 'true'. Nothing went wrong.
+    else
+        # These return codes should only ever be 0 or 1.
+        @assert ret == Cint(0)
         error("Encountered an error in HiGHS. Check the log for details.")
     end
     return
 end
 
-function Base.show(io::IO, ::Optimizer)
+function Base.show(io::IO, model::Optimizer)
     return print(
         io,
         "A HiGHS model with $(Highs_getNumCols(model)) columns and " *
@@ -348,14 +339,27 @@ function MOI.supports(::Optimizer, param::MOI.RawParameter)
     return haskey(_OPTIONS, param.name)
 end
 
+function _check_option_status(ret::Cint)
+    if ret == 0
+        return
+    end
+    @assert 1 <= ret <= 3
+    codes = ["NO_FILE", "UNKNOWN_OPTION", "ILLEGAL_VALUE"]
+    error(
+        "Encountered an error in HiGHS: OptionStatus::$(codes[ret]). " *
+        "Check the log for details."
+    )
+    return
+end
+
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Integer)
     ret = Highs_setHighsIntOptionValue(model, param.name, Cint(value))
-    return _check_ret(model, ret)
+    return _check_option_status(ret)
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Bool)
     ret = Highs_setHighsBoolOptionValue(model, param.name, Cint(value))
-    return _check_ret(model, ret)
+    return _check_option_status(ret)
 end
 
 function MOI.set(
@@ -364,29 +368,32 @@ function MOI.set(
     value::AbstractFloat,
 )
     ret = Highs_setHighsDoubleOptionValue(model, param.name, Cdouble(value))
-    return _check_ret(model, ret)
+    return _check_option_status(ret)
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value::String)
     ret = Highs_setHighsStringOptionValue(model, param.name, value)
-    return _check_ret(model, ret)
+    return _check_option_status(ret)
 end
 
 function _get_option(model::Optimizer, option::String, ::Type{Cint})
     value = Ref{Cint}(0)
-    Highs_getHighsIntOptionValue(model, option, value)
+    ret = Highs_getHighsIntOptionValue(model, option, value)
+    _check_option_status(ret)
     return value[]
 end
 
 function _get_option(model::Optimizer, option::String, ::Type{Bool})
     value = Ref{Cint}(0)
-    Highs_getHighsBoolOptionValue(model, option, value)
+    ret = Highs_getHighsBoolOptionValue(model, option, value)
+    _check_option_status(ret)
     return Bool(value[])
 end
 
 function _get_option(model::Optimizer, option::String, ::Type{Cdouble})
     value = Ref{Cdouble}()
-    Highs_getHighsDoubleOptionValue(model, option, value)
+    ret = Highs_getHighsDoubleOptionValue(model, option, value)
+    _check_option_status(ret)
     return value[]
 end
 
@@ -394,7 +401,8 @@ function _get_option(model::Optimizer, option::String, ::Type{String})
     buffer = Vector{Cchar}(undef, 100)
     bufferP = pointer(buffer)
     GC.@preserve buffer begin
-        Highs_getHighsStringOptionValue(model, option, bufferP)
+        ret = Highs_getHighsStringOptionValue(model, option, bufferP)
+        _check_option_status(ret)
         return unsafe_string(bufferP)
     end
 end
@@ -435,8 +443,7 @@ MOI.get(model::Optimizer, ::MOI.Silent) = model.silent
 
 function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
     model.silent = flag
-    # TODO(odow): what is the message_level default?
-    MOI.set(model, MOI.RawParameter("message_level"), flag ? 1 : 0)
+    MOI.set(model, MOI.RawParameter("message_level"), flag ? 0 : 1)
     return
 end
 
@@ -488,7 +495,7 @@ function MOI.add_variable(model::Optimizer)
     info.index = index
     info.column = Cint(length(model.variable_info) - 1)
     ret = Highs_addCol(model, 0.0, -Inf, Inf, 0, C_NULL, C_NULL)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     return index
 end
 
@@ -499,7 +506,7 @@ end
 function MOI.delete(model::Optimizer, v::MOI.VariableIndex)
     col = column(model, v)
     ret = Highs_deleteColsByRange(model, col, col)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     delete!(model.variable_info, v)
     for other_info in values(model.variable_info)
         if other_info.column > col
@@ -581,14 +588,14 @@ function MOI.set(
 )
     x = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
     ret = Highs_changeObjectiveSense(model, x)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     if sense == MOI.FEASIBILITY_SENSE
         model.is_feasibility = true
         # TODO(odow): cache the mask.
         n = MOI.get(model, MOI.NumberOfVariables())
         ret =
             Highs_changeColsCostByMask(model, ones(Cint, n), zeros(Cdouble, n))
-        _check_bool_ret(model, ret)
+        _check_ret(ret)
         model.objective_constant = 0.0
     else
         model.is_feasibility = false
@@ -602,7 +609,7 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
     end
     senseP = Ref{Cint}()
     ret = Highs_getObjectiveSense(model, senseP)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     return senseP[] == 1 ? MOI.MIN_SENSE : MOI.MAX_SENSE
 end
 
@@ -631,7 +638,7 @@ function MOI.set(
     # TODO(odow): cache the mask.
     mask = ones(Cint, num_vars)
     ret = Highs_changeColsCostByMask(model, mask, obj)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     model.objective_constant = f.constant
     return
 end
@@ -699,7 +706,7 @@ function MOI.modify(
         column(model, chg.variable),
         chg.new_coefficient,
     )
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     return
 end
 
@@ -904,7 +911,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, info.lower, Inf)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     info.upper = Inf
     if info.bound == _BOUND_LESS_AND_GREATER_THAN
         info.bound = _BOUND_GREATER_THAN
@@ -923,7 +930,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, info.upper)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     info.lower = -Inf
     if info.bound == _BOUND_LESS_AND_GREATER_THAN
         info.bound = _BOUND_LESS_THAN
@@ -942,7 +949,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, Inf)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     info.lower, info.upper = -Inf, Inf
     info.bound = _BOUND_NONE
     info.greaterthan_interval_or_equalto_name = ""
@@ -957,7 +964,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     ret = Highs_changeColBounds(model, info.column, -Inf, Inf)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     info.lower, info.upper = -Inf, Inf
     info.bound = _BOUND_NONE
     info.greaterthan_interval_or_equalto_name = ""
@@ -1013,15 +1020,15 @@ function MOI.set(
     info = _info(model, c)
     if S == MOI.LessThan{Float64}
         ret = Highs_changeColBounds(model, info.column, info.lower, upper)
-        _check_bool_ret(model, ret)
+        _check_ret(ret)
         info.upper = upper
     elseif S == MOI.GreaterThan{Float64}
         ret = Highs_changeColBounds(model, info.column, lower, info.upper)
-        _check_bool_ret(model, ret)
+        _check_ret(ret)
         info.lower = lower
     else
         ret = Highs_changeColBounds(model, info.column, lower, upper)
-        _check_bool_ret(model, ret)
+        _check_ret(ret)
         info.lower = lower
         info.upper = upper
     end
@@ -1171,7 +1178,7 @@ function MOI.add_constraint(
         indices,
         coefficients,
     )
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     return MOI.ConstraintIndex{typeof(f),typeof(s)}(key.value)
 end
 
@@ -1181,7 +1188,7 @@ function MOI.delete(
 )
     r = row(model, c)
     ret = Highs_deleteRowsByRange(model, r, r)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     for info in values(model.affine_constraint_info)
         if info.row > r
             info.row -= 1
@@ -1210,7 +1217,7 @@ function MOI.set(
     lower, upper = _bounds(s)
     info = _info(model, c)
     ret = Highs_changeRowBounds(model, info.row, lower, upper)
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     info.lower, info.upper = lower, upper
     return
 end
@@ -1251,7 +1258,7 @@ function MOI.get(
         matrix_index,
         matrix_value,
     )
-    _check_bool_ret(model, ret)
+    _check_ret(ret)
     return MOI.ScalarAffineFunction(
         MOI.ScalarAffineTerm{Float64}[
             MOI.ScalarAffineTerm(
@@ -1414,7 +1421,13 @@ end
 
 function MOI.optimize!(model::Optimizer)
     ret = Highs_run(model)
-    _check_ret(model, ret)
+    # `ret` is an `HighsStatus` enum: {OK = 0, Warning, Error}.
+    if ret == 2
+        error(
+            "Encountered an error in HiGHS: HighsStatus::Error. " *
+            "Check the log for details"
+        )
+    end
     model.optimize_called = true
     if MOI.get(model, MOI.ResultCount()) == 1
         _store_solution(model)
