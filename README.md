@@ -5,7 +5,7 @@ However, by reporting these problems you can help make HiGHS better!_
 _To report a problem (e.g., incorrect results, or a crash of the solver),
 or make a suggestion for how to improve HiGHS, please [file a GitHub issue](https://github.com/jump-dev/HiGHS.jl)._
 
-_To make the problem reproducible, use `JuMP.write_to_file(model, "filename.mps")`
+_If you use HiGHS from JuMP, use `JuMP.write_to_file(model, "filename.mps")`
 to write your model an MPS file, then upload the MPS file to [https://gist.github.com](https://gist.github.com)
 and provide a link to the gist in the GitHub issue._
 
