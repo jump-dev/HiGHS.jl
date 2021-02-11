@@ -16,13 +16,24 @@ arguments are identical to the C API.
 
 **Minimum version requirement:** HiGHS.jl requres at least Julia v1.3.
 
-The package is not registered in the [General registry](https://github.com/JuliaRegistries/General/)
-and so must be installed as follows:
-
+Install HiGHS as follows:
 ```julia
 import Pkg
-Pkg.add(Pkg.PackageSpec(url="https://github.com/jump-dev/HiGHS.jl"))
+Pkg.add("HiGHS")
 ```
 
 In addition to installing the HiGHS.jl package, this will also download and
 install the HiGHS binaries. (You do not need to install HiGHS separately.)
+
+## Use with JuMP
+
+Pass `HiGHS.Optimizer` to `JuMP.Model` to create a JuMP model with HiGHS as the
+optimizer. Set options using `set_optimizer_attribute`.
+
+```julia
+using JuMP
+import HiGHS
+model = Model(HiGHS.Optimizer)
+set_optimizer_attribute(model, "presolve", "on")
+set_optimizer_attribute(model, "time_limit", 60.0)
+```
