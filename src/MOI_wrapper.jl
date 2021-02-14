@@ -134,9 +134,13 @@ accessing them element-wise.
 struct _Solution
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
+    colstatus::Vector{Cint}
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
-    _Solution() = new(Cdouble[], Cdouble[], Cdouble[], Cdouble[])
+    rowstatus::Vector{Cint}
+    function _Solution()
+        return new(Cdouble[], Cdouble[], Cint[], Cdouble[], Cdouble[], Cint[])
+    end
 end
 
 mutable struct Optimizer <: MOI.AbstractOptimizer
@@ -1421,9 +1425,12 @@ function _store_solution(model::Optimizer)
     numRows = Highs_getNumRows(model)
     resize!(x.colvalue, numCols)
     resize!(x.coldual, numCols)
+    resize!(x.colstatus, numCols)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
+    resize!(x.rowstatus, numRows)
     Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
+    Highs_getBasis(model, x.colstatus, x.rowstatus)
     return
 end
 
@@ -1626,4 +1633,74 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     dual = model.solution.rowdual[row(model, c)+1]
     return _signed_dual(model, -dual, S)
+end
+
+###
+### MOI.ConstraintBasisStatus
+###
+
+@enum(
+    HighsBasisStatus,
+    LOWER = 0,
+    BASIC,
+    UPPER,
+    ZERO,
+    NONBASIC,
+    SUPER,
+)
+
+# HiGHS only reports a single basis status for each ranged constraint. Therefore
+# if the status is LOWER or UPPER, we must distinguish whether or not it is
+# refering to the given constraint.
+function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.Interval})
+    return code == LOWER ? MOI.NONBASIC_AT_LOWER : MOI.NONBASIC_AT_UPPER
+end
+function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.LessThan})
+    return code == LOWER ? MOI.BASIC : MOI.NONBASIC
+end
+function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.GreaterThan})
+    return code == LOWER ? MOI.NONBASIC : MOI.BASIC
+end
+_nonbasic_status(::HighsBasisStatus, ::Type{<:MOI.EqualTo}) = MOI.NONBASIC
+
+function MOI.get(
+    model::Optimizer,
+    attr::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
+) where {S<:_SCALAR_SETS}
+    MOI.check_result_index_bounds(model, attr)
+    stat = HighsBasisStatus(model.solution.rowstatus[row(model, c) + 1])
+    if stat == LOWER
+        return _nonbasic_status(stat, S)
+    elseif stat == BASIC
+        return MOI.BASIC
+    elseif stat == UPPER
+        return _nonbasic_status(stat, S)
+    elseif stat == ZERO || stat == NONBASIC
+        return MOI.NONBASIC
+    else
+        @assert stat == SUPER
+        return MOI.SUPER_BASIC
+    end
+end
+
+function MOI.get(
+    model::Optimizer,
+    attr::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.SingleVariable,S},
+) where {S<:_SCALAR_SETS}
+    MOI.check_result_index_bounds(model, attr)
+    stat = HighsBasisStatus(model.solution.colstatus[column(model, c) + 1])
+    if stat == LOWER
+        return _nonbasic_status(stat, S)
+    elseif stat == BASIC
+        return MOI.BASIC
+    elseif stat == UPPER
+        return _nonbasic_status(stat, S)
+    elseif stat == ZERO || stat == NONBASIC
+        return MOI.NONBASIC
+    else
+        @assert stat == SUPER
+        return MOI.SUPER_BASIC
+    end
 end

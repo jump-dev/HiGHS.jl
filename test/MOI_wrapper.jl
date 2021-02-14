@@ -10,12 +10,12 @@ const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
 MOI.set(OPTIMIZER, MOI.Silent(), true)
 
 const CONFIG = MOI.Test.TestConfig(
+    basis = true,
+
     # TODO(odow): add support for modifying the constraint matrix.
     modify_lhs = false,
     # TODO(odow): add infeasibility certificates.
     infeas_certificates = false,
-    # TODO(odow): add support for MOI.ConstraintBasisStatus.
-    basis = false,
 )
 
 function test_basic_constraint_tests()
