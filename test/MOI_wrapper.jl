@@ -9,12 +9,7 @@ const MOI = MathOptInterface
 const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
 MOI.set(OPTIMIZER, MOI.Silent(), true)
 
-const CONFIG = MOI.Test.TestConfig(
-    basis = true,
-
-    # TODO(odow): add infeasibility certificates.
-    infeas_certificates = false,
-)
+const CONFIG = MOI.Test.TestConfig(basis = true)
 
 function test_basic_constraint_tests()
     return MOI.Test.basic_constraint_tests(OPTIMIZER, CONFIG)
