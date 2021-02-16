@@ -1391,24 +1391,46 @@ function _set_name_to_constraint_index(
     return
 end
 
-# TODO(odow): doesn't look like HiGHS supports these.
-#
-# function MOI.modify(
-#     model::Optimizer,
-#     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
-#     chg::MOI.ScalarCoefficientChange{Float64}
-# ) where {S<:_SCALAR_SETS}
-#     return
-# end
-#
-# function MOI.set(
-#     model::Optimizer,
-#     ::MOI.ConstraintFunction,
-#     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:_SCALAR_SETS},
-#     f::MOI.ScalarAffineFunction{Float64}
-# )
-#     return
-# end
+function MOI.modify(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
+    chg::MOI.ScalarCoefficientChange{Float64}
+) where {S<:_SCALAR_SETS}
+    ret = Highs_changeCoeff(
+        model,
+        row(model, c),
+        column(model, chg.variable),
+        chg.new_coefficient,
+    )
+    _check_ret(ret)
+    return
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintFunction,
+    c::MOI.ConstraintIndex{F,S},
+    f::F
+) where {F<:MOI.ScalarAffineFunction{Float64},S<:_SCALAR_SETS}
+    if !iszero(f.constant)
+        throw(MOI.ScalarFunctionConstantNotZero{Float64,F,S}(f.constant))
+    end
+    # This loop is a bit slow because we query the existing function first, and
+    # then set each coefficient one-by-one. It's probably okay until someone
+    # complainsm but it will require some upstream changes to introduce a faster
+    # way of modifying a list of coefficients.
+    old = MOI.get(model, MOI.ConstraintFunction(), c)
+    terms = Dict(x.variable_index => 0.0 for x in old.terms)
+    for term in f.terms
+        terms[term.variable_index] = term.coefficient
+    end
+    r = row(model, c)
+    for (k, v) in terms
+        ret = Highs_changeCoeff(model, r, column(model, k), v)
+        _check_ret(ret)
+    end
+    return
+end
 
 ###
 ### Optimize methods.
