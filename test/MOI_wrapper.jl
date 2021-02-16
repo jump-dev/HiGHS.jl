@@ -365,7 +365,14 @@ function test_HiGHS_custom_options()
     MOI.set(o, MOI.RawParameter("time_limit"), 1000.0)
     @test MOI.get(o, MOI.RawParameter("time_limit")) == 1000.0
     # unsupported test
-    @test_throws ArgumentError MOI.get(o, MOI.RawParameter("wrong_param"))
+    @test MOI.supports(o, MOI.RawParameter("wrong_param")) == false
+    @test_throws MOI.UnsupportedAttribute MOI.get(o, MOI.RawParameter("wrong_param"))
+    for v in [false, 1, 1.0, "A"]
+        @test_throws(
+            MOI.UnsupportedAttribute,
+            MOI.set(o, MOI.RawParameter("wrong_param"), v)
+        )
+    end
 end
 
 function test_Model_empty()
@@ -408,7 +415,13 @@ end
 
 function test_options()
     model = HiGHS.Optimizer()
-    for key in keys(HiGHS._OPTIONS)
+    options = [
+        "write_solution_to_file",   # Bool
+        "simplex_strategy",         # Cint
+        "time_limit",               # Cdouble
+        "presolve",                 # String
+    ]
+    for key in options
         v = MOI.get(model, MOI.RawParameter(key))
         MOI.set(model, MOI.RawParameter(key), v)
         v2 = MOI.get(model, MOI.RawParameter(key))
@@ -417,14 +430,33 @@ function test_options()
     return
 end
 
+function test_option_invalid()
+    model = HiGHS.Optimizer()
+    @test_throws(
+        ErrorException(
+            "Encountered an error in HiGHS: Check the log for details."
+        ),
+        MOI.set(model, MOI.RawParameter("time_limit"), -1.0),
+    )
+    return
+end
+
+function test_option_invalid()
+    model = HiGHS.Optimizer()
+    MOI.supports(model, MOI.RawParameter(:presolve)) == false
+    @test_throws MOI.UnsupportedAttribute MOI.get(model, MOI.RawParameter(:presolve))
+    return
+end
+
 function test_option_unknown_option()
     model = HiGHS.Optimizer()
     err = ErrorException(
-        "Encountered an error in HiGHS: OptionStatus::UNKNOWN_OPTION. " *
-        "Check the log for details.",
+        "Encountered an error in HiGHS: Check the log for details."
     )
+    @test_throws err MOI.set(model, MOI.RawParameter("write_solution_to_file"), 1)
+    @test_throws err MOI.set(model, MOI.RawParameter("simplex_strategy"), "on")
+    @test_throws err MOI.set(model, MOI.RawParameter("time_limit"), 1)
     @test_throws err MOI.set(model, MOI.RawParameter("presolve"), 1)
-    @test_throws err MOI.set(model, MOI.RawParameter("message_level"), -1)
     return
 end
 
