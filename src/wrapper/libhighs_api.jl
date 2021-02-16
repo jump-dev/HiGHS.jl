@@ -32,6 +32,14 @@ function Highs_runQuiet(highs)
     ccall((:Highs_runQuiet, libhighs), Cint, (Ptr{Cvoid},), highs)
 end
 
+function Highs_setHighsLogfile(highs, logfile)
+    ccall((:Highs_setHighsLogfile, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cvoid}), highs, logfile)
+end
+
+function Highs_setHighsOutput(highs, outputfile)
+    ccall((:Highs_setHighsOutput, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cvoid}), highs, outputfile)
+end
+
 function Highs_run(highs)
     ccall((:Highs_run, libhighs), Cint, (Ptr{Cvoid},), highs)
 end
@@ -80,6 +88,10 @@ function Highs_getHighsStringOptionValue(highs, option, value)
     ccall((:Highs_getHighsStringOptionValue, libhighs), Cint, (Ptr{Cvoid}, Cstring, Cstring), highs, option, value)
 end
 
+function Highs_getHighsOptionType(highs, option, type)
+    ccall((:Highs_getHighsOptionType, libhighs), Cint, (Ptr{Cvoid}, Cstring, Ptr{Cint}), highs, option, type)
+end
+
 function Highs_resetHighsOptions(highs)
     ccall((:Highs_resetHighsOptions, libhighs), Cint, (Ptr{Cvoid},), highs)
 end
@@ -102,6 +114,14 @@ end
 
 function Highs_getModelStatus(highs, scaled_model)
     ccall((:Highs_getModelStatus, libhighs), Cint, (Ptr{Cvoid}, Cint), highs, scaled_model)
+end
+
+function Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
+    ccall((:Highs_getDualRay, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}, Ptr{Cdouble}), highs, has_dual_ray, dual_ray_value)
+end
+
+function Highs_getPrimalRay(highs, has_primal_ray, primal_ray_value)
+    ccall((:Highs_getPrimalRay, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}, Ptr{Cdouble}), highs, has_primal_ray, primal_ray_value)
 end
 
 function Highs_getObjectiveValue(highs)
@@ -214,6 +234,10 @@ end
 
 function Highs_changeRowsBoundsByMask(highs, mask, lower, upper)
     ccall((:Highs_changeRowsBoundsByMask, libhighs), Cint, (Ptr{Cvoid}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
+end
+
+function Highs_changeCoeff(highs, row, col, value)
+    ccall((:Highs_changeCoeff, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Cdouble), highs, row, col, value)
 end
 
 function Highs_getObjectiveSense(highs, sense)
