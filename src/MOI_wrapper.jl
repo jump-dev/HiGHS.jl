@@ -326,87 +326,70 @@ end
 ### MOI.RawParameter
 ###
 
-"""
-    _OPTIONS
-
-A dictionary mapping the `String` name of HiGHS options to the expected input
-type.
-"""
-const _OPTIONS = Dict{String,DataType}(
-    "presolve" => String,
-    "solver" => String,
-    "parallel" => String,
-    "simplex_strategy" => Cint,
-    "simplex_iteration_limit" => Cint,
-    "highs_min_threads" => Cint,
-    "message_level" => Cint,
-    "time_limit" => Cdouble,
-)
-
-function MOI.supports(::Optimizer, param::MOI.RawParameter)
-    return haskey(_OPTIONS, param.name)
+function MOI.supports(model::Optimizer, param::MOI.RawParameter)
+    if !(param.name isa String)
+        return false
+    end
+    typeP = Ref{Cint}()
+    return Highs_getHighsOptionType(model, param.name, typeP) == 0
 end
 
 function _check_option_status(ret::Cint)
-    if ret == 0
-        return
+    if ret != 0
+        error("Encountered an error in HiGHS: Check the log for details.")
     end
-    @assert 1 <= ret <= 3
-    codes = ["NO_FILE", "UNKNOWN_OPTION", "ILLEGAL_VALUE"]
-    error(
-        "Encountered an error in HiGHS: OptionStatus::$(codes[ret]). " *
-        "Check the log for details.",
-    )
     return
 end
 
-function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Integer)
-    ret = Highs_setHighsIntOptionValue(model, param.name, Cint(value))
+function _set_option(model::Optimizer, option::String, value::Bool)
+    return Highs_setHighsBoolOptionValue(model, option, Cint(value))
+end
+
+function _set_option(model::Optimizer, option::String, value::Integer)
+    return Highs_setHighsIntOptionValue(model, option, Cint(value))
+end
+
+function _set_option(model::Optimizer, option::String, value::AbstractFloat)
+    return Highs_setHighsDoubleOptionValue(model, option, Cdouble(value))
+end
+
+function _set_option(model::Optimizer, option::String, value::String)
+    return Highs_setHighsStringOptionValue(model, option, value)
+end
+
+function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
+    if !MOI.supports(model, param)
+        throw(MOI.UnsupportedAttribute(param))
+    end
+    ret = _set_option(model, param.name, value)
     return _check_option_status(ret)
 end
 
-function MOI.set(model::Optimizer, param::MOI.RawParameter, value::Bool)
-    ret = Highs_setHighsBoolOptionValue(model, param.name, Cint(value))
-    return _check_option_status(ret)
-end
+### MOI.get
 
-function MOI.set(
-    model::Optimizer,
-    param::MOI.RawParameter,
-    value::AbstractFloat,
-)
-    ret = Highs_setHighsDoubleOptionValue(model, param.name, Cdouble(value))
-    return _check_option_status(ret)
-end
-
-function MOI.set(model::Optimizer, param::MOI.RawParameter, value::String)
-    ret = Highs_setHighsStringOptionValue(model, param.name, value)
-    return _check_option_status(ret)
-end
-
-function _get_option(model::Optimizer, option::String, ::Type{Cint})
-    value = Ref{Cint}(0)
-    ret = Highs_getHighsIntOptionValue(model, option, value)
-    _check_option_status(ret)
-    return value[]
-end
-
-function _get_option(model::Optimizer, option::String, ::Type{Bool})
+function _get_bool_option(model::Optimizer, option::String)
     value = Ref{Cint}(0)
     ret = Highs_getHighsBoolOptionValue(model, option, value)
     _check_option_status(ret)
     return Bool(value[])
 end
 
-function _get_option(model::Optimizer, option::String, ::Type{Cdouble})
+function _get_int_option(model::Optimizer, option::String)
+    value = Ref{Cint}(0)
+    ret = Highs_getHighsIntOptionValue(model, option, value)
+    _check_option_status(ret)
+    return value[]
+end
+
+function _get_double_option(model::Optimizer, option::String)
     value = Ref{Cdouble}()
     ret = Highs_getHighsDoubleOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
 end
 
-function _get_option(model::Optimizer, option::String, ::Type{String})
-    buffer = Vector{Cchar}(undef, 100)
+function _get_string_option(model::Optimizer, option::String)
+    buffer = Vector{Cchar}(undef, 1024)
     bufferP = pointer(buffer)
     GC.@preserve buffer begin
         ret = Highs_getHighsStringOptionValue(model, option, bufferP)
@@ -415,12 +398,24 @@ function _get_option(model::Optimizer, option::String, ::Type{String})
     end
 end
 
-function MOI.get(o::Optimizer, param::MOI.RawParameter)
-    param_type = get(_OPTIONS, param.name, nothing)
-    if param_type === nothing
-        throw(ArgumentError("Parameter $(param.name) is not supported"))
+function MOI.get(model::Optimizer, param::MOI.RawParameter)
+    if !(param.name isa String)
+        throw(MOI.UnsupportedAttribute(param))
     end
-    return _get_option(o, param.name, param_type)
+    typeP = Ref{Cint}()
+    ret = Highs_getHighsOptionType(model, param.name, typeP)
+    if ret != 0
+        throw(MOI.UnsupportedAttribute(param))
+    elseif typeP[] == 0
+        return _get_bool_option(model, param.name)::Bool
+    elseif typeP[] == 1
+        return _get_int_option(model, param.name)::Cint
+    elseif typeP[] == 2
+        return _get_double_option(model, param.name)::Cdouble
+    else
+        @assert typeP[] == 3
+        return _get_string_option(model, param.name)::String
+    end
 end
 
 ###
