@@ -12,8 +12,6 @@ MOI.set(OPTIMIZER, MOI.Silent(), true)
 const CONFIG = MOI.Test.TestConfig(
     basis = true,
 
-    # TODO(odow): add support for modifying the constraint matrix.
-    modify_lhs = false,
     # TODO(odow): add infeasibility certificates.
     infeas_certificates = false,
 )
@@ -46,14 +44,7 @@ function test_unittest()
 end
 
 function test_modificationtest()
-    # TODO(odow): HiGHS doesn't support modifying the constraint matrix, so use
-    # a caching optimizer.
-    MOI.empty!(OPTIMIZER)
-    cache = MOI.Utilities.CachingOptimizer(
-        MOI.Utilities.Model{Float64}(),
-        OPTIMIZER,
-    )
-    return MOI.Test.modificationtest(cache, CONFIG)
+    return MOI.Test.modificationtest(OPTIMIZER, CONFIG)
 end
 
 function test_contlineartest()
