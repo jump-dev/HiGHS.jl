@@ -51,7 +51,7 @@ function test_contlineartest()
         String[
             # Upstream segfault. Reported: https://github.com/ERGO-Code/HiGHS/issues/448
             "linear8b",
-            # Upstream bug. Incorrect unbounded ray.
+            # Upstream bug. Reported: https://github.com/ERGO-Code/HiGHS/issues/464
             "linear8c",
 
             # VariablePrimalStart not supported.

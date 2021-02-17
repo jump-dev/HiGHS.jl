@@ -131,29 +131,39 @@ end
 A struct to store the vector solution from HiGHS because it doesn't support
 accessing them element-wise.
 """
-struct _Solution
+mutable struct _Solution
+    optimize_called::Bool
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
     colstatus::Vector{Cint}
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
     rowstatus::Vector{Cint}
-    has_primal_ray::Ref{Cint}
-    has_dual_ray::Ref{Cint}
+    has_primal_ray::Bool
+    has_dual_ray::Bool
     function _Solution()
         return new(
+            false,
             Cdouble[],
             Cdouble[],
             Cint[],
             Cdouble[],
             Cdouble[],
             Cint[],
-            Ref{Cint}(0),
-            Ref{Cint}(0),
+            false,
+            false,
         )
     end
 end
 
+function Base.empty!(x::_Solution)
+    x.optimize_called = false
+    x.has_dual_ray = false
+    x.has_primal_ray = false
+    return x
+end
+
+Base.isempty(x::_Solution) = !x.optimize_called
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
@@ -188,7 +198,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     }
 
     # HiGHS just returns a single solution struct :(
-    optimize_called::Bool
     solution::_Solution
 
     """
@@ -211,7 +220,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             _constraint_info_dict(),
             nothing,
             nothing,
-            false,
             _Solution(),
         )
         MOI.empty!(model)
@@ -256,7 +264,7 @@ function MOI.empty!(model::Optimizer)
     empty!(model.affine_constraint_info)
     model.name_to_variable = nothing
     model.name_to_constraint_index = nothing
-    model.optimize_called = false
+    empty!(model.solution)
     return
 end
 
@@ -269,7 +277,7 @@ function MOI.is_empty(model::Optimizer)
            isempty(model.affine_constraint_info) &&
            model.name_to_variable === nothing &&
            model.name_to_constraint_index === nothing &&
-           model.optimize_called == false
+           isempty(model.solution)
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
@@ -1448,8 +1456,10 @@ end
 ###
 
 function _store_solution(model::Optimizer)
-    model.optimize_called = true
     x = model.solution
+    x.optimize_called = true
+    x.has_dual_ray = false
+    x.has_primal_ray = false
     numCols = Highs_getNumCols(model)
     numRows = Highs_getNumRows(model)
     resize!(x.colvalue, numCols)
@@ -1458,8 +1468,6 @@ function _store_solution(model::Optimizer)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    x.has_dual_ray[] = 0
-    x.has_primal_ray[] = 0
     # Load the solution if optimal.
     if Highs_getModelStatus(model.inner, Cint(0)) == 9
         Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
@@ -1467,13 +1475,16 @@ function _store_solution(model::Optimizer)
         return
     end
     # Check for a certificate of primal infeasibility.
-    ret = Highs_getDualRay(model, x.has_dual_ray, x.rowdual)
+    has_ray = Ref{Cint}(0)
+    ret = Highs_getDualRay(model, has_ray, x.rowdual)
+    x.has_dual_ray = has_ray[] == 1
     @assert ret == 0  # getDualRay only returns HighsStatus::OK
-    if x.has_dual_ray[] == 1
+    if x.has_dual_ray
         return
     end
     # Check for a certificate of dual infeasibility.
-    ret = Highs_getPrimalRay(model, x.has_primal_ray, x.colvalue)
+    ret = Highs_getPrimalRay(model, has_ray, x.colvalue)
+    x.has_primal_ray = has_ray[] == 1
     @assert ret == 0  # getPrimalRay only returns HighsStatus::OK
     return
 end
@@ -1515,7 +1526,7 @@ An enum for the HiGHS simplex status codes.
 end
 
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
-    if model.optimize_called == false
+    if !model.solution.optimize_called
         return MOI.OPTIMIZE_NOT_CALLED
     end
     status = HighsModelStatus(Highs_getModelStatus(model.inner, Cint(0)))
