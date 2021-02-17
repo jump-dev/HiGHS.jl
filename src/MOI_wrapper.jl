@@ -139,6 +139,7 @@ mutable struct _Solution
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
     rowstatus::Vector{Cint}
+    has_solution::Bool
     has_primal_ray::Bool
     has_dual_ray::Bool
     function _Solution()
@@ -152,12 +153,14 @@ mutable struct _Solution
             Cint[],
             false,
             false,
+            false,
         )
     end
 end
 
 function Base.empty!(x::_Solution)
     x.optimize_called = false
+    x.has_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
     return x
@@ -1458,6 +1461,7 @@ end
 function _store_solution(model::Optimizer)
     x = model.solution
     x.optimize_called = true
+    x.has_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
     numCols = Highs_getNumCols(model)
@@ -1472,6 +1476,7 @@ function _store_solution(model::Optimizer)
     if Highs_getModelStatus(model.inner, Cint(0)) == 9
         Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
         Highs_getBasis(model, x.colstatus, x.rowstatus)
+        x.has_solution = true
         return
     end
     # Check for a certificate of primal infeasibility.
@@ -1563,12 +1568,8 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)
-    status = HighsModelStatus(Highs_getModelStatus(model, Cint(0)))
-    if status == OPTIMAL
-        return 1
-    elseif model.solution.has_dual_ray[] == 1
-        return 1
-    elseif model.solution.has_primal_ray[] == 1
+    x = model.solution
+    if x.has_solution || x.has_dual_ray || x.has_primal_ray
         return 1
     else
         return 0
@@ -1583,9 +1584,9 @@ end
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    elseif model.solution.has_solution
         return MOI.FEASIBLE_POINT
-    elseif model.solution.has_primal_ray[] == 1
+    elseif model.solution.has_primal_ray
         return MOI.INFEASIBILITY_CERTIFICATE
     end
     return MOI.NO_SOLUTION
@@ -1594,9 +1595,9 @@ end
 function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    elseif model.solution.has_solution
         return MOI.FEASIBLE_POINT
-    elseif model.solution.has_dual_ray[] == 1
+    elseif model.solution.has_dual_ray
         return MOI.INFEASIBILITY_CERTIFICATE
     end
     return MOI.NO_SOLUTION
