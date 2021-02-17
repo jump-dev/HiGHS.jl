@@ -131,18 +131,42 @@ end
 A struct to store the vector solution from HiGHS because it doesn't support
 accessing them element-wise.
 """
-struct _Solution
+mutable struct _Solution
+    optimize_called::Bool
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
     colstatus::Vector{Cint}
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
     rowstatus::Vector{Cint}
+    has_solution::Bool
+    has_primal_ray::Bool
+    has_dual_ray::Bool
     function _Solution()
-        return new(Cdouble[], Cdouble[], Cint[], Cdouble[], Cdouble[], Cint[])
+        return new(
+            false,
+            Cdouble[],
+            Cdouble[],
+            Cint[],
+            Cdouble[],
+            Cdouble[],
+            Cint[],
+            false,
+            false,
+            false,
+        )
     end
 end
 
+function Base.empty!(x::_Solution)
+    x.optimize_called = false
+    x.has_solution = false
+    x.has_dual_ray = false
+    x.has_primal_ray = false
+    return x
+end
+
+Base.isempty(x::_Solution) = !x.optimize_called
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
@@ -177,7 +201,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     }
 
     # HiGHS just returns a single solution struct :(
-    optimize_called::Bool
     solution::_Solution
 
     """
@@ -200,7 +223,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             _constraint_info_dict(),
             nothing,
             nothing,
-            false,
             _Solution(),
         )
         MOI.empty!(model)
@@ -245,7 +267,7 @@ function MOI.empty!(model::Optimizer)
     empty!(model.affine_constraint_info)
     model.name_to_variable = nothing
     model.name_to_constraint_index = nothing
-    model.optimize_called = false
+    empty!(model.solution)
     return
 end
 
@@ -258,7 +280,7 @@ function MOI.is_empty(model::Optimizer)
            isempty(model.affine_constraint_info) &&
            model.name_to_variable === nothing &&
            model.name_to_constraint_index === nothing &&
-           model.optimize_called == false
+           isempty(model.solution)
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
@@ -1438,6 +1460,10 @@ end
 
 function _store_solution(model::Optimizer)
     x = model.solution
+    x.optimize_called = true
+    x.has_solution = false
+    x.has_dual_ray = false
+    x.has_primal_ray = false
     numCols = Highs_getNumCols(model)
     numRows = Highs_getNumRows(model)
     resize!(x.colvalue, numCols)
@@ -1446,8 +1472,25 @@ function _store_solution(model::Optimizer)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
-    Highs_getBasis(model, x.colstatus, x.rowstatus)
+    # Load the solution if optimal.
+    if Highs_getModelStatus(model.inner, Cint(0)) == 9
+        Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
+        Highs_getBasis(model, x.colstatus, x.rowstatus)
+        x.has_solution = true
+        return
+    end
+    # Check for a certificate of primal infeasibility.
+    has_ray = Ref{Cint}(0)
+    ret = Highs_getDualRay(model, has_ray, x.rowdual)
+    x.has_dual_ray = has_ray[] == 1
+    @assert ret == 0  # getDualRay only returns HighsStatus::OK
+    if x.has_dual_ray
+        return
+    end
+    # Check for a certificate of dual infeasibility.
+    ret = Highs_getPrimalRay(model, has_ray, x.colvalue)
+    x.has_primal_ray = has_ray[] == 1
+    @assert ret == 0  # getPrimalRay only returns HighsStatus::OK
     return
 end
 
@@ -1460,10 +1503,7 @@ function MOI.optimize!(model::Optimizer)
             "Check the log for details",
         )
     end
-    model.optimize_called = true
-    if MOI.get(model, MOI.ResultCount()) == 1
-        _store_solution(model)
-    end
+    _store_solution(model)
     return
 end
 
@@ -1491,7 +1531,7 @@ An enum for the HiGHS simplex status codes.
 end
 
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
-    if model.optimize_called == false
+    if !model.solution.optimize_called
         return MOI.OPTIMIZE_NOT_CALLED
     end
     status = HighsModelStatus(Highs_getModelStatus(model.inner, Cint(0)))
@@ -1528,8 +1568,12 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)
-    status = HighsModelStatus(Highs_getModelStatus(model, Cint(0)))
-    return status == OPTIMAL ? 1 : 0
+    x = model.solution
+    if x.has_solution || x.has_dual_ray || x.has_primal_ray
+        return 1
+    else
+        return 0
+    end
 end
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
@@ -1540,8 +1584,10 @@ end
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    elseif model.solution.has_solution
         return MOI.FEASIBLE_POINT
+    elseif model.solution.has_primal_ray
+        return MOI.INFEASIBILITY_CERTIFICATE
     end
     return MOI.NO_SOLUTION
 end
@@ -1549,8 +1595,10 @@ end
 function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    elseif model.solution.has_solution
         return MOI.FEASIBLE_POINT
+    elseif model.solution.has_dual_ray
+        return MOI.INFEASIBILITY_CERTIFICATE
     end
     return MOI.NO_SOLUTION
 end
@@ -1600,37 +1648,67 @@ function MOI.get(
     return model.solution.rowvalue[row(model, c)+1]
 end
 
-function _dual_multiplier(model::Optimizer)
-    return MOI.get(model, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? -1 : 1
+"""
+    _sense_corrector(model::Optimizer)
+
+Return `-1` if `MAX_SENSE`, and `1` is `MIN_SENSE`. Useful for correcting
+solution attributes which are sense-dependent.
+"""
+function _sense_corrector(model::Optimizer)
+    senseP = Ref{Cint}()
+    ret = Highs_getObjectiveSense(model, senseP)
+    _check_ret(ret)
+    return senseP[]
 end
 
 """
-    _signed_dual(model::Optimizer, dual::Float64, ::Type{Set})
+    _farkas_variable_dual(model::Optimizer, col::Cint)
+
+Return a Farkas dual associated with the variable bounds of `col`. Given a dual
+ray:
+
+    ā * x = λ' * A * x <= λ' * b = -β + sum(āᵢ * Uᵢ | āᵢ < 0) + sum(āᵢ * Lᵢ | āᵢ > 0)
+
+The Farkas dual of the variable is ā, and it applies to the upper bound if ā < 0,
+and it applies to the lower bound if ā > 0.
+"""
+function _farkas_variable_dual(model::Optimizer, col::Cint)
+    num_nz, num_cols = Ref{Cint}(0), Ref{Cint}(0)
+    # TODO(odow): how does getColsByRangeWork???
+    m = Highs_getNumRows(model)
+    matrix_start = zeros(Cint, 2)
+    matrix_index = Vector{Cint}(undef, m)
+    matrix_value = Vector{Cdouble}(undef, m)
+    ret = Highs_getColsByRange(
+        model,
+        col,
+        col,
+        num_cols,
+        C_NULL,
+        C_NULL,
+        C_NULL,
+        num_nz,
+        matrix_start,
+        matrix_index,
+        matrix_value,
+    )
+    _check_ret(ret)
+    dual = 0.0
+    for i = 1:num_nz[]
+        dual += -model.solution.rowdual[matrix_index[i] + 1] * matrix_value[i]
+    end
+    return dual
+end
+
+"""
+    _signed_dual(dual::Float64, ::Type{Set})
 
 A heuristic for determining whether the dual of an interval constraint applies
 to the lower or upper bound. It can be wrong by at most the solver's tolerance.
 """
-function _signed_dual end
-
-function _signed_dual(
-    model::Optimizer,
-    dual::Float64,
-    ::Type{MOI.LessThan{Float64}},
-)
-    return min(_dual_multiplier(model) * dual, 0.0)
-end
-
-function _signed_dual(
-    model::Optimizer,
-    dual::Float64,
-    ::Type{MOI.GreaterThan{Float64}},
-)
-    return max(_dual_multiplier(model) * dual, 0.0)
-end
-
-function _signed_dual(model::Optimizer, dual::Float64, ::Any)
-    return _dual_multiplier(model) * dual
-end
+_signed_dual(dual::Float64, ::Type{MOI.LessThan{Float64}}) = min(dual, 0.0)
+_signed_dual(dual::Float64, ::Type{MOI.GreaterThan{Float64}}) = max(dual, 0.0)
+_signed_dual(dual::Float64, ::Any) = dual
 
 function MOI.get(
     model::Optimizer,
@@ -1638,8 +1716,13 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable,S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    reduced_cost = model.solution.coldual[column(model, c)+1]
-    return _signed_dual(model, reduced_cost, S)
+    col = column(model, c)
+    if model.solution.has_dual_ray[] == 1
+        return _signed_dual(_farkas_variable_dual(model, col), S)
+    else
+        reduced_cost = _sense_corrector(model) * model.solution.coldual[col+1]
+        return _signed_dual(reduced_cost, S)
+    end
 end
 
 function MOI.get(
@@ -1649,7 +1732,11 @@ function MOI.get(
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
     dual = model.solution.rowdual[row(model, c)+1]
-    return _signed_dual(model, -dual, S)
+    if model.solution.has_dual_ray[] == 1
+        return _signed_dual(dual, S)
+    else
+        return _signed_dual(-_sense_corrector(model) * dual, S)
+    end
 end
 
 ###
