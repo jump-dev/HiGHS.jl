@@ -1636,8 +1636,17 @@ function MOI.get(
     return model.solution.rowvalue[row(model, c)+1]
 end
 
-function _dual_multiplier(model::Optimizer)
-    return MOI.get(model, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? -1 : 1
+"""
+    _sense_corrector(model::Optimizer)
+
+Return `-1` if `MAX_SENSE`, and `1` is `MIN_SENSE`. Useful for correcting
+solution attributes which are sense-dependent.
+"""
+function _sense_corrector(model::Optimizer)
+    senseP = Ref{Cint}()
+    ret = Highs_getObjectiveSense(model, senseP)
+    _check_ret(ret)
+    return senseP[]
 end
 
 """
@@ -1652,28 +1661,17 @@ The Farkas dual of the variable is ā, and it applies to the upper bound if ā
 and it applies to the lower bound if ā > 0.
 """
 function _farkas_variable_dual(model::Optimizer, col::Cint)
-    num_nz = Ref{Cint}()
-    Highs_getColsByRange(
-        model,
-        col,
-        col,
-        1,
-        C_NULL,
-        C_NULL,
-        C_NULL,
-        num_nz,
-        C_NULL,
-        C_NULL,
-        C_NULL,
-    )
-    matrix_start = Vector{Cint}(undef, 2)
-    matrix_index = Vector{Cint}(undef, num_nz[])
-    matrix_value = Vector{Cdouble}(undef, num_nz[])
+    num_nz, num_cols = Ref{Cint}(0), Ref{Cint}(0)
+    # TODO(odow): how does getColsByRangeWork???
+    m = Highs_getNumRows(model)
+    matrix_start = zeros(Cint, 2)
+    matrix_index = Vector{Cint}(undef, m)
+    matrix_value = Vector{Cdouble}(undef, m)
     ret = Highs_getColsByRange(
         model,
         col,
         col,
-        1,
+        num_cols,
         C_NULL,
         C_NULL,
         C_NULL,
@@ -1683,9 +1681,11 @@ function _farkas_variable_dual(model::Optimizer, col::Cint)
         matrix_value,
     )
     _check_ret(ret)
-    return sum(
-        model.solution.rowdual[i+1] * matrix_value[i+1] for i in matrix_index
-    )
+    dual = 0.0
+    for i = 1:num_nz[]
+        dual += -model.solution.rowdual[matrix_index[i] + 1] * matrix_value[i]
+    end
+    return dual
 end
 
 """
@@ -1708,7 +1708,7 @@ function MOI.get(
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(_farkas_variable_dual(model, col), S)
     else
-        reduced_cost = _dual_multiplier(model) * model.solution.coldual[col+1]
+        reduced_cost = _sense_corrector(model) * model.solution.coldual[col+1]
         return _signed_dual(reduced_cost, S)
     end
 end
@@ -1721,9 +1721,9 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     dual = model.solution.rowdual[row(model, c)+1]
     if model.solution.has_dual_ray[] == 1
-        return _signed_dual(-dual, S)
+        return _signed_dual(dual, S)
     else
-        return _signed_dual(-_dual_multiplier(model) * dual, S)
+        return _signed_dual(-_sense_corrector(model) * dual, S)
     end
 end
 

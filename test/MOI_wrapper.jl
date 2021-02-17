@@ -8,6 +8,8 @@ const MOI = MathOptInterface
 
 const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
 MOI.set(OPTIMIZER, MOI.Silent(), true)
+# Needed so we can get the infeasibility certificates.
+MOI.set(OPTIMIZER, MOI.RawParameter("presolve"), "off")
 
 const CONFIG = MOI.Test.TestConfig(basis = true)
 
@@ -49,6 +51,8 @@ function test_contlineartest()
         String[
             # Upstream segfault. Reported: https://github.com/ERGO-Code/HiGHS/issues/448
             "linear8b",
+            # Upstream bug. Incorrect unbounded ray.
+            "linear8c",
 
             # VariablePrimalStart not supported.
             "partial_start",
