@@ -3,6 +3,22 @@ import MathOptInterface
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
+"""
+    HighsBasisStatus
+
+Manually copied from:
+https://github.com/ERGO-Code/HiGHS/blob/25c112b29520b4ecb1224e33c1f42471dbe51cbe/src/lp_data/HConst.h#L137-L148
+"""
+@enum(
+    HighsBasisStatus,
+    LOWER = 0,
+    BASIC,
+    UPPER,
+    ZERO,
+    NONBASIC,
+    SUPER,
+)
+
 @enum(
     _RowType,
     _ROW_TYPE_LESSTHAN,
@@ -1710,6 +1726,30 @@ _signed_dual(dual::Float64, ::Type{MOI.LessThan{Float64}}) = min(dual, 0.0)
 _signed_dual(dual::Float64, ::Type{MOI.GreaterThan{Float64}}) = max(dual, 0.0)
 _signed_dual(dual::Float64, ::Any) = dual
 
+"""
+    _signed_dual(dual::Float64, ::Type{Set}, status::HighsBasisStatus)
+
+Determine whether the dual of an interval constraint applies to the lower or
+upper bound using the basis status reported by HiGHS.
+"""
+function _signed_dual(
+    dual::Float64,
+    ::Type{MOI.LessThan{Float64}},
+    status::HighsBasisStatus,
+)
+    return status == UPPER ? dual : 0.0
+end
+
+function _signed_dual(
+    dual::Float64,
+    ::Type{MOI.GreaterThan{Float64}},
+    status::HighsBasisStatus,
+)
+    return status == LOWER ? dual : 0.0
+end
+
+_signed_dual(dual::Float64, ::Any, ::HighsBasisStatus) = dual
+
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintDual,
@@ -1719,10 +1759,10 @@ function MOI.get(
     col = column(model, c)
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(_farkas_variable_dual(model, col), S)
-    else
-        reduced_cost = _sense_corrector(model) * model.solution.coldual[col+1]
-        return _signed_dual(reduced_cost, S)
     end
+    dual = _sense_corrector(model) * model.solution.coldual[col+1]
+    stat = HighsBasisStatus(model.solution.colstatus[col+1])
+    return _signed_dual(dual, S, stat)
 end
 
 function MOI.get(
@@ -1731,27 +1771,18 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    dual = model.solution.rowdual[row(model, c)+1]
+    r = row(model, c)+1
+    dual = model.solution.rowdual[r]
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(dual, S)
-    else
-        return _signed_dual(-_sense_corrector(model) * dual, S)
     end
+    stat = HighsBasisStatus(model.solution.rowstatus[r])
+    return _signed_dual(-_sense_corrector(model) * dual, S, stat)
 end
 
 ###
 ### MOI.ConstraintBasisStatus
 ###
-
-@enum(
-    HighsBasisStatus,
-    LOWER = 0,
-    BASIC,
-    UPPER,
-    ZERO,
-    NONBASIC,
-    SUPER,
-)
 
 # HiGHS only reports a single basis status for each ranged constraint. Therefore
 # if the status is LOWER or UPPER, we must distinguish whether or not it is
