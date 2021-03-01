@@ -5,6 +5,7 @@ version = "0.1.1"
 [deps]
 HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 HiGHS_jll = "0.2.1"
