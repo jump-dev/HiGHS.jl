@@ -450,6 +450,39 @@ function test_option_unknown_option()
     return
 end
 
+function test_copy_to()
+    src = MOI.Utilities.Model{Float64}()
+    MOI.Utilities.loadfromstring!(src, """
+    variables: w, x, y, z
+    minobjective: w + x + y + z
+    c1: w <= 1.0
+    c2: w >= 0.5
+    c3: x in MathOptInterface.Interval(1.0, 2.0)
+    c4: y == 2.0
+    c5: y + z >= 4.5
+    c6: x + y <= 3.0
+    c7: w + x == 1.5
+    c8: w + x in MathOptInterface.Interval(1.0, 2.0)
+    """)
+    dest = HiGHS.Optimizer()
+    MOI.copy_to(dest, src)
+    @test MOI.get(dest, MOI.NumberOfVariables()) == 4
+    list = MOI.get(dest, MOI.ListOfConstraints())
+    @test length(list) == 8
+    for S in (
+        MOI.GreaterThan{Float64},
+        MOI.LessThan{Float64},
+        MOI.EqualTo{Float64},
+        MOI.Interval{Float64},
+    )
+        @test (MOI.SingleVariable, S) in list
+        @test (MOI.ScalarAffineFunction{Float64}, S) in list
+    end
+    MOI.optimize!(dest)
+    @test MOI.get(dest, MOI.ObjectiveValue()) == 0.5 + 1.0 + 2.0 + 2.5
+    return
+end
+
 function runtests()
     for name in names(@__MODULE__; all = true)
         if startswith(string(name), "test_")

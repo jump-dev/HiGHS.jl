@@ -1,4 +1,6 @@
 import MathOptInterface
+import SparseArrays
+
 
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
@@ -85,6 +87,47 @@ mutable struct _VariableInfo
     end
 end
 
+
+function _update_info(info::_VariableInfo, s::MOI.GreaterThan{Float64})
+    _throw_if_existing_lower(info, s)
+    if info.bound == _BOUND_LESS_THAN
+        info.bound = _BOUND_LESS_AND_GREATER_THAN
+    else
+        info.bound = _BOUND_GREATER_THAN
+    end
+    info.lower = s.lower
+    return
+end
+
+function _update_info(info::_VariableInfo, s::MOI.LessThan{Float64})
+    _throw_if_existing_upper(info, s)
+    if info.bound == _BOUND_GREATER_THAN
+        info.bound = _BOUND_LESS_AND_GREATER_THAN
+    else
+        info.bound = _BOUND_LESS_THAN
+    end
+    info.upper = s.upper
+    return
+end
+
+function _update_info(info::_VariableInfo, s::MOI.EqualTo{Float64})
+    _throw_if_existing_lower(info, s)
+    _throw_if_existing_upper(info, s)
+    info.bound = _BOUND_EQUAL_TO
+    info.lower = s.value
+    info.upper = s.value
+    return
+end
+
+function _update_info(info::_VariableInfo, s::MOI.Interval{Float64})
+    _throw_if_existing_lower(info, s)
+    _throw_if_existing_upper(info, s)
+    info.bound = _BOUND_INTERVAL
+    info.lower = s.lower
+    info.upper = s.upper
+    return
+end
+
 function _variable_info_dict()
     return CleverDicts.CleverDict{MOI.VariableIndex,_VariableInfo}(
         x::MOI.VariableIndex -> x.value,
@@ -112,6 +155,7 @@ function _ConstraintInfo(set::_SCALAR_SETS)
     lower, upper = _bounds(set)
     return _ConstraintInfo("", 0, _row_type(set), lower, upper)
 end
+
 struct _ConstraintKey
     value::Int64
 end
@@ -302,12 +346,6 @@ end
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
-
-MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
-
-function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike; kws...)
-    return MOI.Utilities.automatic_copy_to(dest, src; kws...)
-end
 
 function MOI.get(::Optimizer, ::MOI.ListOfVariableAttributesSet)
     return MOI.AbstractVariableAttribute[MOI.VariableName()]
@@ -875,35 +913,33 @@ function MOI.set(
 end
 
 function _throw_if_existing_lower(
-    bound::_BoundEnum,
-    ::Type{S},
-    variable::MOI.VariableIndex,
+    info::_VariableInfo,
+    ::S,
 ) where {S<:MOI.AbstractSet}
-    if bound == _BOUND_LESS_AND_GREATER_THAN
-        throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(variable))
-    elseif bound == _BOUND_GREATER_THAN
-        throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(variable))
-    elseif bound == _BOUND_INTERVAL
-        throw(MOI.LowerBoundAlreadySet{MOI.Interval{Float64},S}(variable))
-    elseif bound == _BOUND_EQUAL_TO
-        throw(MOI.LowerBoundAlreadySet{MOI.EqualTo{Float64},S}(variable))
+    if info.bound == _BOUND_LESS_AND_GREATER_THAN
+        throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(info.index))
+    elseif info.bound == _BOUND_GREATER_THAN
+        throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(info.index))
+    elseif info.bound == _BOUND_INTERVAL
+        throw(MOI.LowerBoundAlreadySet{MOI.Interval{Float64},S}(info.index))
+    elseif info.bound == _BOUND_EQUAL_TO
+        throw(MOI.LowerBoundAlreadySet{MOI.EqualTo{Float64},S}(info.index))
     end
     return
 end
 
 function _throw_if_existing_upper(
-    bound::_BoundEnum,
-    ::Type{S},
-    variable::MOI.VariableIndex,
+    info::_VariableInfo,
+    ::S,
 ) where {S<:MOI.AbstractSet}
-    if bound == _BOUND_LESS_AND_GREATER_THAN
-        throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(variable))
-    elseif bound == _BOUND_LESS_THAN
-        throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(variable))
-    elseif bound == _BOUND_INTERVAL
-        throw(MOI.UpperBoundAlreadySet{MOI.Interval{Float64},S}(variable))
-    elseif bound == _BOUND_EQUAL_TO
-        throw(MOI.UpperBoundAlreadySet{MOI.EqualTo{Float64},S}(variable))
+    if info.bound == _BOUND_LESS_AND_GREATER_THAN
+        throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(info.index))
+    elseif info.bound == _BOUND_LESS_THAN
+        throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(info.index))
+    elseif info.bound == _BOUND_INTERVAL
+        throw(MOI.UpperBoundAlreadySet{MOI.Interval{Float64},S}(info.index))
+    elseif info.bound == _BOUND_EQUAL_TO
+        throw(MOI.UpperBoundAlreadySet{MOI.EqualTo{Float64},S}(info.index))
     end
     return
 end
@@ -914,36 +950,7 @@ function MOI.add_constraint(
     s::S,
 ) where {S<:_SCALAR_SETS}
     info = _info(model, f.variable)
-    if S <: MOI.LessThan{Float64}
-        _throw_if_existing_upper(info.bound, S, f.variable)
-        if info.bound == _BOUND_GREATER_THAN
-            info.bound = _BOUND_LESS_AND_GREATER_THAN
-        else
-            info.bound = _BOUND_LESS_THAN
-        end
-        info.upper = s.upper
-    elseif S <: MOI.GreaterThan{Float64}
-        _throw_if_existing_lower(info.bound, S, f.variable)
-        if info.bound == _BOUND_LESS_THAN
-            info.bound = _BOUND_LESS_AND_GREATER_THAN
-        else
-            info.bound = _BOUND_GREATER_THAN
-        end
-        info.lower = s.lower
-    elseif S <: MOI.EqualTo{Float64}
-        _throw_if_existing_lower(info.bound, S, f.variable)
-        _throw_if_existing_upper(info.bound, S, f.variable)
-        info.bound = _BOUND_EQUAL_TO
-        info.lower = s.value
-        info.upper = s.value
-    else
-        @assert S <: MOI.Interval{Float64}
-        _throw_if_existing_lower(info.bound, S, f.variable)
-        _throw_if_existing_upper(info.bound, S, f.variable)
-        info.bound = _BOUND_INTERVAL
-        info.lower = s.lower
-        info.upper = s.upper
-    end
+    _update_info(info, s)
     index = MOI.ConstraintIndex{MOI.SingleVariable,typeof(s)}(f.variable.value)
     MOI.set(model, MOI.ConstraintSet(), index, s)
     return index
@@ -1838,4 +1845,205 @@ function MOI.get(
         @assert stat == SUPER
         return MOI.SUPER_BASIC
     end
+end
+
+###
+### MOI.copy_to
+###
+
+function _add_bounds(::Vector{Float64}, ub, i, s::MOI.LessThan{Float64})
+    ub[i] = s.upper
+    return
+end
+
+function _add_bounds(lb, ::Vector{Float64}, i, s::MOI.GreaterThan{Float64})
+    lb[i] = s.lower
+    return
+end
+
+function _add_bounds(lb, ub, i, s::MOI.EqualTo{Float64})
+    lb[i], ub[i] = s.value, s.value
+    return
+end
+
+function _add_bounds(lb, ub, i, s::MOI.Interval{Float64})
+    lb[i], ub[i] = s.lower, s.upper
+    return
+end
+
+function _extract_bound_data(
+    dest::Optimizer,
+    src::MOI.ModelLike,
+    mapping,
+    collower::Vector{Float64},
+    colupper::Vector{Float64},
+    ::Type{S},
+) where {S}
+    for c_index in MOI.get(
+        src,
+        MOI.ListOfConstraintIndices{MOI.SingleVariable,S}(),
+    )
+        f = MOI.get(src, MOI.ConstraintFunction(), c_index)
+        s = MOI.get(src, MOI.ConstraintSet(), c_index)
+        new_f = mapping.varmap[f.variable]
+        info = _info(dest, new_f)
+        _add_bounds(collower, colupper, info.column + 1, s)
+        _update_info(info, s)
+        mapping.conmap[c_index] =
+            MOI.ConstraintIndex{MOI.SingleVariable,S}(new_f.value)
+    end
+    return
+end
+
+function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
+    x_src = MOI.get(src, MOI.ListOfVariableIndices())
+    numcols = Cint(length(x_src))
+    for i = 1:numcols
+        index = CleverDicts.add_item(
+            dest.variable_info,
+            _VariableInfo(MOI.VariableIndex(0), Cint(0)),
+        )
+        info = _info(dest, index)
+        info.name = MOI.get(dest, MOI.VariableName(), x_src[i])
+        info.index = index
+        info.column = Cint(i - 1)
+        mapping.varmap[x_src[i]] = index
+    end
+    fobj = MOI.get(
+        src,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+    )
+    c = fill(0.0, numcols)
+    for term in fobj.terms
+        i = mapping.varmap[term.variable_index].value
+        c[i] += term.coefficient
+    end
+    dest.objective_constant = fobj.constant
+    return numcols, c
+end
+
+add_sizehint!(vec, n) = sizehint!(vec, length(vec) + n)
+
+function _extract_row_data(
+    dest::Optimizer,
+    src::MOI.ModelLike,
+    mapping,
+    rowlower::Vector{Float64},
+    rowupper::Vector{Float64},
+    I::Vector{Cint},
+    J::Vector{Cint},
+    V::Vector{Float64},
+    ::Type{S},
+) where {S}
+    row = length(I) == 0 ? 1 : I[end] + 1
+    list = MOI.get(
+        src,
+        MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}()
+    )
+    numrows = length(list)
+    add_sizehint!(rowlower, numrows)
+    add_sizehint!(rowupper, numrows)
+    n_terms = 0
+    fs = Array{MOI.ScalarAffineFunction{Float64}}(undef, numrows)
+    for (i, c_index) in enumerate(list)
+        f = MOI.get(src, MOI.ConstraintFunction(), c_index)
+        fs[i] = f
+        set = MOI.get(src, MOI.ConstraintSet(), c_index)
+        l, u = _bounds(set)
+        push!(rowlower, l - f.constant)
+        push!(rowupper, u - f.constant)
+        n_terms += length(f.terms)
+        key = CleverDicts.add_item(
+            dest.affine_constraint_info,
+            _ConstraintInfo(set),
+        )
+        dest.affine_constraint_info[key].row =
+            Cint(length(dest.affine_constraint_info) - 1)
+        mapping.conmap[c_index] =
+            MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value)
+    end
+    add_sizehint!(I, n_terms)
+    add_sizehint!(J, n_terms)
+    add_sizehint!(V, n_terms)
+    for (i, c_index) in enumerate(list)
+        for term in fs[i].terms
+            push!(I, row)
+            push!(J, Cint(mapping.varmap[term.variable_index].value))
+            push!(V, term.coefficient)
+        end
+        row += 1
+    end
+    return
+end
+
+function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
+    for (F, S) in MOI.get(src, MOI.ListOfConstraints())
+        if !MOI.supports_constraint(dest, F, S)
+            throw(
+                MOI.UnsupportedConstraint{F,S}(
+                    "HiGHS does not support constraints of type $F-in-$S."
+                )
+            )
+        end
+    end
+    fobj_type = MOI.get(src, MOI.ObjectiveFunctionType())
+    if !MOI.supports(dest, MOI.ObjectiveFunction{fobj_type}())
+        throw(MOI.UnsupportedAttribute(MOI.ObjectiveFunction(fobj_type)))
+    end
+    return
+end
+
+MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
+
+function MOI.copy_to(
+    dest::Optimizer,
+    src::MOI.ModelLike;
+    copy_names::Bool = false,
+    kwargs...
+)
+    if copy_names
+        return MOI.Utilities.automatic_copy_to(
+            dest,
+            src;
+            copy_names = true,
+            kwargs...
+        )
+    end
+    @assert MOI.is_empty(dest)
+    _check_input_data(dest, src)
+    mapping = MOI.Utilities.IndexMap()
+    numcol, colcost = _copy_to_columns(dest, src, mapping)
+    collower, colupper = fill(-Inf, numcol), fill(Inf, numcol)
+    rowlower, rowupper = Float64[], Float64[]
+    I, J, V = Cint[], Cint[], Float64[]
+    for S in (
+        MOI.GreaterThan{Float64},
+        MOI.LessThan{Float64},
+        MOI.EqualTo{Float64},
+        MOI.Interval{Float64},
+    )
+        _extract_bound_data(dest, src, mapping, collower, colupper, S)
+        _extract_row_data(dest, src, mapping, rowlower, rowupper, I, J, V, S)
+    end
+    numrow = Cint(length(rowlower))
+    A = SparseArrays.sparse(I, J, V, numrow, numcol)
+    Highs_passLp(
+        dest,
+        numcol,
+        numrow,
+        length(V),
+        colcost,
+        collower,
+        colupper,
+        rowlower,
+        rowupper,
+        A.colptr .- Cint(1),
+        A.rowval .- Cint(1),
+        A.nzval,
+    )
+    sense = MOI.get(src, MOI.ObjectiveSense())
+    x = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
+    ret = Highs_changeObjectiveSense(dest, x)
+    _check_ret(ret)
+    return mapping
 end
