@@ -48,6 +48,10 @@ function Highs_writeSolution(highs, filename)
     ccall((:Highs_writeSolution, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
 end
 
+function Highs_writeSolutionPretty(highs, filename)
+    ccall((:Highs_writeSolutionPretty, libhighs), Cint, (Ptr{Cvoid}, Cstring), highs, filename)
+end
+
 function Highs_passLp(highs, numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
     ccall((:Highs_passLp, libhighs), Cint, (Ptr{Cvoid}, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}), highs, numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
 end
