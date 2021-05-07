@@ -185,6 +185,7 @@ function _set(c::_ConstraintInfo)
     end
 end
 
+@enum(_OptimizeStatus, _OPTIMIZE_NOT_CALLED, _OPTIMIZE_OK, _OPTIMIZE_ERRORED)
 """
     _Solution
 
@@ -192,7 +193,7 @@ A struct to store the vector solution from HiGHS because it doesn't support
 accessing them element-wise.
 """
 mutable struct _Solution
-    optimize_called::Bool
+    status::_OptimizeStatus
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
     colstatus::Vector{Cint}
@@ -204,7 +205,7 @@ mutable struct _Solution
     has_dual_ray::Bool
     function _Solution()
         return new(
-            false,
+            _OPTIMIZE_NOT_CALLED,
             Cdouble[],
             Cdouble[],
             Cint[],
@@ -219,14 +220,14 @@ mutable struct _Solution
 end
 
 function Base.empty!(x::_Solution)
-    x.optimize_called = false
+    x.status = _OPTIMIZE_NOT_CALLED
     x.has_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
     return x
 end
 
-Base.isempty(x::_Solution) = !x.optimize_called
+Base.isempty(x::_Solution) = x.status == _OPTIMIZE_NOT_CALLED
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
@@ -1481,9 +1482,16 @@ end
 ### Optimize methods.
 ###
 
-function _store_solution(model::Optimizer)
+"""
+    _store_solution(model::Optimizer, ret::Cint)
+
+Get the solution from a run of HiGHS.
+
+`ret` is the `HighsStatus` enum {OK = 0, Warning, Error} from `Highs_run`.
+"""
+function _store_solution(model::Optimizer, ret::Cint)
     x = model.solution
-    x.optimize_called = true
+    x.status = ret == 0 ? _OPTIMIZE_OK : _OPTIMIZE_ERRORED
     x.has_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
@@ -1519,14 +1527,7 @@ end
 
 function MOI.optimize!(model::Optimizer)
     ret = Highs_run(model)
-    # `ret` is an `HighsStatus` enum: {OK = 0, Warning, Error}.
-    if ret == 2
-        error(
-            "Encountered an error in HiGHS: HighsStatus::Error. " *
-            "Check the log for details",
-        )
-    end
-    _store_solution(model)
+    _store_solution(model, ret)
     return
 end
 
@@ -1554,11 +1555,15 @@ An enum for the HiGHS simplex status codes.
 end
 
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
-    if !model.solution.optimize_called
+    if model.solution.status == _OPTIMIZE_NOT_CALLED
         return MOI.OPTIMIZE_NOT_CALLED
+    elseif model.solution.status == _OPTIMIZE_ERRORED
+        return MOI.OTHER_ERROR
     end
     status = HighsModelStatus(Highs_getModelStatus(model.inner, Cint(0)))
-    if status == LOAD_ERROR
+    if status == NOTSET
+        return MOI.OTHER_ERROR
+    elseif status == LOAD_ERROR
         return MOI.OTHER_ERROR
     elseif status == MODEL_ERROR
         return MOI.INVALID_MODEL
