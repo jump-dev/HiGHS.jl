@@ -413,28 +413,29 @@ end
 
 function test_HiGHS_custom_options(::Any, ::Any)
     model = HiGHS.Optimizer()
-    @test MOI.supports(model, MOI.RawParameter("solver"))
-    @test MOI.get(model, MOI.RawParameter("solver")) == "choose"
-    MOI.set(model, MOI.RawParameter("solver"), "simplex")
-    @test MOI.get(model, MOI.RawParameter("solver")) == "simplex"
+    @test MOI.supports(model, MOI.RawOptimizerAttribute("solver"))
+    @test MOI.get(model, MOI.RawOptimizerAttribute("solver")) == "choose"
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "simplex")
+    @test MOI.get(model, MOI.RawOptimizerAttribute("solver")) == "simplex"
     @test MOI.get(model, MOI.RawParameter("output_flag")) == true
     MOI.set(model, MOI.RawParameter("output_flag"), false)
     @test MOI.get(model, MOI.RawParameter("output_flag")) == false
-    @test MOI.get(model, MOI.RawParameter("time_limit")) > 1000
-    MOI.set(model, MOI.RawParameter("time_limit"), 1000.0)
-    @test MOI.get(model, MOI.RawParameter("time_limit")) == 1000.0
+    @test MOI.get(model, MOI.RawOptimizerAttribute("time_limit")) > 1000
+    MOI.set(model, MOI.RawOptimizerAttribute("time_limit"), 1000.0)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("time_limit")) == 1000.0
     # unsupported test
-    @test MOI.supports(model, MOI.RawParameter("wrong_param")) == false
-    @test_throws MOI.UnsupportedAttribute MOI.get(
-        model,
-        MOI.RawParameter("wrong_param"),
+    @test MOI.supports(model, MOI.RawOptimizerAttribute("wrong_param")) == false
+    @test_throws(
+        MOI.UnsupportedAttribute,
+        MOI.get(model, MOI.RawOptimizerAttribute("wrong_param")),
     )
     for v in [false, 1, 1.0, "A"]
         @test_throws(
             MOI.UnsupportedAttribute,
-            MOI.set(model, MOI.RawParameter("wrong_param"), v)
+            MOI.set(model, MOI.RawOptimizerAttribute("wrong_param"), v)
         )
     end
+    return
 end
 
 function test_Model_empty(model, ::Any)
@@ -483,9 +484,9 @@ function test_options(model, ::Any)
         "presolve",                 # String
     ]
     for key in options
-        v = MOI.get(model, MOI.RawParameter(key))
-        MOI.set(model, MOI.RawParameter(key), v)
-        v2 = MOI.get(model, MOI.RawParameter(key))
+        v = MOI.get(model, MOI.RawOptimizerAttribute(key))
+        MOI.set(model, MOI.RawOptimizerAttribute(key), v)
+        v2 = MOI.get(model, MOI.RawOptimizerAttribute(key))
         @test v == v2
     end
     return
@@ -496,16 +497,7 @@ function test_option_invalid(model, ::Any)
         ErrorException(
             "Encountered an error in HiGHS: Check the log for details.",
         ),
-        MOI.set(model, MOI.RawParameter("time_limit"), -1.0),
-    )
-    return
-end
-
-function test_option_invalid(model, ::Any)
-    MOI.supports(model, MOI.RawParameter(:presolve)) == false
-    @test_throws MOI.UnsupportedAttribute MOI.get(
-        model,
-        MOI.RawParameter(:presolve),
+        MOI.set(model, MOI.RawOptimizerAttribute("time_limit"), -1.0),
     )
     return
 end
@@ -514,14 +506,16 @@ function test_option_unknown_option(model, ::Any)
     err = ErrorException(
         "Encountered an error in HiGHS: Check the log for details.",
     )
-    @test_throws err MOI.set(
-        model,
-        MOI.RawParameter("write_solution_to_file"),
-        1,
+    @test_throws(
+        err,
+        MOI.set(model, MOI.RawOptimizerAttribute("write_solution_to_file"), 1),
     )
-    @test_throws err MOI.set(model, MOI.RawParameter("simplex_strategy"), "on")
-    @test_throws err MOI.set(model, MOI.RawParameter("time_limit"), 1)
-    @test_throws err MOI.set(model, MOI.RawParameter("presolve"), 1)
+    @test_throws(
+        err,
+        MOI.set(model, MOI.RawOptimizerAttribute("simplex_strategy"), "on"),
+    )
+    @test_throws err MOI.set(model, MOI.RawOptimizerAttribute("time_limit"), 1)
+    @test_throws err MOI.set(model, MOI.RawOptimizerAttribute("presolve"), 1)
     return
 end
 
@@ -545,7 +539,7 @@ c8: w + x in MathOptInterface.Interval(1.0, 2.0)
     dest = HiGHS.Optimizer()
     MOI.copy_to(dest, src)
     @test MOI.get(dest, MOI.NumberOfVariables()) == 4
-    list = MOI.get(dest, MOI.ListOfConstraints())
+    list = MOI.get(dest, MOI.ListOfConstraintTypesPresent())
     @test length(list) == 8
     for S in (
         MOI.GreaterThan{Float64},
