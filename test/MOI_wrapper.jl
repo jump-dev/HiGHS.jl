@@ -122,11 +122,7 @@ function test_supports_constrainttest(model, ::Any)
         MOI.ScalarAffineFunction{Int},
         MOI.EqualTo{Int},
     )
-    @test !MOI.supports_constraint(
-        model,
-        MOI.SingleVariable,
-        MOI.EqualTo{Int},
-    )
+    @test !MOI.supports_constraint(model, MOI.SingleVariable, MOI.EqualTo{Int})
     @test MOI.supports_constraint(model, MOI.VectorOfVariables, MOI.Zeros)
     @test !MOI.supports_constraint(
         model,
@@ -163,7 +159,11 @@ function test_MOI_variable_count_and_empty(model, ::Any)
     @test MOI.get(model, MOI.NumberOfVariables()) == 0
     x1 = MOI.add_variable(model)
     @test MOI.get(model, MOI.NumberOfVariables()) == 1
-    @test MOI.supports_constraint(model, MOI.SingleVariable, MOI.Interval{Float64})
+    @test MOI.supports_constraint(
+        model,
+        MOI.SingleVariable,
+        MOI.Interval{Float64},
+    )
     x2, _ = MOI.add_constrained_variable(model, MOI.Interval(0.0, 1.0))
     @test MOI.get(model, MOI.NumberOfVariables()) == 2
     MOI.empty!(model)
@@ -201,8 +201,10 @@ function test_Max_in_box(model, ::Any)
     )
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) ≈ 2 * 6
-    obj_func =
-        MOI.get(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+    obj_func = MOI.get(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+    )
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
     @test obj_func ≈
           MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(2.0, x)], 0.0)
@@ -249,7 +251,11 @@ function test_Constrained_variable_equivalent_to_add_constraint(model, ::Any)
     MOI.empty!(model)
     MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
-    _ = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
+    _ = MOI.add_constraint(
+        model,
+        MOI.SingleVariable(x),
+        MOI.Interval(-3.0, 6.0),
+    )
     MOI.set(
         model,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
@@ -266,7 +272,11 @@ function test_Constant_in_objective_function(model, ::Any)
     MOI.empty!(model)
     MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
-    _ = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(-3.0, 6.0))
+    _ = MOI.add_constraint(
+        model,
+        MOI.SingleVariable(x),
+        MOI.Interval(-3.0, 6.0),
+    )
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     obj_func = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 3.0)
     MOI.set(model, MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
@@ -347,7 +357,10 @@ function test_HiGHS_custom_options(::Any, ::Any)
     @test MOI.get(model, MOI.RawParameter("time_limit")) == 1000.0
     # unsupported test
     @test MOI.supports(model, MOI.RawParameter("wrong_param")) == false
-    @test_throws MOI.UnsupportedAttribute MOI.get(model, MOI.RawParameter("wrong_param"))
+    @test_throws MOI.UnsupportedAttribute MOI.get(
+        model,
+        MOI.RawParameter("wrong_param"),
+    )
     for v in [false, 1, 1.0, "A"]
         @test_throws(
             MOI.UnsupportedAttribute,
@@ -413,7 +426,7 @@ end
 function test_option_invalid(model, ::Any)
     @test_throws(
         ErrorException(
-            "Encountered an error in HiGHS: Check the log for details."
+            "Encountered an error in HiGHS: Check the log for details.",
         ),
         MOI.set(model, MOI.RawParameter("time_limit"), -1.0),
     )
@@ -422,15 +435,22 @@ end
 
 function test_option_invalid(model, ::Any)
     MOI.supports(model, MOI.RawParameter(:presolve)) == false
-    @test_throws MOI.UnsupportedAttribute MOI.get(model, MOI.RawParameter(:presolve))
+    @test_throws MOI.UnsupportedAttribute MOI.get(
+        model,
+        MOI.RawParameter(:presolve),
+    )
     return
 end
 
 function test_option_unknown_option(model, ::Any)
     err = ErrorException(
-        "Encountered an error in HiGHS: Check the log for details."
+        "Encountered an error in HiGHS: Check the log for details.",
     )
-    @test_throws err MOI.set(model, MOI.RawParameter("write_solution_to_file"), 1)
+    @test_throws err MOI.set(
+        model,
+        MOI.RawParameter("write_solution_to_file"),
+        1,
+    )
     @test_throws err MOI.set(model, MOI.RawParameter("simplex_strategy"), "on")
     @test_throws err MOI.set(model, MOI.RawParameter("time_limit"), 1)
     @test_throws err MOI.set(model, MOI.RawParameter("presolve"), 1)
@@ -439,18 +459,21 @@ end
 
 function test_copy_to(::Any, ::Any)
     src = MOI.Utilities.Model{Float64}()
-    MOI.Utilities.loadfromstring!(src, """
-    variables: w, x, y, z
-    minobjective: w + x + y + z
-    c1: w <= 1.0
-    c2: w >= 0.5
-    c3: x in MathOptInterface.Interval(1.0, 2.0)
-    c4: y == 2.0
-    c5: y + z >= 4.5
-    c6: x + y <= 3.0
-    c7: w + x == 1.5
-    c8: w + x in MathOptInterface.Interval(1.0, 2.0)
-    """)
+    MOI.Utilities.loadfromstring!(
+        src,
+        """
+variables: w, x, y, z
+minobjective: w + x + y + z
+c1: w <= 1.0
+c2: w >= 0.5
+c3: x in MathOptInterface.Interval(1.0, 2.0)
+c4: y == 2.0
+c5: y + z >= 4.5
+c6: x + y <= 3.0
+c7: w + x == 1.5
+c8: w + x in MathOptInterface.Interval(1.0, 2.0)
+""",
+    )
     dest = HiGHS.Optimizer()
     MOI.copy_to(dest, src)
     @test MOI.get(dest, MOI.NumberOfVariables()) == 4
@@ -483,7 +506,8 @@ end
 function runtests()
     config = Dict(
         "simplex" => MOI.Test.TestConfig(basis = true),
-        "ipm" => MOI.Test.TestConfig(basis = true, infeas_certificates = false),
+        "ipm" =>
+            MOI.Test.TestConfig(basis = true, infeas_certificates = false),
     )
     @testset "$(solver)" for solver in ["simplex", "ipm"]
         model = optimizer(solver = solver)
