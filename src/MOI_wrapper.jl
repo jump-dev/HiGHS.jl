@@ -1,7 +1,6 @@
 import MathOptInterface
 import SparseArrays
 
-
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
@@ -11,15 +10,7 @@ const CleverDicts = MOI.Utilities.CleverDicts
 Manually copied from:
 https://github.com/ERGO-Code/HiGHS/blob/25c112b29520b4ecb1224e33c1f42471dbe51cbe/src/lp_data/HConst.h#L137-L148
 """
-@enum(
-    HighsBasisStatus,
-    LOWER = 0,
-    BASIC,
-    UPPER,
-    ZERO,
-    NONBASIC,
-    SUPER,
-)
+@enum(HighsBasisStatus, LOWER = 0, BASIC, UPPER, ZERO, NONBASIC, SUPER,)
 
 @enum(
     _RowType,
@@ -86,7 +77,6 @@ mutable struct _VariableInfo
         return new(index, "", column, bound, -Inf, Inf, "", "")
     end
 end
-
 
 function _update_info(info::_VariableInfo, s::MOI.GreaterThan{Float64})
     _throw_if_existing_lower(info, s)
@@ -1440,7 +1430,7 @@ end
 function MOI.modify(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
-    chg::MOI.ScalarCoefficientChange{Float64}
+    chg::MOI.ScalarCoefficientChange{Float64},
 ) where {S<:_SCALAR_SETS}
     ret = Highs_changeCoeff(
         model,
@@ -1456,7 +1446,7 @@ function MOI.set(
     model::Optimizer,
     ::MOI.ConstraintFunction,
     c::MOI.ConstraintIndex{F,S},
-    f::F
+    f::F,
 ) where {F<:MOI.ScalarAffineFunction{Float64},S<:_SCALAR_SETS}
     if !iszero(f.constant)
         throw(MOI.ScalarFunctionConstantNotZero{Float64,F,S}(f.constant))
@@ -1722,8 +1712,8 @@ function _farkas_variable_dual(model::Optimizer, col::Cint)
     )
     _check_ret(ret)
     dual = 0.0
-    for i = 1:num_nz[]
-        dual += -model.solution.rowdual[matrix_index[i] + 1] * matrix_value[i]
+    for i in 1:num_nz[]
+        dual += -model.solution.rowdual[matrix_index[i]+1] * matrix_value[i]
     end
     return dual
 end
@@ -1783,7 +1773,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    r = row(model, c)+1
+    r = row(model, c) + 1
     dual = model.solution.rowdual[r]
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(dual, S)
@@ -1816,7 +1806,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    stat = HighsBasisStatus(model.solution.rowstatus[row(model, c) + 1])
+    stat = HighsBasisStatus(model.solution.rowstatus[row(model, c)+1])
     if stat == LOWER
         return _nonbasic_status(stat, S)
     elseif stat == BASIC
@@ -1837,7 +1827,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable,S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    stat = HighsBasisStatus(model.solution.colstatus[column(model, c) + 1])
+    stat = HighsBasisStatus(model.solution.colstatus[column(model, c)+1])
     if stat == LOWER
         return _nonbasic_status(stat, S)
     elseif stat == BASIC
@@ -1884,10 +1874,8 @@ function _extract_bound_data(
     colupper::Vector{Float64},
     ::Type{S},
 ) where {S}
-    for c_index in MOI.get(
-        src,
-        MOI.ListOfConstraintIndices{MOI.SingleVariable,S}(),
-    )
+    for c_index in
+        MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), c_index)
         s = MOI.get(src, MOI.ConstraintSet(), c_index)
         new_f = mapping.varmap[f.variable]
@@ -1903,7 +1891,7 @@ end
 function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
     x_src = MOI.get(src, MOI.ListOfVariableIndices())
     numcols = Cint(length(x_src))
-    for i = 1:numcols
+    for i in 1:numcols
         index = CleverDicts.add_item(
             dest.variable_info,
             _VariableInfo(MOI.VariableIndex(0), Cint(0)),
@@ -1914,10 +1902,8 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
         info.column = Cint(i - 1)
         mapping.varmap[x_src[i]] = index
     end
-    fobj = MOI.get(
-        src,
-        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-    )
+    fobj =
+        MOI.get(src, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
     c = fill(0.0, numcols)
     for term in fobj.terms
         i = mapping.varmap[term.variable_index].value
@@ -1943,7 +1929,7 @@ function _extract_row_data(
     row = length(I) == 0 ? 1 : I[end] + 1
     list = MOI.get(
         src,
-        MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}()
+        MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}(),
     )
     numrows = length(list)
     add_sizehint!(rowlower, numrows)
@@ -1986,8 +1972,8 @@ function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
         if !MOI.supports_constraint(dest, F, S)
             throw(
                 MOI.UnsupportedConstraint{F,S}(
-                    "HiGHS does not support constraints of type $F-in-$S."
-                )
+                    "HiGHS does not support constraints of type $F-in-$S.",
+                ),
             )
         end
     end
@@ -2004,14 +1990,14 @@ function MOI.copy_to(
     dest::Optimizer,
     src::MOI.ModelLike;
     copy_names::Bool = false,
-    kwargs...
+    kwargs...,
 )
     if copy_names
         return MOI.Utilities.automatic_copy_to(
             dest,
             src;
             copy_names = true,
-            kwargs...
+            kwargs...,
         )
     end
     @assert MOI.is_empty(dest)
