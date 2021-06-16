@@ -2,6 +2,7 @@ module HiGHS
 
 import HiGHS_jll: libhighs
 
+include("gen/libhighs_common.jl")
 include("gen/libhighs_api.jl")
 
 include("MOI_wrapper.jl")

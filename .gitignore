@@ -2,3 +2,4 @@
 deps/deps.jl
 deps/build.log
 deps/usr/
+*Highs.log

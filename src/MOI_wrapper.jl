@@ -225,10 +225,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # Storage for `MOI.Name`.
     name::String
 
-    # A flag to keep track of MOI.Silent, which over-rides the print_level
-    # parameter.
-    silent::Bool
-
     # A flag to keep track of MOI.FEASIBILITY_SENSE, since HiGHS only stores
     # MIN_SENSE or MAX_SENSE. This allows us to differentiate between MIN_SENSE
     # and FEASIBILITY_SENSE.
@@ -267,7 +263,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model = new(
             ptr,
             "",
-            false,
             true,
             0.0,
             _variable_info_dict(),
@@ -286,12 +281,11 @@ Base.cconvert(::Type{Ptr{Cvoid}}, model::Optimizer) = model
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 
 function _check_ret(ret::Cint)
-    if ret == Cint(1)
-        return  # Cint(1) is 'true'. Nothing went wrong.
-    else
-        # These return codes should only ever be 0 or 1.
-        @assert ret == Cint(0)
-        error("Encountered an error in HiGHS. Check the log for details.")
+    if ret != Cint(0)
+        error(
+            "Encountered an error in HiGHS (Status $(ref)). Check the log " *
+            "for details.",
+        )
     end
     return
 end
@@ -306,12 +300,7 @@ end
 
 function MOI.empty!(model::Optimizer)
     ret = Highs_clearModel(model)
-    if ret == 2
-        error(
-            "Encountered an error in HiGHS: HighsStatus::Error. " *
-            "Check the log for details",
-        )
-    end
+    _check_ret(ret)
     model.objective_constant = 0.0
     model.is_feasibility = true
     empty!(model.variable_info)
@@ -398,7 +387,7 @@ function MOI.supports(model::Optimizer, param::MOI.RawParameter)
         return false
     end
     typeP = Ref{Cint}()
-    return Highs_getHighsOptionType(model, param.name, typeP) == 0
+    return Highs_getOptionType(model, param.name, typeP) == 0
 end
 
 function _check_option_status(ret::Cint)
@@ -409,19 +398,19 @@ function _check_option_status(ret::Cint)
 end
 
 function _set_option(model::Optimizer, option::String, value::Bool)
-    return Highs_setHighsBoolOptionValue(model, option, Cint(value))
+    return Highs_setBoolOptionValue(model, option, Cint(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::Integer)
-    return Highs_setHighsIntOptionValue(model, option, Cint(value))
+    return Highs_setIntOptionValue(model, option, Cint(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::AbstractFloat)
-    return Highs_setHighsDoubleOptionValue(model, option, Cdouble(value))
+    return Highs_setDoubleOptionValue(model, option, Cdouble(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::String)
-    return Highs_setHighsStringOptionValue(model, option, value)
+    return Highs_setStringOptionValue(model, option, value)
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
@@ -436,21 +425,21 @@ end
 
 function _get_bool_option(model::Optimizer, option::String)
     value = Ref{Cint}(0)
-    ret = Highs_getHighsBoolOptionValue(model, option, value)
+    ret = Highs_getBoolOptionValue(model, option, value)
     _check_option_status(ret)
     return Bool(value[])
 end
 
 function _get_int_option(model::Optimizer, option::String)
     value = Ref{Cint}(0)
-    ret = Highs_getHighsIntOptionValue(model, option, value)
+    ret = Highs_getIntOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
 end
 
 function _get_double_option(model::Optimizer, option::String)
     value = Ref{Cdouble}()
-    ret = Highs_getHighsDoubleOptionValue(model, option, value)
+    ret = Highs_getDoubleOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
 end
@@ -459,7 +448,7 @@ function _get_string_option(model::Optimizer, option::String)
     buffer = Vector{Cchar}(undef, 1024)
     bufferP = pointer(buffer)
     GC.@preserve buffer begin
-        ret = Highs_getHighsStringOptionValue(model, option, bufferP)
+        ret = Highs_getStringOptionValue(model, option, bufferP)
         _check_option_status(ret)
         return unsafe_string(bufferP)
     end
@@ -470,7 +459,7 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
         throw(MOI.UnsupportedAttribute(param))
     end
     typeP = Ref{Cint}()
-    ret = Highs_getHighsOptionType(model, param.name, typeP)
+    ret = Highs_getOptionType(model, param.name, typeP)
     if ret != 0
         throw(MOI.UnsupportedAttribute(param))
     elseif typeP[] == 0
@@ -509,15 +498,12 @@ end
 
 MOI.supports(::Optimizer, ::MOI.Silent) = true
 
-MOI.get(model::Optimizer, ::MOI.Silent) = model.silent
+function MOI.get(model::Optimizer, ::MOI.Silent)
+    return !MOI.get(model, MOI.RawParameter("output_flag"))
+end
 
 function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
-    if flag
-        Highs_runQuiet(model)
-    elseif model.silent && !flag
-        @warn("Unable to restore printing. Sorry.")
-    end
-    model.silent = flag
+    MOI.set(model, MOI.RawParameter("output_flag"), !flag)
     return
 end
 
@@ -1494,7 +1480,7 @@ function _store_solution(model::Optimizer, ret::Cint)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
     # Load the solution if optimal.
-    if Highs_getModelStatus(model.inner, Cint(0)) == 9
+    if Highs_getModelStatus(model) == Cint(kOptimal)
         Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
         Highs_getBasis(model, x.colstatus, x.rowstatus)
         x.has_solution = true
@@ -1504,14 +1490,14 @@ function _store_solution(model::Optimizer, ret::Cint)
     has_ray = Ref{Cint}(0)
     ret = Highs_getDualRay(model, has_ray, x.rowdual)
     x.has_dual_ray = has_ray[] == 1
-    @assert ret == 0  # getDualRay only returns HighsStatus::OK
+    _check_ret(ret)
     if x.has_dual_ray
         return
     end
     # Check for a certificate of dual infeasibility.
     ret = Highs_getPrimalRay(model, has_ray, x.colvalue)
     x.has_primal_ray = has_ray[] == 1
-    @assert ret == 0  # getPrimalRay only returns HighsStatus::OK
+    _check_ret(ret)
     return
 end
 
@@ -1525,24 +1511,29 @@ end
     HighsModelStatus
 
 An enum for the HiGHS simplex status codes.
+
+Taken from
+https://github.com/ERGO-Code/HiGHS/blob/9c943856e5bb955935d6d9e5fe7463c06f13e734/src/lp_data/HConst.h#L122-L144
 """
-@enum HighsModelStatus begin
-    NOTSET = 0
-    LOAD_ERROR
-    MODEL_ERROR
-    PRESOLVE_ERROR
-    SOLVE_ERROR
-    POSTSOLVE_ERROR
-    MODEL_EMPTY
-    PRIMAL_INFEASIBLE
-    PRIMAL_UNBOUNDED
-    OPTIMAL
-    REACHED_DUAL_OBJECTIVE_VALUE_UPPER_BOUND
-    REACHED_TIME_LIMIT
-    REACHED_ITERATION_LIMIT
-    PRIMAL_DUAL_INFEASIBLE
-    DUAL_INFEASIBLE
-end
+@enum(
+    HighsModelStatus,
+    kNotset = 0,
+    kLoadError,
+    kModelError,
+    kPresolveError,
+    kSolveError,
+    kPostsolveError,
+    kModelEmpty,
+    kOptimal,
+    kInfeasible,
+    kUnboundedOrInfeasible,
+    kUnbounded,
+    kObjectiveBound,
+    kObjectiveTarget,
+    kTimeLimit,
+    kIterationLimit,
+    kUnknown,
+)
 
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
     if model.solution.status == _OPTIMIZE_NOT_CALLED
@@ -1550,38 +1541,40 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
     elseif model.solution.status == _OPTIMIZE_ERRORED
         return MOI.OTHER_ERROR
     end
-    status = HighsModelStatus(Highs_getModelStatus(model.inner, Cint(0)))
-    if status == NOTSET
+    status = HighsModelStatus(Highs_getModelStatus(model))
+    if status == kNotset
         return MOI.OTHER_ERROR
-    elseif status == LOAD_ERROR
+    elseif status == kLoadError
         return MOI.OTHER_ERROR
-    elseif status == MODEL_ERROR
+    elseif status == kModelError
         return MOI.INVALID_MODEL
-    elseif status == PRESOLVE_ERROR
+    elseif status == kPresolveError
         return MOI.OTHER_ERROR
-    elseif status == SOLVE_ERROR
+    elseif status == kSolveError
         return MOI.OTHER_ERROR
-    elseif status == POSTSOLVE_ERROR
+    elseif status == kPostsolveError
         return MOI.OTHER_ERROR
-    elseif status == MODEL_EMPTY
+    elseif status == kModelEmpty
         return MOI.INVALID_MODEL
-    elseif status == PRIMAL_INFEASIBLE
-        return MOI.INFEASIBLE
-    elseif status == PRIMAL_UNBOUNDED
-        return MOI.DUAL_INFEASIBLE
-    elseif status == OPTIMAL
+    elseif status == kOptimal
         return MOI.OPTIMAL
-    elseif status == REACHED_DUAL_OBJECTIVE_VALUE_UPPER_BOUND
-        return MOI.OBJECTIVE_LIMIT
-    elseif status == REACHED_TIME_LIMIT
-        return MOI.TIME_LIMIT
-    elseif status == REACHED_ITERATION_LIMIT
-        return MOI.ITERATION_LIMIT
-    elseif status == PRIMAL_DUAL_INFEASIBLE
+    elseif status == kInfeasible
         return MOI.INFEASIBLE
-    else
-        @assert status == DUAL_INFEASIBLE
+    elseif status == kUnboundedOrInfeasible
+        return MOI.INFEASIBLE_OR_UNBOUNDED
+    elseif status == kUnbounded
         return MOI.DUAL_INFEASIBLE
+    elseif status == kObjectiveBound
+        return MOI.OBJECTIVE_LIMIT
+    elseif status == kObjectiveTarget
+        return MOI.OBJECTIVE_LIMIT
+    elseif status == kTimeLimit
+        return MOI.TIME_LIMIT
+    elseif status == kIterationLimit
+        return MOI.ITERATION_LIMIT
+    else
+        @assert status == kUnknown
+        return MOI.OTHER_ERROR
     end
 end
 
@@ -1595,7 +1588,7 @@ function MOI.get(model::Optimizer, ::MOI.ResultCount)
 end
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
-    status = HighsModelStatus(Highs_getModelStatus(model, Cint(0)))
+    status = HighsModelStatus(Highs_getModelStatus(model))
     return string(status)
 end
 
@@ -1632,7 +1625,7 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
 end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTime)
-    return Highs_getHighsRunTime(model)
+    return Highs_getRunTime(model)
 end
 
 function MOI.get(model::Optimizer, ::MOI.SimplexIterations)
@@ -1779,7 +1772,7 @@ function MOI.get(
         return _signed_dual(dual, S)
     end
     stat = HighsBasisStatus(model.solution.rowstatus[r])
-    return _signed_dual(-_sense_corrector(model) * dual, S, stat)
+    return _signed_dual(_sense_corrector(model) * dual, S, stat)
 end
 
 ###
@@ -2023,6 +2016,10 @@ function MOI.copy_to(
         numcol,
         numrow,
         length(V),
+        0,  # The A matrix is given is column-wise.
+        MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? Cint(-1) :
+        Cint(1),
+        dest.objective_constant,
         colcost,
         collower,
         colupper,
@@ -2032,9 +2029,5 @@ function MOI.copy_to(
         A.rowval .- Cint(1),
         A.nzval,
     )
-    sense = MOI.get(src, MOI.ObjectiveSense())
-    x = sense == MOI.MAX_SENSE ? Cint(-1) : Cint(1)
-    ret = Highs_changeObjectiveSense(dest, x)
-    _check_ret(ret)
     return mapping
 end
