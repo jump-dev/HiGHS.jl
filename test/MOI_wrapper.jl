@@ -37,19 +37,16 @@ function test_modificationtest(model, config)
 end
 
 function test_contlineartest(model, config)
-    return MOI.Test.contlineartest(
-        model,
-        config,
-        String[
-            # Upstream segfault. Reported: https://github.com/ERGO-Code/HiGHS/issues/448
-            # "linear8b",
-            # Upstream bug. Reported: https://github.com/ERGO-Code/HiGHS/issues/464
-            "linear8c",
-
-            # VariablePrimalStart not supported.
-            "partial_start",
-        ],
-    )
+    excludes = [
+        # VariablePrimalStart not supported.
+        "partial_start",
+    ]
+    if MOI.get(model, MOI.RawParameter("solver")) == "ipm"
+        # TODO(odow): investigate
+        push!(excludes, "linear8b")
+        push!(excludes, "linear8c")
+    end
+    return MOI.Test.contlineartest(model, config, excludes)
 end
 
 function test_lintest(model, config)
@@ -349,9 +346,9 @@ function test_HiGHS_custom_options(::Any, ::Any)
     @test MOI.get(model, MOI.RawParameter("solver")) == "choose"
     MOI.set(model, MOI.RawParameter("solver"), "simplex")
     @test MOI.get(model, MOI.RawParameter("solver")) == "simplex"
-    @test MOI.get(model, MOI.RawParameter("message_level")) == 4
-    MOI.set(model, MOI.RawParameter("message_level"), 1)
-    @test MOI.get(model, MOI.RawParameter("message_level")) == 1
+    @test MOI.get(model, MOI.RawParameter("output_flag")) == true
+    MOI.set(model, MOI.RawParameter("output_flag"), false)
+    @test MOI.get(model, MOI.RawParameter("output_flag")) == false
     @test MOI.get(model, MOI.RawParameter("time_limit")) > 1000
     MOI.set(model, MOI.RawParameter("time_limit"), 1000.0)
     @test MOI.get(model, MOI.RawParameter("time_limit")) == 1000.0

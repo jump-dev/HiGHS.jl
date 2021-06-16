@@ -40,10 +40,13 @@ function test_Direct_C_call()
         (Array{Cint,1}(undef, n_col), Array{Cint,1}(undef, n_row))
 
     modelstatus = Ref{Cint}(42)
-    status = HiGHS.Highs_call(
+    status = HiGHS.Highs_lpCall(
         n_col,
         n_row,
         n_nz,
+        0,
+        -1,
+        0.0,
         colcost,
         collower,
         colupper,
@@ -61,7 +64,7 @@ function test_Direct_C_call()
         modelstatus,
     )
     @test status == 0
-    @test modelstatus[] == 9 # optimal
+    @test modelstatus[] == Cint(HiGHS.kOptimal)
 end
 
 function test_create()
@@ -73,7 +76,7 @@ function test_create()
 
     # model status, the second parameter is
     # bool scaled_model
-    modelstatus = Highs_getModelStatus(ptr, false)
+    modelstatus = Highs_getModelStatus(ptr)
     @test modelstatus[] == 0 # uninitialized LP
 
     return Highs_destroy(ptr)
@@ -86,11 +89,11 @@ function test_ipx()
     ptr = Highs_create()
     @test ptr != C_NULL
 
-    Highs_setHighsStringOptionValue(ptr, "solver", "ipm")
+    Highs_setStringOptionValue(ptr, "solver", "ipm")
 
     Highs_run(ptr)
 
-    modelstatus = Highs_getModelStatus(ptr, false)
+    modelstatus = Highs_getModelStatus(ptr)
     @test modelstatus[] != 9 # not optimal
 
     return Highs_destroy(ptr)
