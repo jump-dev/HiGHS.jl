@@ -15,19 +15,35 @@ function test_unittest(model, config)
         config,
         String[
             # TODO(odow):
-            # Add support for MOI.ObjectiveBound.
-            "solve_objbound_edge_cases",
             # Add support for MOI.NumberOfThreads.
             "number_threads",
 
             # These are excluded because HiGHS does not support them.
             "delete_soc_variables",
-            "solve_integer_edge_cases",
             "solve_qcp_edge_cases",
             "solve_qp_edge_cases",
+            "solve_integer_edge_cases",
+            "solve_objbound_edge_cases",
             "solve_zero_one_with_bounds_1",
             "solve_zero_one_with_bounds_2",
             "solve_zero_one_with_bounds_3",
+        ],
+    )
+end
+
+function test_int_unittest(model, config)
+    return MOI.Test.unittest(
+        model,
+        config,
+        String[
+            # TODO(odow):
+            # Add support for MOI.NumberOfThreads.
+            "number_threads",
+
+            # These are excluded because HiGHS does not support them.
+            "delete_soc_variables",
+            "solve_qcp_edge_cases",
+            "solve_qp_edge_cases",
         ],
     )
 end
@@ -51,6 +67,39 @@ end
 
 function test_lintest(model, config)
     return MOI.Test.lintest(model, config)
+end
+
+function test_int_lineartest(model, config)
+    MOI.Test.intlineartest(
+        model,
+        config,
+        # Exclude SOS constraints
+        [
+            "int2",
+            "indicator1",
+            "indicator2",
+            "indicator3",
+            "indicator4",
+            "semiconttest",
+        ],
+    )
+    return
+end
+
+function test_int_lineartest_cache(model, config)
+    MOI.Test.intlineartest(
+        MOI.Bridges.full_bridge_optimizer(
+            MOI.Utilities.CachingOptimizer(
+                MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+                HiGHS.Optimizer(),
+            ),
+            Float64,
+        ),
+        config,
+        # Exclude SOS constraints
+        ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
+    )
+    return
 end
 
 function test_SolverName(model, ::Any)
@@ -506,16 +555,28 @@ function runtests()
         "ipm" =>
             MOI.Test.TestConfig(basis = true, infeas_certificates = false),
     )
-    @testset "$(solver)" for solver in ["simplex", "ipm"]
-        model = optimizer(solver = solver)
-        for name in names(@__MODULE__; all = true)
-            if startswith(string(name), "test_")
-                @testset "$(name)" begin
+    for name in names(@__MODULE__; all = true)
+        if !startswith("$name", "test_")
+            continue
+        end
+        @testset "$(name)" begin
+            if startswith("$name", "test_int_")
+                model = HiGHS.Optimizer()
+                MOI.set(model, MOI.Silent(), true)
+                # MOI.set(model, MOI.RawParameter("presolve"), "off")
+                getfield(@__MODULE__, name)(
+                    MOI.Bridges.full_bridge_optimizer(model, Float64),
+                    MOI.Test.TestConfig(infeas_certificates = false),
+                )
+            else
+                @testset "$(solver)" for solver in ["simplex", "ipm"]
+                    model = optimizer(solver = solver)
                     getfield(@__MODULE__, name)(model, config[solver])
                 end
             end
         end
     end
+    return
 end
 
 end

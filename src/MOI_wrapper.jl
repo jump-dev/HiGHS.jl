@@ -40,6 +40,8 @@ _bounds(s::MOI.Interval{Float64}) = s.lower, s.upper
     _BOUND_EQUAL_TO,
 )
 
+@enum(_TypeEnum, _TYPE_CONTINUOUS, _TYPE_INTEGER, _TYPE_BINARY,)
+
 const _SCALAR_SETS = Union{
     MOI.GreaterThan{Float64},
     MOI.LessThan{Float64},
@@ -63,18 +65,32 @@ mutable struct _VariableInfo
     bound::_BoundEnum
     lower::Float64
     upper::Float64
+    # Track integrality
+    type::_TypeEnum
     # We can perform an optimization and only store two strings for the
     # constraint names because, at most, there can be two SingleVariable
     # constraints, e.g., LessThan, GreaterThan.
     lessthan_name::String
     greaterthan_interval_or_equalto_name::String
+    integrality_name::String
 
     function _VariableInfo(
         index::MOI.VariableIndex,
         column::Cint,
         bound::_BoundEnum = _BOUND_NONE,
     )
-        return new(index, "", column, bound, -Inf, Inf, "", "")
+        return new(
+            index,
+            "",
+            column,
+            bound,
+            -Inf,
+            Inf,
+            _TYPE_CONTINUOUS,
+            "",
+            "",
+            "",
+        )
     end
 end
 
@@ -190,7 +206,8 @@ mutable struct _Solution
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
     rowstatus::Vector{Cint}
-    has_solution::Bool
+    has_primal_solution::Bool
+    has_dual_solution::Bool
     has_primal_ray::Bool
     has_dual_ray::Bool
     function _Solution()
@@ -205,13 +222,15 @@ mutable struct _Solution
             false,
             false,
             false,
+            false,
         )
     end
 end
 
 function Base.empty!(x::_Solution)
     x.status = _OPTIMIZE_NOT_CALLED
-    x.has_solution = false
+    x.has_primal_solution = false
+    x.has_dual_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
     return x
@@ -230,6 +249,11 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # and FEASIBILITY_SENSE.
     is_feasibility::Bool
 
+    # HiGHS doesn't have special support for binary variables. Cache them here
+    # to modify bounds on solve.
+    binaries::Set{_VariableInfo}
+
+    # TODO(odow): it does not.
     # HiGHS doesn't support constants in the objective function.
     objective_constant::Float64
 
@@ -264,6 +288,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             ptr,
             "",
             true,
+            Set{_VariableInfo}(),
             0.0,
             _variable_info_dict(),
             _constraint_info_dict(),
@@ -303,6 +328,7 @@ function MOI.empty!(model::Optimizer)
     _check_ret(ret)
     model.objective_constant = 0.0
     model.is_feasibility = true
+    empty!(model.binaries)
     empty!(model.variable_info)
     empty!(model.affine_constraint_info)
     model.name_to_variable = nothing
@@ -316,6 +342,7 @@ function MOI.is_empty(model::Optimizer)
            Highs_getNumRows(model) == 0 &&
            iszero(model.objective_constant) &&
            model.is_feasibility &&
+           isempty(model.binaries) &&
            isempty(model.variable_info) &&
            isempty(model.affine_constraint_info) &&
            model.name_to_variable === nothing &&
@@ -367,6 +394,11 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraints)
         else
             @assert info.bound == _BOUND_INTERVAL
             push!(constraints, (MOI.SingleVariable, MOI.Interval{Float64}))
+        end
+        if info.type == _TYPE_INTEGER
+            push!(constriants, (MOI.SingleVariable, MOI.Integer))
+        elseif info.type == _TYPE_BINARY
+            push!(constriants, (MOI.SingleVariable, MOI.ZeroOne))
         end
     end
     for info in values(model.affine_constraint_info)
@@ -1067,7 +1099,7 @@ end
 function MOI.supports(
     ::Optimizer,
     ::MOI.ConstraintName,
-    ::Type{<:MOI.ConstraintIndex{MOI.SingleVariable,<:_SCALAR_SETS}},
+    ::Type{<:MOI.ConstraintIndex},
 )
     return true
 end
@@ -1468,7 +1500,8 @@ Get the solution from a run of HiGHS.
 function _store_solution(model::Optimizer, ret::Cint)
     x = model.solution
     x.status = ret == 0 ? _OPTIMIZE_OK : _OPTIMIZE_ERRORED
-    x.has_solution = false
+    x.has_primal_solution = false
+    x.has_dual_solution = false
     x.has_dual_ray = false
     x.has_primal_ray = false
     numCols = Highs_getNumCols(model)
@@ -1479,31 +1512,57 @@ function _store_solution(model::Optimizer, ret::Cint)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    # Load the solution if optimal.
-    if Highs_getModelStatus(model) == Cint(kOptimal)
-        Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
-        Highs_getBasis(model, x.colstatus, x.rowstatus)
-        x.has_solution = true
-        return
+    status = Highs_getModelStatus(model)
+    statusP = Ref{Cint}()
+    if status == Cint(kInfeasible)
+        ret = Highs_getDualRay(model, statusP, x.rowdual)
+        _check_ret(ret)
+        x.has_dual_ray = statusP[] == 1
+    elseif status == Cint(kUnbounded)
+        ret = Highs_getPrimalRay(model, statusP, x.colvalue)
+        _check_ret(ret)
+        x.has_primal_ray = statusP[] == 1
+    else
+        Highs_getIntInfoValue(model, "primal_solution_status", statusP)
+        x.has_primal_solution = statusP[] == 2
+        Highs_getIntInfoValue(model, "dual_solution_status", statusP)
+        x.has_dual_solution = statusP[] == 2
+        if x.has_primal_solution
+            Highs_getSolution(
+                model,
+                x.colvalue,
+                x.coldual,
+                x.rowvalue,
+                x.rowdual,
+            )
+            Highs_getBasis(model, x.colstatus, x.rowstatus)
+        end
     end
-    # Check for a certificate of primal infeasibility.
-    has_ray = Ref{Cint}(0)
-    ret = Highs_getDualRay(model, has_ray, x.rowdual)
-    x.has_dual_ray = has_ray[] == 1
-    _check_ret(ret)
-    if x.has_dual_ray
-        return
+    return
+end
+
+function _enforce_binary_bounds(f, model::Optimizer)
+    for info in model.binaries
+        Highs_changeColBounds(
+            model,
+            info.column,
+            max(0.0, info.lower),
+            min(1.0, info.upper),
+        )
     end
-    # Check for a certificate of dual infeasibility.
-    ret = Highs_getPrimalRay(model, has_ray, x.colvalue)
-    x.has_primal_ray = has_ray[] == 1
-    _check_ret(ret)
+    f()
+    for info in model.binaries
+        Highs_changeColBounds(model, info.column, info.lower, info.upper)
+    end
     return
 end
 
 function MOI.optimize!(model::Optimizer)
-    ret = Highs_run(model)
-    _store_solution(model, ret)
+    _enforce_binary_bounds(model) do
+        ret = Highs_run(model)
+        _store_solution(model, ret)
+        return
+    end
     return
 end
 
@@ -1580,7 +1639,7 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)
     x = model.solution
-    if x.has_solution || x.has_dual_ray || x.has_primal_ray
+    if x.has_primal_solution || x.has_dual_ray || x.has_primal_ray
         return 1
     else
         return 0
@@ -1595,7 +1654,7 @@ end
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif model.solution.has_solution
+    elseif model.solution.has_primal_solution
         return MOI.FEASIBLE_POINT
     elseif model.solution.has_primal_ray
         return MOI.INFEASIBILITY_CERTIFICATE
@@ -1606,7 +1665,7 @@ end
 function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     if attr.N != 1
         return MOI.NO_SOLUTION
-    elseif model.solution.has_solution
+    elseif model.solution.has_dual_solution
         return MOI.FEASIBLE_POINT
     elseif model.solution.has_dual_ray
         return MOI.INFEASIBILITY_CERTIFICATE
@@ -1622,6 +1681,12 @@ end
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
     return MOI.Utilities.get_fallback(model, attr, Float64)
+end
+
+function MOI.get(model::Optimizer, attr::MOI.ObjectiveBound)
+    p = Ref{Cdouble}()
+    Highs_getDoubleInfoValue(model, "mip_dual_bound", p)
+    return _sense_corrector(model) * p[] + model.objective_constant
 end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTime)
@@ -1836,6 +1901,148 @@ function MOI.get(
 end
 
 ###
+### Integrality
+###
+
+function MOI.supports_constraint(
+    ::Optimizer,
+    ::Type{MOI.SingleVariable},
+    ::Type{<:Union{MOI.ZeroOne,MOI.Integer}},
+)
+    return true
+end
+
+function MOI.is_valid(
+    model::Optimizer,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+)
+    return _info(model, ci).type == _TYPE_INTEGER
+end
+
+function MOI.is_valid(
+    model::Optimizer,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+)
+    return _info(model, ci).type == _TYPE_BINARY
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ListOfConstraintIndices{MOI.SingleVariable,MOI.Integer},
+)
+    indices = MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer}[
+        MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer}(key.value) for
+        (key, info) in model.variable_info if info.type == _TYPE_INTEGER
+    ]
+    return sort!(indices, by = x -> x.value)
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ListOfConstraintIndices{MOI.SingleVariable,MOI.ZeroOne},
+)
+    indices = MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne}[
+        MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne}(key.value) for
+        (key, info) in model.variable_info if info.type == _TYPE_BINARY
+    ]
+    return sort!(indices, by = x -> x.value)
+end
+
+function MOI.add_constraint(
+    model::Optimizer,
+    f::MOI.SingleVariable,
+    ::MOI.Integer,
+)
+    info = _info(model, f.variable)
+    info.type = _TYPE_INTEGER
+    ci = MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer}(f.variable.value)
+    Highs_changeColIntegrality(model, info.column, 1)
+    return ci
+end
+
+function MOI.add_constraint(
+    model::Optimizer,
+    f::MOI.SingleVariable,
+    ::MOI.ZeroOne,
+)
+    info = _info(model, f.variable)
+    info.type = _TYPE_BINARY
+    ci = MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne}(f.variable.value)
+    Highs_changeColIntegrality(model, info.column, 1)
+    push!(model.binaries, info)
+    return ci
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+)
+    MOI.throw_if_not_valid(model, ci)
+    return MOI.Integer()
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+)
+    MOI.throw_if_not_valid(model, ci)
+    return MOI.ZeroOne()
+end
+
+function MOI.delete(
+    model::Optimizer,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+)
+    MOI.throw_if_not_valid(model, ci)
+    info = _info(model, ci)
+    info.type = _TYPE_CONTINUOUS
+    Highs_changeColIntegrality(model, info.column, 0)
+    return
+end
+
+function MOI.delete(
+    model::Optimizer,
+    ci::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+)
+    MOI.throw_if_not_valid(model, ci)
+    info = _info(model, ci)
+    info.type = _TYPE_CONTINUOUS
+    Highs_changeColIntegrality(model, info.column, 0)
+    delete!(model.binaries, info)
+    return
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintName,
+    ci::MOI.ConstraintIndex{
+        MOI.SingleVariable,
+        <:Union{MOI.Integer,MOI.ZeroOne},
+    },
+    name::String,
+)
+    MOI.throw_if_not_valid(model, ci)
+    info = _info(model, ci)
+    info.integrality_name = name
+    return
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ConstraintName,
+    ci::MOI.ConstraintIndex{
+        MOI.SingleVariable,
+        <:Union{MOI.Integer,MOI.ZeroOne},
+    },
+)
+    MOI.throw_if_not_valid(model, ci)
+    info = _info(model, ci)
+    return info.integrality_name
+end
+
+###
 ### MOI.copy_to
 ###
 
@@ -2019,7 +2226,7 @@ function MOI.copy_to(
         0,  # The A matrix is given is column-wise.
         MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? Cint(-1) :
         Cint(1),
-        dest.objective_constant,
+        0.0,
         colcost,
         collower,
         colupper,
