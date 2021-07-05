@@ -1471,7 +1471,7 @@ function MOI.set(
     end
     # This loop is a bit slow because we query the existing function first, and
     # then set each coefficient one-by-one. It's probably okay until someone
-    # complainsm but it will require some upstream changes to introduce a faster
+    # complains but it will require some upstream changes to introduce a faster
     # way of modifying a list of coefficients.
     old = MOI.get(model, MOI.ConstraintFunction(), c)
     terms = Dict(x.variable_index => 0.0 for x in old.terms)
@@ -1541,7 +1541,7 @@ function _store_solution(model::Optimizer, ret::Cint)
     return
 end
 
-function _enforce_binary_bounds(f, model::Optimizer)
+function MOI.optimize!(model::Optimizer)
     for info in model.binaries
         Highs_changeColBounds(
             model,
@@ -1550,18 +1550,10 @@ function _enforce_binary_bounds(f, model::Optimizer)
             min(1.0, info.upper),
         )
     end
-    f()
+    ret = Highs_run(model)
+    _store_solution(model, ret)
     for info in model.binaries
         Highs_changeColBounds(model, info.column, info.lower, info.upper)
-    end
-    return
-end
-
-function MOI.optimize!(model::Optimizer)
-    _enforce_binary_bounds(model) do
-        ret = Highs_run(model)
-        _store_solution(model, ret)
-        return
     end
     return
 end

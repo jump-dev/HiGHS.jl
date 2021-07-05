@@ -348,6 +348,14 @@ function Highs_getModel(highs, orientation, numcol, numrow, numnz, hessian_num_n
     ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, orientation, numcol, numrow, numnz, hessian_num_nz, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
 end
 
+function Highs_crossover(highs)
+    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+function Highs_crossover_set(highs, n, m, col_value, col_dual, row_dual)
+    ccall((:Highs_crossover_set, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, n, m, col_value, col_dual, row_dual)
+end
+
 function Highs_call(numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
     ccall((:Highs_call, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), numcol, numrow, numnz, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
 end
@@ -374,10 +382,6 @@ end
 
 function Highs_setHighsBoolOptionValue(highs, option, value)
     ccall((:Highs_setHighsBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Cstring, HighsInt), highs, option, value)
-end
-
-function Highs_crossover(highs)
-    ccall((:Highs_crossover, libhighs), Cint, (Ptr{Cvoid},), highs)
 end
 
 function Highs_setHighsIntOptionValue(highs, option, value)
@@ -445,3 +449,4 @@ function Highs_getHighsRunTime(highs)
 end
 # Julia wrapper for header: HighsInt.h
 # Automatically generated using Clang.jl
+
