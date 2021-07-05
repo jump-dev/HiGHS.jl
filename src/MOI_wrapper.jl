@@ -12,6 +12,13 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 @enum(HighsBasisStatus, kLower = 0, kBasic, kUpper, kZero, kNonbasic)
 
 """
+    HighsHessianFormat
+
+    https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L90
+"""
+@enum(HighsHessianFormat, kNoneHessian = 0, kTriangular, kSquare)
+
+"""
     HighsMatrixFormat
 
 https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
@@ -303,6 +310,9 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     is_objective_function_set::Bool
     is_objective_sense_set::Bool
 
+    # A flag to keep track of whether the objective is linear or quadratic.
+    hessian::Union{Nothing,SparseArrays.SparseMatrixCSC{Float64,Cint}}
+
     # HiGHS doesn't have special support for binary variables. Cache them here
     # to modify bounds on solve.
     binaries::Set{_VariableInfo}
@@ -332,6 +342,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             true,
             false,
             false,
+            nothing,
             Set{_VariableInfo}(),
             _variable_info_dict(),
             _constraint_info_dict(),
@@ -386,6 +397,7 @@ function MOI.empty!(model::Optimizer)
     model.is_feasibility = true
     model.is_objective_function_set = false
     model.is_objective_sense_set = false
+    model.hessian = nothing
     empty!(model.binaries)
     empty!(model.variable_info)
     empty!(model.affine_constraint_info)
@@ -406,6 +418,7 @@ function MOI.is_empty(model::Optimizer)
            model.is_feasibility &&
            !model.is_objective_function_set &&
            !model.is_objective_sense_set &&
+           model.hessian === nothing &&
            isempty(model.binaries) &&
            isempty(model.variable_info) &&
            isempty(model.affine_constraint_info) &&
@@ -427,10 +440,8 @@ function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
         push!(attributes, MOI.ObjectiveSense())
     end
     if model.is_objective_function_set
-        push!(
-            attributes,
-            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        )
+        F = MOI.get(model, MOI.ObjectiveFunctionType())
+        push!(attributes, MOI.ObjectiveFunction{F}())
     end
     if !isempty(model.name)
         push!(attributes, MOI.Name())
@@ -787,13 +798,20 @@ end
 
 function MOI.supports(
     ::Optimizer,
-    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+    ::Union{
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+        MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}},
+    },
 )
     return true
 end
 
-function MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType)
-    return MOI.ScalarAffineFunction{Float64}
+function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
+    if model.hessian === nothing
+        return MOI.ScalarAffineFunction{Float64}
+    else
+        return MOI.ScalarQuadraticFunction{Float64}
+    end
 end
 
 function MOI.set(
@@ -814,29 +832,85 @@ function MOI.set(
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
     model.is_objective_function_set = true
+    if model.hessian !== nothing
+        index = Cint[row-1 for col in 1:num_vars for row in col:num_vars]
+        start = Cint[0]
+        for col in 1:num_vars
+            push!(start, start[end] + num_vars - col + 1)
+        end
+        ret = Highs_passHessian(
+            model,
+            num_vars,
+            length(index),
+            kTriangular,
+            start,
+            index,
+            fill(0.0, length(index)),
+        )
+        _check_ret(ret)
+        model.hessian = nothing
+    end
     return
 end
 
-function MOI.get(
+function MOI.set(
     model::Optimizer,
-    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+    ::MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}},
+    f::MOI.ScalarQuadraticFunction{Float64},
 )
-    ncols = MOI.get(model, MOI.NumberOfVariables())
+    numcol = length(model.variable_info)
+    obj = zeros(Float64, numcol)
+    for term in f.affine_terms
+        obj[column(model, term.variable)+1] += term.coefficient
+    end
+    ret = Highs_changeColsCostByMask(model, ones(Cint, numcol), obj)
+    _check_ret(ret)
+    ret = Highs_changeObjectiveOffset(model, f.constant)
+    _check_ret(ret)
+    I, J, V = Cint[], Cint[], Cdouble[]
+    for term in f.quadratic_terms
+        if iszero(term.coefficient)
+            continue
+        end
+        i = model.variable_info[term.variable_1].column
+        j = model.variable_info[term.variable_2].column
+        row, col = (i > j) ? (i, j) : (j, i)
+        push!(I, row + 1)
+        push!(J, col + 1)
+        push!(V, term.coefficient)
+    end
+    Q = SparseArrays.sparse(I, J, V, numcol, numcol)
+    ret = Highs_passHessian(
+        model,
+        numcol,
+        length(Q.nzval),
+        kTriangular,
+        Q.colptr .- Cint(1),
+        Q.rowval .- Cint(1),
+        Q.nzval,
+    )
+    _check_ret(ret)
+    model.hessian = Q
+    return
+end
+
+function _get_objective_function(model::Optimizer, ::Nothing)
+    numcol = MOI.get(model, MOI.NumberOfVariables())
     offset = Ref{Cdouble}(0.0)
     ret = Highs_getObjectiveOffset(model, offset)
     _check_ret(ret)
-    if ncols == 0
+    if numcol == 0
         return MOI.ScalarAffineFunction{Float64}(
             MOI.ScalarAffineTerm{Float64}[],
             offset[],
         )
     end
     num_colsP, nnzP = Ref{Cint}(0), Ref{Cint}(0)
-    costs = Vector{Cdouble}(undef, ncols)
+    costs = Vector{Cdouble}(undef, numcol)
     ret = Highs_getColsByRange(
         model,
         0,
-        ncols - 1,
+        numcol - 1,
         num_colsP,
         costs,
         C_NULL,
@@ -856,12 +930,24 @@ function MOI.get(
     )
 end
 
-function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
-    obj = MOI.get(
-        model,
-        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+function _get_objective_function(model::Optimizer, Q)
+    f = _get_objective_function(model, nothing)
+    return MOI.ScalarQuadraticFunction(
+        MOI.ScalarQuadraticTerm{Float64}[
+            MOI.ScalarQuadraticTerm(
+                Q.nzval[j],
+                model.variable_info[CleverDicts.LinearIndex(col)].index,
+                model.variable_info[CleverDicts.LinearIndex(Q.rowval[j])].index,
+            )
+            for col in 1:Q.m for j in Q.colptr[col]:(Q.colptr[col+1]-1)
+        ],
+        f.terms,
+        f.constant,
     )
-    return convert(F, obj)
+end
+
+function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
+    return convert(F, _get_objective_function(model, model.hessian))
 end
 
 function MOI.modify(
@@ -2068,9 +2154,10 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
         info.column = Cint(i - 1)
         mapping[x] = index
     end
-    fobj =
-        MOI.get(src, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+    F = MOI.get(src, MOI.ObjectiveFunctionType())
+    fobj = MOI.get(src, MOI.ObjectiveFunction{F}())
     c = fill(0.0, numcols)
+
     for term in fobj.terms
         i = mapping[term.variable].value
         c[i] += term.coefficient
