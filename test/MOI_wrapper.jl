@@ -5,6 +5,26 @@ using Test
 
 const MOI = HiGHS.MOI
 
+function runtests()
+    config = Dict(
+        "simplex" => MOI.Test.TestConfig(basis = true),
+        "ipm" =>
+            MOI.Test.TestConfig(basis = true, infeas_certificates = false),
+        "mip" => MOI.Test.TestConfig(infeas_certificates = false),
+    )
+    for name in names(@__MODULE__; all = true)
+        if !startswith("$name", "test_")
+            continue
+        end
+        s = startswith("$name", "test_int_") ? ["mip"] : ["simplex", "ipm"]
+        @testset "$name-$solver" for solver in s
+            model = optimizer(solver = solver)
+            getfield(@__MODULE__, name)(model, config[solver])
+        end
+    end
+    return
+end
+
 function test_basic_constraint_tests(model, config)
     return MOI.Test.basic_constraint_tests(model, config)
 end
@@ -15,19 +35,41 @@ function test_unittest(model, config)
         config,
         String[
             # TODO(odow):
-            # Add support for MOI.ObjectiveBound.
-            "solve_objbound_edge_cases",
             # Add support for MOI.NumberOfThreads.
             "number_threads",
 
             # These are excluded because HiGHS does not support them.
             "delete_soc_variables",
-            "solve_integer_edge_cases",
             "solve_qcp_edge_cases",
             "solve_qp_edge_cases",
+            "solve_integer_edge_cases",
+            "solve_objbound_edge_cases",
             "solve_zero_one_with_bounds_1",
             "solve_zero_one_with_bounds_2",
             "solve_zero_one_with_bounds_3",
+        ],
+    )
+end
+
+function test_int_unittest(model, config)
+    return MOI.Test.unittest(
+        model,
+        config,
+        String[
+            # TODO(odow):
+            # Add support for MOI.NumberOfThreads.
+            "number_threads",
+
+            # TODO(odow): bugs in HiGHS?
+            "solve_integer_edge_cases",
+            "solve_objbound_edge_cases",
+            "solve_zero_one_with_bounds_2",
+            "solve_zero_one_with_bounds_3",
+
+            # These are excluded because HiGHS does not support them.
+            "delete_soc_variables",
+            "solve_qcp_edge_cases",
+            "solve_qp_edge_cases",
         ],
     )
 end
@@ -51,6 +93,39 @@ end
 
 function test_lintest(model, config)
     return MOI.Test.lintest(model, config)
+end
+
+function test_int_lineartest(model, config)
+    MOI.Test.intlineartest(
+        model,
+        config,
+        # Exclude SOS constraints
+        [
+            "int2",
+            "indicator1",
+            "indicator2",
+            "indicator3",
+            "indicator4",
+            "semiconttest",
+        ],
+    )
+    return
+end
+
+function test_int_lineartest_cache(model, config)
+    MOI.Test.intlineartest(
+        MOI.Bridges.full_bridge_optimizer(
+            MOI.Utilities.CachingOptimizer(
+                MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+                HiGHS.Optimizer(),
+            ),
+            Float64,
+        ),
+        config,
+        # Exclude SOS constraints
+        ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
+    )
+    return
 end
 
 function test_SolverName(model, ::Any)
@@ -490,32 +565,16 @@ c8: w + x in MathOptInterface.Interval(1.0, 2.0)
     return
 end
 
-function optimizer(; solver::String = "simplex")
+function optimizer(; solver::String = "")
     model = HiGHS.Optimizer()
     MOI.set(model, MOI.Silent(), true)
     # Turn off presolve for simplex to get infeas_certificates.
-    presolve = solver == "simplex" ? "off" : "on"
-    MOI.set(model, MOI.RawParameter("presolve"), presolve)
-    MOI.set(model, MOI.RawParameter("solver"), solver)
-    return MOI.Bridges.full_bridge_optimizer(model, Float64)
-end
-
-function runtests()
-    config = Dict(
-        "simplex" => MOI.Test.TestConfig(basis = true),
-        "ipm" =>
-            MOI.Test.TestConfig(basis = true, infeas_certificates = false),
-    )
-    @testset "$(solver)" for solver in ["simplex", "ipm"]
-        model = optimizer(solver = solver)
-        for name in names(@__MODULE__; all = true)
-            if startswith(string(name), "test_")
-                @testset "$(name)" begin
-                    getfield(@__MODULE__, name)(model, config[solver])
-                end
-            end
-        end
+    if solver == "simplex" || solver == "ipm"
+        presolve = solver == "simplex" ? "off" : "on"
+        MOI.set(model, MOI.RawParameter("presolve"), presolve)
+        MOI.set(model, MOI.RawParameter("solver"), solver)
     end
+    return MOI.Bridges.full_bridge_optimizer(model, Float64)
 end
 
 end
