@@ -449,4 +449,3 @@ function Highs_getHighsRunTime(highs)
 end
 # Julia wrapper for header: HighsInt.h
 # Automatically generated using Clang.jl
-
