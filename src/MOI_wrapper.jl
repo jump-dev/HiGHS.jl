@@ -307,10 +307,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # to modify bounds on solve.
     binaries::Set{_VariableInfo}
 
-    # TODO(odow): it does not.
-    # HiGHS doesn't support constants in the objective function.
-    objective_constant::Float64
-
     variable_info::typeof(_variable_info_dict())
     affine_constraint_info::typeof(_constraint_info_dict())
 
@@ -334,17 +330,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     Create a new Optimizer object.
     """
     function Optimizer()
-        ptr = Highs_create()
-        if ptr == C_NULL
-            error("Unable to create an internal model via the C API.")
-        end
         model = new(
-            ptr,
+            C_NULL,
             Dict{String,Any}(),
             "",
             true,
             Set{_VariableInfo}(),
-            0.0,
             _variable_info_dict(),
             _constraint_info_dict(),
             nothing,
@@ -379,14 +370,13 @@ function Base.show(io::IO, model::Optimizer)
 end
 
 function MOI.empty!(model::Optimizer)
-    Highs_destroy(model)
+    if model.inner != C_NULL
+        Highs_destroy(model)
+    end
     model.inner = Highs_create()
     for (key, value) in model.options
         MOI.set(model, MOI.RawParameter(key), value)
     end
-    # ret = Highs_clearModel(model)
-    # _check_ret(ret)
-    model.objective_constant = 0.0
     model.is_feasibility = true
     empty!(model.binaries)
     empty!(model.variable_info)
@@ -398,16 +388,19 @@ function MOI.empty!(model::Optimizer)
 end
 
 function MOI.is_empty(model::Optimizer)
+    offset = Ref{Cdouble}(0.0)
+    ret = Highs_getObjectiveOffset(model, offset)
+    _check_ret(ret)
     return Highs_getNumCols(model) == 0 &&
            Highs_getNumRows(model) == 0 &&
-           iszero(model.objective_constant) &&
            model.is_feasibility &&
            isempty(model.binaries) &&
            isempty(model.variable_info) &&
            isempty(model.affine_constraint_info) &&
            model.name_to_variable === nothing &&
            model.name_to_constraint_index === nothing &&
-           isempty(model.solution)
+           isempty(model.solution) &&
+           iszero(offset[])
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
@@ -749,7 +742,8 @@ function MOI.set(
         ret =
             Highs_changeColsCostByMask(model, ones(Cint, n), zeros(Cdouble, n))
         _check_ret(ret)
-        model.objective_constant = 0.0
+        ret = Highs_changeObjectiveOffset(model, 0.0)
+        _check_ret(ret)
     else
         model.is_feasibility = false
     end
@@ -792,7 +786,8 @@ function MOI.set(
     mask = ones(Cint, num_vars)
     ret = Highs_changeColsCostByMask(model, mask, obj)
     _check_ret(ret)
-    model.objective_constant = f.constant
+    ret = Highs_changeObjectiveOffset(model, f.constant)
+    _check_ret(ret)
     return
 end
 
@@ -801,10 +796,13 @@ function MOI.get(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
 )
     ncols = MOI.get(model, MOI.NumberOfVariables())
+    offset = Ref{Cdouble}(0.0)
+    ret = Highs_getObjectiveOffset(model, offset)
+    _check_ret(ret)
     if ncols == 0
         return MOI.ScalarAffineFunction{Float64}(
             MOI.ScalarAffineTerm{Float64}[],
-            model.objective_constant,
+            offset[],
         )
     end
     num_colsP, nnzP = Ref{Cint}(0), Ref{Cint}(0)
@@ -828,7 +826,7 @@ function MOI.get(
             (index, info) in model.variable_info if
             !iszero(costs[info.column+1])
         ],
-        model.objective_constant,
+        offset[],
     )
 end
 
@@ -845,7 +843,8 @@ function MOI.modify(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     chg::MOI.ScalarConstantChange{Float64},
 )
-    model.objective_constant = chg.new_constant
+    ret = Highs_changeObjectiveOffset(model, chg.new_constant)
+    _check_ret(ret)
     return
 end
 
@@ -1700,7 +1699,7 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
-    return Highs_getObjectiveValue(model) + model.objective_constant
+    return Highs_getObjectiveValue(model)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
@@ -1716,11 +1715,7 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
     Highs_getDoubleInfoValue(model, "mip_dual_bound", p)
     sense = _sense_corrector(model)
     primal = Highs_getObjectiveValue(model)
-    if sense == -1  # Max
-        return max(primal, -p[]) + model.objective_constant
-    else
-        return min(primal, p[]) + model.objective_constant
-    end
+    return sense == -1 ? max(primal, -p[]) : min(primal, p[])
 end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTime)
@@ -2143,7 +2138,8 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
         i = mapping.varmap[term.variable_index].value
         c[i] += term.coefficient
     end
-    dest.objective_constant = fobj.constant
+    ret = Highs_changeObjectiveOffset(dest, fobj.constant)
+    _check_ret(ret)
     return numcols, c
 end
 
