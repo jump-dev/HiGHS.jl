@@ -4,12 +4,24 @@
 # Automatically generated using Clang.jl
 
 
-function Highs_lpCall(numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
-    ccall((:Highs_lpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+function Highs_lpCall(numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+    ccall((:Highs_lpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
 end
 
-function Highs_mipCall(numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality, colvalue, rowvalue, modelstatus)
-    ccall((:Highs_mipCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}), numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality, colvalue, rowvalue, modelstatus)
+function Highs_mipCall(numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality, colvalue, rowvalue, modelstatus)
+    ccall((:Highs_mipCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}), numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality, colvalue, rowvalue, modelstatus)
+end
+
+function Highs_qpCall(numcol, numrow, numnz, q_numnz, a_format, q_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+    ccall((:Highs_qpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), numcol, numrow, numnz, q_numnz, a_format, q_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, colvalue, coldual, rowvalue, rowdual, colbasisstatus, rowbasisstatus, modelstatus)
+end
+
+function Highs_lpDimMpsRead(numcol, numrow, numNz)
+    ccall((:Highs_lpDimMpsRead, libhighs), HighsInt, (Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), numcol, numrow, numNz)
+end
+
+function Highs_lpDataMpsRead(numcol, numrow, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
+    ccall((:Highs_lpDataMpsRead, libhighs), HighsInt, (HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), numcol, numrow, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
 end
 
 function Highs_create()
@@ -44,16 +56,20 @@ function Highs_writeSolutionPretty(highs, filename)
     ccall((:Highs_writeSolutionPretty, libhighs), HighsInt, (Ptr{Cvoid}, Cstring), highs, filename)
 end
 
-function Highs_passLp(highs, numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
-    ccall((:Highs_passLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
+function Highs_passLp(highs, numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
+    ccall((:Highs_passLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue)
 end
 
-function Highs_passMip(highs, numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality)
-    ccall((:Highs_passMip, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, numcol, numrow, numnz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality)
+function Highs_passMip(highs, numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality)
+    ccall((:Highs_passMip, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, numcol, numrow, numnz, a_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, integrality)
 end
 
-function Highs_passModel(highs, numcol, numrow, numnz, hessian_num_nz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
-    ccall((:Highs_passModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, numcol, numrow, numnz, hessian_num_nz, rowwise, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
+function Highs_passModel(highs, numcol, numrow, numnz, q_num_nz, a_format, q_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
+    ccall((:Highs_passModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, numcol, numrow, numnz, q_num_nz, a_format, q_format, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
+end
+
+function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
+    ccall((:Highs_passHessian, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, dim, num_nz, format, start, index, value)
 end
 
 function Highs_setBoolOptionValue(highs, option, value)
@@ -98,6 +114,14 @@ end
 
 function Highs_resetOptions(highs)
     ccall((:Highs_resetOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+function Highs_writeOptions(highs, filename)
+    ccall((:Highs_writeOptions, libhighs), HighsInt, (Ptr{Cvoid}, Cstring), highs, filename)
+end
+
+function Highs_writeOptionsDeviations(highs, filename)
+    ccall((:Highs_writeOptionsDeviations, libhighs), HighsInt, (Ptr{Cvoid}, Cstring), highs, filename)
 end
 
 function Highs_getIntInfoValue(highs, info, value)
@@ -268,6 +292,10 @@ function Highs_getObjectiveSense(highs, sense)
     ccall((:Highs_getObjectiveSense, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, sense)
 end
 
+function Highs_getObjectiveOffset(highs, offset)
+    ccall((:Highs_getObjectiveOffset, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}), highs, offset)
+end
+
 function Highs_getColsByRange(highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
     ccall((:Highs_getColsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
@@ -344,8 +372,8 @@ function Highs_getHessianNumNz(highs)
     ccall((:Highs_getHessianNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getModel(highs, orientation, numcol, numrow, numnz, hessian_num_nz, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
-    ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, orientation, numcol, numrow, numnz, hessian_num_nz, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
+function Highs_getModel(highs, a_format, q_format, numcol, numrow, numnz, hessian_num_nz, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
+    ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, q_format, numcol, numrow, numnz, hessian_num_nz, sense, offset, colcost, collower, colupper, rowlower, rowupper, astart, aindex, avalue, qstart, qindex, qvalue, integrality)
 end
 
 function Highs_crossover(highs)

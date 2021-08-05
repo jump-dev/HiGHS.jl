@@ -60,12 +60,6 @@ function test_int_unittest(model, config)
             # Add support for MOI.NumberOfThreads.
             "number_threads",
 
-            # TODO(odow): bugs in HiGHS?
-            "solve_integer_edge_cases",
-            "solve_objbound_edge_cases",
-            "solve_zero_one_with_bounds_2",
-            "solve_zero_one_with_bounds_3",
-
             # These are excluded because HiGHS does not support them.
             "delete_soc_variables",
             "solve_qcp_edge_cases",
@@ -112,15 +106,17 @@ function test_int_lineartest(model, config)
     return
 end
 
-function test_int_lineartest_cache(model, config)
-    MOI.Test.intlineartest(
-        MOI.Bridges.full_bridge_optimizer(
-            MOI.Utilities.CachingOptimizer(
-                MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
-                HiGHS.Optimizer(),
-            ),
-            Float64,
+function test_int_lineartest_cache(::Any, config)
+    model = MOI.Bridges.full_bridge_optimizer(
+        MOI.Utilities.CachingOptimizer(
+            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+            HiGHS.Optimizer(),
         ),
+        Float64,
+    )
+    MOI.set(model, MOI.Silent(), true)
+    MOI.Test.intlineartest(
+        model,
         config,
         # Exclude SOS constraints
         ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],

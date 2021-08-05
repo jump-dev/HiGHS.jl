@@ -44,8 +44,8 @@ function test_Direct_C_call()
         n_col,
         n_row,
         n_nz,
-        0,
-        -1,
+        HiGHS.kColwise,
+        HiGHS.kMaximize,
         0.0,
         colcost,
         collower,
@@ -78,23 +78,6 @@ function test_create()
     # bool scaled_model
     modelstatus = Highs_getModelStatus(ptr)
     @test modelstatus[] == 0 # uninitialized LP
-
-    return Highs_destroy(ptr)
-end
-
-# The ipx code will be updated in the next HiGHS_jll.
-# In this release it should be missing, the code below checks that.
-# todo:galabovaa edit test after update of HiGHS_jll
-function test_ipx()
-    ptr = Highs_create()
-    @test ptr != C_NULL
-
-    Highs_setStringOptionValue(ptr, "solver", "ipm")
-
-    Highs_run(ptr)
-
-    modelstatus = Highs_getModelStatus(ptr)
-    @test modelstatus[] != 9 # not optimal
 
     return Highs_destroy(ptr)
 end
