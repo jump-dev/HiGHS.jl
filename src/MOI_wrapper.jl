@@ -456,9 +456,9 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraints)
             push!(constraints, (MOI.SingleVariable, MOI.Interval{Float64}))
         end
         if info.type == _TYPE_INTEGER
-            push!(constriants, (MOI.SingleVariable, MOI.Integer))
+            push!(constraints, (MOI.SingleVariable, MOI.Integer))
         elseif info.type == _TYPE_BINARY
-            push!(constriants, (MOI.SingleVariable, MOI.ZeroOne))
+            push!(constraints, (MOI.SingleVariable, MOI.ZeroOne))
         end
     end
     for info in values(model.affine_constraint_info)
