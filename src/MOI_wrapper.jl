@@ -2143,7 +2143,7 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
     return numcols, c
 end
 
-add_sizehint!(vec, n) = sizehint!(vec, length(vec) + n)
+_add_sizehint!(vec, n) = sizehint!(vec, length(vec) + n)
 
 function _extract_row_data(
     dest::Optimizer,
@@ -2162,8 +2162,8 @@ function _extract_row_data(
         MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}(),
     )
     numrows = length(list)
-    add_sizehint!(rowlower, numrows)
-    add_sizehint!(rowupper, numrows)
+    _add_sizehint!(rowlower, numrows)
+    _add_sizehint!(rowupper, numrows)
     n_terms = 0
     fs = Array{MOI.ScalarAffineFunction{Float64}}(undef, numrows)
     for (i, c_index) in enumerate(list)
@@ -2183,11 +2183,11 @@ function _extract_row_data(
         mapping.conmap[c_index] =
             MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value)
     end
-    add_sizehint!(I, n_terms)
-    add_sizehint!(J, n_terms)
-    add_sizehint!(V, n_terms)
-    for (i, c_index) in enumerate(list)
-        for term in fs[i].terms
+    _add_sizehint!(I, n_terms)
+    _add_sizehint!(J, n_terms)
+    _add_sizehint!(V, n_terms)
+    for f in fs
+        for term in f.terms
             push!(I, row)
             push!(J, Cint(mapping.varmap[term.variable_index].value))
             push!(V, term.coefficient)
@@ -2262,7 +2262,7 @@ function MOI.copy_to(
     )
         integrality[_info(dest, ci).column+1] = kInteger
     end
-    Highs_passMip(
+    ret = Highs_passMip(
         dest,
         numcol,
         numrow,
@@ -2281,5 +2281,6 @@ function MOI.copy_to(
         A.nzval,
         integrality,
     )
+    _check_ret(ret)
     return mapping
 end
