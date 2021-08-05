@@ -2272,7 +2272,8 @@ function MOI.copy_to(
         numrow,
         length(V),
         kColwise,  # The A matrix is given is column-wise.
-        MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? kMaximize : kMinimize,
+        MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? kMaximize :
+        kMinimize,
         0.0,
         colcost,
         collower,
