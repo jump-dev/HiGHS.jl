@@ -2138,9 +2138,7 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
         i = mapping.varmap[term.variable_index].value
         c[i] += term.coefficient
     end
-    ret = Highs_changeObjectiveOffset(dest, fobj.constant)
-    _check_ret(ret)
-    return numcols, c
+    return numcols, c, fobj.constant
 end
 
 _add_sizehint!(vec, n) = sizehint!(vec, length(vec) + n)
@@ -2233,7 +2231,7 @@ function MOI.copy_to(
     @assert MOI.is_empty(dest)
     _check_input_data(dest, src)
     mapping = MOI.Utilities.IndexMap()
-    numcol, colcost = _copy_to_columns(dest, src, mapping)
+    numcol, colcost, offset = _copy_to_columns(dest, src, mapping)
     collower, colupper = fill(-Inf, numcol), fill(Inf, numcol)
     rowlower, rowupper = Float64[], Float64[]
     I, J, V = Cint[], Cint[], Float64[]
@@ -2253,14 +2251,18 @@ function MOI.copy_to(
         src,
         MOI.ListOfConstraintIndices{MOI.SingleVariable,MOI.ZeroOne}(),
     )
-        push!(dest.binaries, mapping[ci])
-        integrality[_info(dest, ci).column+1] = kInteger
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        integrality[_info(dest, new_x).column+1] = kInteger
+        mapping[ci] = typeof(ci)(new_x.value)
+        push!(dest.binaries, _info(dest, mapping[ci]))
     end
     for ci in MOI.get(
         src,
         MOI.ListOfConstraintIndices{MOI.SingleVariable,MOI.Integer}(),
     )
-        integrality[_info(dest, ci).column+1] = kInteger
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        integrality[_info(dest, new_x).column+1] = kInteger
+        mapping[ci] = typeof(ci)(new_x.value)
     end
     ret = Highs_passMip(
         dest,
@@ -2270,7 +2272,7 @@ function MOI.copy_to(
         kColwise,  # The A matrix is given is column-wise.
         MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE ? kMaximize :
         kMinimize,
-        0.0,
+        offset,
         colcost,
         collower,
         colupper,
