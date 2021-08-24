@@ -354,7 +354,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 function _check_ret(ret::Cint)
     if ret != Cint(0)
         error(
-            "Encountered an error in HiGHS (Status $(ref)). Check the log " *
+            "Encountered an error in HiGHS (Status $(ret)). Check the log " *
             "for details.",
         )
     end
