@@ -17,18 +17,10 @@ function runtests()
 end
 
 const _EXCLUDE = [
-    # TODO(odow): investigate tesst failures
+    # TODO(odow): investigate test failures
     "test_model_LowerBoundAlreadySet",
     "test_model_UpperBoundAlreadySet",
-    "test_constraint_ConstraintDualStart",
-    "test_constraint_ConstraintPrimalStart",
     "test_model_copy_to_UnsupportedAttribute",
-    "test_model_copy_to_UnsupportedConstraint",
-    "test_model_ModelFilter_AbstractConstraintAttribute",
-    "test_objective_FEASIBILITY_SENSE_clears_objective",
-    "test_linear_integration_delete_variables",
-    "test_linear_integration_Interval",
-    "test_modification_delete_variables_in_a_batch",
 ]
 
 function test_runtests()
@@ -56,6 +48,10 @@ function test_runtests_cache()
             "test_conic_NormInfinityCone_VectorOfVariables",
             "test_conic_NormOneCone_VectorAffineFunction",
             "test_conic_NormOneCone_VectorOfVariables",
+            # TODO(odow): investigate. These all seem related.
+            "test_linear_integration_Interval",
+            "test_linear_integration_delete_variables",
+            "test_modification_delete_variables_in_a_batch"
         ),
     )
     return
@@ -94,24 +90,6 @@ function test_runtests_ipm_no_presolve()
     )
     return
 end
-
-# function test_int_lineartest_cache(::Any, config)
-#     model = MOI.Bridges.full_bridge_optimizer(
-#         MOI.Utilities.CachingOptimizer(
-#             MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
-#             HiGHS.Optimizer(),
-#         ),
-#         Float64,
-#     )
-#     MOI.set(model, MOI.Silent(), true)
-#     MOI.Test.intlineartest(
-#         model,
-#         config,
-#         # Exclude SOS constraints
-#         ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
-#     )
-#     return
-# end
 
 function test_SolverName()
     @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
