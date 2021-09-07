@@ -49,6 +49,7 @@ function test_runtests_cache()
             "test_conic_NormOneCone_VectorAffineFunction",
             "test_conic_NormOneCone_VectorOfVariables",
             # TODO(odow): investigate. These all seem related.
+            "test_linear_integration",
             "test_linear_integration_Interval",
             "test_linear_integration_delete_variables",
             "test_modification_delete_variables_in_a_batch",
