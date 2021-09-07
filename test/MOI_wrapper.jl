@@ -51,7 +51,7 @@ function test_runtests_cache()
             # TODO(odow): investigate. These all seem related.
             "test_linear_integration_Interval",
             "test_linear_integration_delete_variables",
-            "test_modification_delete_variables_in_a_batch"
+            "test_modification_delete_variables_in_a_batch",
         ),
     )
     return
