@@ -272,6 +272,11 @@ end
 
 Base.isempty(x::_Solution) = x.status == _OPTIMIZE_NOT_CALLED
 
+"""
+    Optimizer()
+
+Create a new Optimizer object.
+"""
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
@@ -309,11 +314,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # HiGHS just returns a single solution struct :(
     solution::_Solution
 
-    """
-        Optimizer()
-
-    Create a new Optimizer object.
-    """
     function Optimizer()
         model = new(
             C_NULL,
@@ -337,6 +337,10 @@ end
 
 Base.cconvert(::Type{Ptr{Cvoid}}, model::Optimizer) = model
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
+
+MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
+
+MOI.get(::Optimizer, ::MOI.SolverVersion) = "v1.1.0"
 
 function _check_ret(ret::Cint)
     if ret != Cint(0)
@@ -396,8 +400,6 @@ function MOI.is_empty(model::Optimizer)
            isempty(model.solution) &&
            iszero(offset[])
 end
-
-MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
@@ -2146,16 +2148,19 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     A = SparseArrays.sparse(I, J, V, numrow, numcol)
     # Extract integrality constraints
     integrality = fill(kContinuous, numcol)
+    has_integrality = false
     for ci in _constraints(src, MOI.VariableIndex, MOI.ZeroOne)
         integrality[_info(dest, ci).column+1] = kInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
         push!(dest.binaries, _info(dest, mapping[ci]))
+        has_integrality = true
     end
     for ci in _constraints(src, MOI.VariableIndex, MOI.Integer)
         integrality[_info(dest, ci).column+1] = kInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
+        has_integrality = true
     end
     # Build the model
     is_max = MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE
@@ -2180,7 +2185,7 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         Cint[0],   # qstart,
         Cint[],    # qindex,
         Cdouble[], # qvalue,
-        integrality,
+        has_integrality ? integrality : C_NULL,
     )
     _check_ret(ret)
     return mapping
