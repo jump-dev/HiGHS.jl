@@ -1648,6 +1648,9 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
+    if model.solution.has_primal_ray
+        return MOI.Utilities.get_fallback(model, attr)
+    end
     return Highs_getObjectiveValue(model)
 end
 
@@ -1699,6 +1702,9 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
 )
     MOI.check_result_index_bounds(model, attr)
+    if model.solution.has_primal_ray
+        return MOI.Utilities.get_fallback(model, attr, c)
+    end
     return model.solution.rowvalue[row(model, c)+1]
 end
 
