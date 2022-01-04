@@ -61,7 +61,6 @@ println(read("options.txt", String))
 
 The current option list is:
 ```
-
 # Presolve option: "off", "choose" or "on"
 # [type: string, advanced: false, default: "choose"]
 presolve = choose
@@ -77,10 +76,6 @@ parallel = choose
 # Time limit
 # [type: double, advanced: false, range: [0, inf], default: inf]
 time_limit = inf
-
-# Compute cost, bound, RHS and basic solution ranging: "off" or "on"
-# [type: string, advanced: false, default: "off"]
-ranging = off
 
 # Limit on cost coefficient: values larger than this will be treated as infinite
 # [type: double, advanced: false, range: [1e+15, inf], default: 1e+20]
@@ -122,25 +117,21 @@ objective_target = -inf
 # [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 0]
 random_seed = 0
 
-# number of threads used by HiGHS (0: automatic)
-# [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 0]
-threads = 0
-
 # Debugging level in HiGHS
 # [type: HighsInt, advanced: false, range: {0, 3}, default: 0]
 highs_debug_level = 0
 
 # Analysis level in HiGHS
-# [type: HighsInt, advanced: false, range: {0, 63}, default: 0]
+# [type: HighsInt, advanced: false, range: {0, 31}, default: 0]
 highs_analysis_level = 0
 
 # Strategy for simplex solver
 # [type: HighsInt, advanced: false, range: {0, 4}, default: 1]
 simplex_strategy = 1
 
-# Simplex scaling strategy: off / choose / equilibration / forced equilibration / max value 0 / max value 1 (0/1/2/3/4/5)
-# [type: HighsInt, advanced: false, range: {0, 5}, default: 1]
-simplex_scale_strategy = 1
+# Strategy for scaling before simplex solver: off / on (0/1)
+# [type: HighsInt, advanced: false, range: {0, 4}, default: 2]
+simplex_scale_strategy = 2
 
 # Strategy for simplex crash: off / LTSSF / Bixby (0/1/2)
 # [type: HighsInt, advanced: false, range: {0, 9}, default: 0]
@@ -166,13 +157,13 @@ simplex_update_limit = 5000
 # [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 2147483647]
 ipm_iteration_limit = 2147483647
 
-# Minimum level of concurrency in parallel simplex
+# Minimum number of threads in parallel execution
 # [type: HighsInt, advanced: false, range: {1, 8}, default: 1]
-simplex_min_concurrency = 1
+highs_min_threads = 1
 
-# Maximum level of concurrency in parallel simplex
+# Maximum number of threads in parallel execution
 # [type: HighsInt, advanced: false, range: {1, 8}, default: 8]
-simplex_max_concurrency = 8
+highs_max_threads = 8
 
 # Enables or disables solver output
 # [type: bool, advanced: false, range: {false, true}, default: true]
@@ -194,8 +185,12 @@ log_file = Highs.log
 # [type: bool, advanced: false, range: {false, true}, default: false]
 write_solution_to_file = false
 
-# Write the solution in style: 0=>Raw (computer-readable); 1=>Pretty (human-readable) 
-# [type: HighsInt, advanced: false, range: {0, 1}, default: 0]
+# Write the solution in a pretty (human-readable) format
+# [type: bool, advanced: false, range: {false, true}, default: false]
+write_solution_pretty = false
+
+# Write the solution in style: 0=>Raw; 1=>Pretty; 2=>Mittlemann
+# [type: HighsInt, advanced: false, range: {0, 2}, default: 0]
 write_solution_style = 0
 
 # Whether symmetry should be detected
@@ -266,17 +261,13 @@ mps_parser_type_free = true
 # [type: HighsInt, advanced: true, range: {-1, 1}, default: -1]
 keep_n_rows = -1
 
-# Scaling factor for costs
-# [type: HighsInt, advanced: true, range: {-20, 20}, default: 0]
-cost_scale_factor = 0
-
-# Largest power-of-two factor permitted when scaling the constraint matrix
+# Largest power-of-two factor permitted when scaling the constraint matrix for the simplex solver
 # [type: HighsInt, advanced: true, range: {0, 20}, default: 10]
-allowed_matrix_scale_factor = 10
+allowed_simplex_matrix_scale_factor = 10
 
-# Largest power-of-two factor permitted when scaling the costs
+# Largest power-of-two factor permitted when scaling the costs for the simplex solver
 # [type: HighsInt, advanced: true, range: {0, 20}, default: 0]
-allowed_cost_scale_factor = 0
+allowed_simplex_cost_scale_factor = 0
 
 # Strategy for dualising before simplex
 # [type: HighsInt, advanced: true, range: {-1, 1}, default: -1]
@@ -290,33 +281,17 @@ simplex_permute_strategy = -1
 # [type: HighsInt, advanced: true, range: {0, 2147483647}, default: 1]
 max_dual_simplex_cleanup_level = 1
 
-# Max level of dual simplex phase 1 cleanup
-# [type: HighsInt, advanced: true, range: {0, 2147483647}, default: 2]
-max_dual_simplex_phase1_cleanup_level = 2
-
 # Strategy for PRICE in simplex
 # [type: HighsInt, advanced: true, range: {0, 3}, default: 3]
 simplex_price_strategy = 3
-
-# Strategy for solving unscaled LP in simplex
-# [type: HighsInt, advanced: true, range: {0, 2}, default: 1]
-simplex_unscaled_solution_strategy = 1
 
 # Perform initial basis condition check in simplex
 # [type: bool, advanced: true, range: {false, true}, default: true]
 simplex_initial_condition_check = true
 
-# No unnecessary refactorization on simplex rebuild
-# [type: bool, advanced: true, range: {false, true}, default: true]
-no_unnecessary_rebuild_refactor = true
-
 # Tolerance on initial basis condition in simplex
 # [type: double, advanced: true, range: [1, inf], default: 1e+14]
 simplex_initial_condition_tolerance = 1e+14
-
-# Tolerance on solution error when considering refactorization on simplex rebuild
-# [type: double, advanced: true, range: [-inf, inf], default: 1e-08]
-rebuild_refactor_solution_error_tolerance = 1e-08
 
 # Threshold on dual steepest edge weight errors for Devex switch
 # [type: double, advanced: true, range: [1, inf], default: 10]
@@ -329,10 +304,6 @@ dual_simplex_cost_perturbation_multiplier = 1
 # Primal simplex bound perturbation multiplier: 0 => no perturbation
 # [type: double, advanced: true, range: [0, inf], default: 1]
 primal_simplex_bound_perturbation_multiplier = 1
-
-# Dual simplex pivot growth tolerance
-# [type: double, advanced: true, range: [1e-12, inf], default: 1e-09]
-dual_simplex_pivot_growth_tolerance = 1e-09
 
 # Matrix factorization pivot threshold for substitutions in presolve
 # [type: double, advanced: true, range: [0.0008, 0.5], default: 0.01]
