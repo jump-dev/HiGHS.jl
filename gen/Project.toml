@@ -1,3 +1,6 @@
 [deps]
 Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
 HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
+
+[compat]
+Clang = "0.14"
