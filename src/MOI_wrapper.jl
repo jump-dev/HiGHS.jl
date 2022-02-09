@@ -14,7 +14,7 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 """
     HighsMatrixFormat
 
-    https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
+https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
 """
 @enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
 
@@ -53,9 +53,16 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 """
     HighsVartype
 
-    https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L69-L73
+https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L69-L73
 """
 @enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
+
+"""
+    HighsStatus
+
+https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/interfaces/highs_c_api.h#L17-L19
+"""
+@enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 @enum(
     _RowType,
@@ -343,10 +350,16 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
-MOI.get(::Optimizer, ::MOI.SolverVersion) = "v1.1.0"
+function MOI.get(::Optimizer, ::MOI.SolverVersion)
+    return VersionNumber(
+        HIGHS_VERSION_MAJOR,
+        HIGHS_VERSION_MINOR,
+        HIGHS_VERSION_PATCH,
+    )
+end
 
-function _check_ret(ret::Cint)
-    if ret != Cint(0)
+function _check_ret(ret::HighsStatus)
+    if ret == HighsStatuskError
         error(
             "Encountered an error in HiGHS (Status $(ret)). Check the log " *
             "for details.",
@@ -354,6 +367,8 @@ function _check_ret(ret::Cint)
     end
     return
 end
+
+_check_ret(ret::Cint) = _check_ret(HighsStatus(ret))
 
 function Base.show(io::IO, model::Optimizer)
     return print(

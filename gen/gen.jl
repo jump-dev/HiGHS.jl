@@ -12,4 +12,3 @@ build!(
         load_options(joinpath(@__DIR__, "generate.toml")),
     ),
 )
-
