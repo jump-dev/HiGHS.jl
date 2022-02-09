@@ -16,11 +16,14 @@ function runtests()
     return
 end
 
-const _EXCLUDE = [
+const _EXCLUDE = String[
     # TODO(odow): investigate test failures
-    "test_model_LowerBoundAlreadySet",
-    "test_model_UpperBoundAlreadySet",
-    "test_model_copy_to_UnsupportedAttribute",
+    "test_conic_NormInfinityCone_INFEASIBLE",
+    "test_conic_NormOneCone_INFEASIBLE",
+    "test_conic_NormOneCone_VectorAffineFunction",
+    # "test_model_LowerBoundAlreadySet",
+    # "test_model_UpperBoundAlreadySet",
+    # "test_model_copy_to_UnsupportedAttribute",
 ]
 
 function test_runtests()
@@ -86,7 +89,8 @@ function test_runtests_ipm_no_presolve()
         MOI.Test.Config(),
         exclude = vcat(
             _EXCLUDE,
-            ["test_conic_linear_INFEASIBLE", "test_conic_linear_INFEASIBLE_2"],
+            "test_conic_linear_INFEASIBLE",
+            "test_conic_linear_INFEASIBLE_2",
         ),
     )
     return

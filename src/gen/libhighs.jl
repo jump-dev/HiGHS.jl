@@ -830,4 +830,3 @@ const HIGHS_VERSION_PATCH = 0
 const HIGHS_DIR = "/workspace/srcdir/HiGHS"
 
 const HIGHSINT_FORMAT = "d"
-

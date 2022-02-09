@@ -14,9 +14,9 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 """
     HighsMatrixFormat
 
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L88
+    https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
 """
-@enum(HighsMatrixFormat, kNone = 0, kColwise, kRowwise)
+@enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
 
 """
     HighsModelStatus
@@ -228,6 +228,7 @@ accessing them element-wise.
 """
 mutable struct _Solution
     status::_OptimizeStatus
+    model_status::HighsModelStatus
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
     colstatus::Vector{Cint}
@@ -241,6 +242,7 @@ mutable struct _Solution
     function _Solution()
         return new(
             _OPTIMIZE_NOT_CALLED,
+            kNotset,
             Cdouble[],
             Cdouble[],
             Cint[],
@@ -257,6 +259,7 @@ end
 
 function Base.empty!(x::_Solution)
     x.status = _OPTIMIZE_NOT_CALLED
+    x.model_status = kNotset
     empty!(x.colvalue)
     empty!(x.coldual)
     empty!(x.colstatus)
@@ -1521,13 +1524,13 @@ function _store_solution(model::Optimizer, ret::Cint)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    status = HighsModelStatus(Highs_getModelStatus(model))
+    x.model_status = HighsModelStatus(Highs_getModelStatus(model))
     statusP = Ref{Cint}()
-    if status == kInfeasible
+    if x.model_status == kInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         _check_ret(ret)
         x.has_dual_ray = statusP[] == 1
-    elseif status == kUnbounded
+    elseif x.model_status == kUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         _check_ret(ret)
         x.has_primal_ray = statusP[] == 1
@@ -1572,40 +1575,38 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
         return MOI.OPTIMIZE_NOT_CALLED
     elseif model.solution.status == _OPTIMIZE_ERRORED
         return MOI.OTHER_ERROR
-    end
-    status = HighsModelStatus(Highs_getModelStatus(model))
-    if status == kNotset
+    elseif model.solution.model_status == kNotset
         return MOI.OTHER_ERROR
-    elseif status == kLoadError
+    elseif model.solution.model_status == kLoadError
         return MOI.OTHER_ERROR
-    elseif status == kModelError
+    elseif model.solution.model_status == kModelError
         return MOI.INVALID_MODEL
-    elseif status == kPresolveError
+    elseif model.solution.model_status == kPresolveError
         return MOI.OTHER_ERROR
-    elseif status == kSolveError
+    elseif model.solution.model_status == kSolveError
         return MOI.OTHER_ERROR
-    elseif status == kPostsolveError
+    elseif model.solution.model_status == kPostsolveError
         return MOI.OTHER_ERROR
-    elseif status == kModelEmpty
+    elseif model.solution.model_status == kModelEmpty
         return MOI.INVALID_MODEL
-    elseif status == kOptimal
+    elseif model.solution.model_status == kOptimal
         return MOI.OPTIMAL
-    elseif status == kInfeasible
+    elseif model.solution.model_status == kInfeasible
         return MOI.INFEASIBLE
-    elseif status == kUnboundedOrInfeasible
+    elseif model.solution.model_status == kUnboundedOrInfeasible
         return MOI.INFEASIBLE_OR_UNBOUNDED
-    elseif status == kUnbounded
+    elseif model.solution.model_status == kUnbounded
         return MOI.DUAL_INFEASIBLE
-    elseif status == kObjectiveBound
+    elseif model.solution.model_status == kObjectiveBound
         return MOI.OBJECTIVE_LIMIT
-    elseif status == kObjectiveTarget
+    elseif model.solution.model_status == kObjectiveTarget
         return MOI.OBJECTIVE_LIMIT
-    elseif status == kTimeLimit
+    elseif model.solution.model_status == kTimeLimit
         return MOI.TIME_LIMIT
-    elseif status == kIterationLimit
+    elseif model.solution.model_status == kIterationLimit
         return MOI.ITERATION_LIMIT
     else
-        @assert status == kUnknown
+        @assert model.solution.model_status kUnknown
         return MOI.OTHER_ERROR
     end
 end
@@ -1620,8 +1621,7 @@ function MOI.get(model::Optimizer, ::MOI.ResultCount)
 end
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
-    status = HighsModelStatus(Highs_getModelStatus(model))
-    return string(status)
+    return string(model.solution.model_status)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
