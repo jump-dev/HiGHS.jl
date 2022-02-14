@@ -351,11 +351,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
 function MOI.get(::Optimizer, ::MOI.SolverVersion)
-    return VersionNumber(
-        HIGHS_VERSION_MAJOR,
-        HIGHS_VERSION_MINOR,
-        HIGHS_VERSION_PATCH,
-    )
+    return "v$(HIGHS_VERSION_MAJOR).$(HIGHS_VERSION_MINOR).$(HIGHS_VERSION_PATCH)"
 end
 
 function _check_ret(ret::HighsStatus)
@@ -1543,12 +1539,12 @@ function _store_solution(model::Optimizer, ret::Cint)
     statusP = Ref{Cint}()
     if x.model_status == kInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
-        _check_ret(ret)
-        x.has_dual_ray = statusP[] == 1
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_dual_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
     elseif x.model_status == kUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
-        _check_ret(ret)
-        x.has_primal_ray = statusP[] == 1
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_primal_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
     else
         Highs_getIntInfoValue(model, "primal_solution_status", statusP)
         x.has_primal_solution = statusP[] == 2

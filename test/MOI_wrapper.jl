@@ -18,9 +18,9 @@ end
 
 const _EXCLUDE = String[
     # TODO(odow): investigate test failures
-    "test_conic_NormInfinityCone_INFEASIBLE",
-    "test_conic_NormOneCone_INFEASIBLE",
-    "test_conic_NormOneCone_VectorAffineFunction",
+    # "test_conic_NormInfinityCone_INFEASIBLE",
+    # "test_conic_NormOneCone_INFEASIBLE",
+    # "test_conic_NormOneCone_VectorAffineFunction",
     # "test_model_LowerBoundAlreadySet",
     # "test_model_UpperBoundAlreadySet",
     # "test_model_copy_to_UnsupportedAttribute",
@@ -28,7 +28,7 @@ const _EXCLUDE = String[
 
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    MOI.set(model, MOI.Silent(), true)
+    # MOI.set(model, MOI.Silent(), true)
     MOI.Test.runtests(model, MOI.Test.Config(), exclude = _EXCLUDE)
     return
 end
