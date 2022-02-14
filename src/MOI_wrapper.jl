@@ -1575,9 +1575,11 @@ function MOI.optimize!(model::Optimizer)
     end
     ret = Highs_run(model)
     _store_solution(model, ret)
-    for info in model.binaries
-        Highs_changeColBounds(model, info.column, info.lower, info.upper)
-    end
+    # TODO(odow): resetting the bounds here invalidates previously stored
+    #             solutions.
+    # for info in model.binaries
+    #     Highs_changeColBounds(model, info.column, info.lower, info.upper)
+    # end
     return
 end
 
