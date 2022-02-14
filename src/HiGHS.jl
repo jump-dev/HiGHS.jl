@@ -1,10 +1,13 @@
 module HiGHS
 
-import HiGHS_jll: libhighs
+import HiGHS_jll
 
-include("gen/libhighs_common.jl")
-include("gen/libhighs_api.jl")
+function __init__()
+    global libhighs = HiGHS_jll.libhighs
+    return
+end
 
+include("gen/libhighs.jl")
 include("MOI_wrapper.jl")
 
 # HiGHS exports all `Highs_xxx` symbols. If you don't want all of these symbols

@@ -14,9 +14,9 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 """
     HighsMatrixFormat
 
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L88
+https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
 """
-@enum(HighsMatrixFormat, kNone = 0, kColwise, kRowwise)
+@enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
 
 """
     HighsModelStatus
@@ -53,9 +53,16 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
 """
     HighsVartype
 
-    https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L69-L73
+https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L69-L73
 """
 @enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
+
+"""
+    HighsStatus
+
+https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/interfaces/highs_c_api.h#L17-L19
+"""
+@enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 @enum(
     _RowType,
@@ -228,6 +235,7 @@ accessing them element-wise.
 """
 mutable struct _Solution
     status::_OptimizeStatus
+    model_status::HighsModelStatus
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
     colstatus::Vector{Cint}
@@ -241,6 +249,7 @@ mutable struct _Solution
     function _Solution()
         return new(
             _OPTIMIZE_NOT_CALLED,
+            kNotset,
             Cdouble[],
             Cdouble[],
             Cint[],
@@ -257,6 +266,7 @@ end
 
 function Base.empty!(x::_Solution)
     x.status = _OPTIMIZE_NOT_CALLED
+    x.model_status = kNotset
     empty!(x.colvalue)
     empty!(x.coldual)
     empty!(x.colstatus)
@@ -340,10 +350,12 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
-MOI.get(::Optimizer, ::MOI.SolverVersion) = "v1.1.0"
+function MOI.get(::Optimizer, ::MOI.SolverVersion)
+    return "v$(HIGHS_VERSION_MAJOR).$(HIGHS_VERSION_MINOR).$(HIGHS_VERSION_PATCH)"
+end
 
-function _check_ret(ret::Cint)
-    if ret != Cint(0)
+function _check_ret(ret::HighsStatus)
+    if ret == HighsStatuskError
         error(
             "Encountered an error in HiGHS (Status $(ret)). Check the log " *
             "for details.",
@@ -351,6 +363,8 @@ function _check_ret(ret::Cint)
     end
     return
 end
+
+_check_ret(ret::Cint) = _check_ret(HighsStatus(ret))
 
 function Base.show(io::IO, model::Optimizer)
     return print(
@@ -757,6 +771,7 @@ function MOI.set(
     else
         model.is_feasibility = false
     end
+    model.is_objective_sense_set = true
     return
 end
 
@@ -798,6 +813,7 @@ function MOI.set(
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
+    model.is_objective_function_set = true
     return
 end
 
@@ -1521,16 +1537,16 @@ function _store_solution(model::Optimizer, ret::Cint)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    status = HighsModelStatus(Highs_getModelStatus(model))
+    x.model_status = HighsModelStatus(Highs_getModelStatus(model))
     statusP = Ref{Cint}()
-    if status == kInfeasible
+    if x.model_status == kInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
-        _check_ret(ret)
-        x.has_dual_ray = statusP[] == 1
-    elseif status == kUnbounded
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_dual_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
+    elseif x.model_status == kUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
-        _check_ret(ret)
-        x.has_primal_ray = statusP[] == 1
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_primal_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
     else
         Highs_getIntInfoValue(model, "primal_solution_status", statusP)
         x.has_primal_solution = statusP[] == 2
@@ -1561,9 +1577,11 @@ function MOI.optimize!(model::Optimizer)
     end
     ret = Highs_run(model)
     _store_solution(model, ret)
-    for info in model.binaries
-        Highs_changeColBounds(model, info.column, info.lower, info.upper)
-    end
+    # TODO(odow): resetting the bounds here invalidates previously stored
+    #             solutions.
+    # for info in model.binaries
+    #     Highs_changeColBounds(model, info.column, info.lower, info.upper)
+    # end
     return
 end
 
@@ -1572,40 +1590,38 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
         return MOI.OPTIMIZE_NOT_CALLED
     elseif model.solution.status == _OPTIMIZE_ERRORED
         return MOI.OTHER_ERROR
-    end
-    status = HighsModelStatus(Highs_getModelStatus(model))
-    if status == kNotset
+    elseif model.solution.model_status == kNotset
         return MOI.OTHER_ERROR
-    elseif status == kLoadError
+    elseif model.solution.model_status == kLoadError
         return MOI.OTHER_ERROR
-    elseif status == kModelError
+    elseif model.solution.model_status == kModelError
         return MOI.INVALID_MODEL
-    elseif status == kPresolveError
+    elseif model.solution.model_status == kPresolveError
         return MOI.OTHER_ERROR
-    elseif status == kSolveError
+    elseif model.solution.model_status == kSolveError
         return MOI.OTHER_ERROR
-    elseif status == kPostsolveError
+    elseif model.solution.model_status == kPostsolveError
         return MOI.OTHER_ERROR
-    elseif status == kModelEmpty
+    elseif model.solution.model_status == kModelEmpty
         return MOI.INVALID_MODEL
-    elseif status == kOptimal
+    elseif model.solution.model_status == kOptimal
         return MOI.OPTIMAL
-    elseif status == kInfeasible
+    elseif model.solution.model_status == kInfeasible
         return MOI.INFEASIBLE
-    elseif status == kUnboundedOrInfeasible
+    elseif model.solution.model_status == kUnboundedOrInfeasible
         return MOI.INFEASIBLE_OR_UNBOUNDED
-    elseif status == kUnbounded
+    elseif model.solution.model_status == kUnbounded
         return MOI.DUAL_INFEASIBLE
-    elseif status == kObjectiveBound
+    elseif model.solution.model_status == kObjectiveBound
         return MOI.OBJECTIVE_LIMIT
-    elseif status == kObjectiveTarget
+    elseif model.solution.model_status == kObjectiveTarget
         return MOI.OBJECTIVE_LIMIT
-    elseif status == kTimeLimit
+    elseif model.solution.model_status == kTimeLimit
         return MOI.TIME_LIMIT
-    elseif status == kIterationLimit
+    elseif model.solution.model_status == kIterationLimit
         return MOI.ITERATION_LIMIT
     else
-        @assert status == kUnknown
+        @assert model.solution.model_status kUnknown
         return MOI.OTHER_ERROR
     end
 end
@@ -1620,8 +1636,7 @@ function MOI.get(model::Optimizer, ::MOI.ResultCount)
 end
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
-    status = HighsModelStatus(Highs_getModelStatus(model))
-    return string(status)
+    return string(model.solution.model_status)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
@@ -2123,10 +2138,35 @@ function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
                 ),
             )
         end
+        for attr in MOI.get(src, MOI.ListOfConstraintAttributesSet{F,S}())
+            if attr in (
+                MOI.ConstraintName(),
+                MOI.ConstraintPrimalStart(),
+                MOI.ConstraintDualStart(),
+            )
+                continue
+            else
+                throw(MOI.UnsupportedAttribute(attr))
+            end
+        end
     end
-    fobj_type = MOI.get(src, MOI.ObjectiveFunctionType())
-    if !MOI.supports(dest, MOI.ObjectiveFunction{fobj_type}())
-        throw(MOI.UnsupportedAttribute(MOI.ObjectiveFunction(fobj_type)))
+    for attr in MOI.get(src, MOI.ListOfModelAttributesSet())
+        if attr in (
+            MOI.Name(),
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ObjectiveSense(),
+        )
+            continue
+        else
+            throw(MOI.UnsupportedAttribute(attr))
+        end
+    end
+    for attr in MOI.get(src, MOI.ListOfVariableAttributesSet())
+        if attr in (MOI.VariableName(), MOI.VariablePrimalStart())
+            continue
+        else
+            throw(MOI.UnsupportedAttribute(attr))
+        end
     end
     return
 end
@@ -2170,6 +2210,9 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     end
     # Build the model
     is_max = MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE
+    dest.is_feasibility = false
+    dest.is_objective_sense_set = true
+    dest.is_objective_function_set = true
     ret = Highs_passModel(
         dest,
         numcol,
@@ -2188,9 +2231,9 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         A.colptr .- Cint(1),
         A.rowval .- Cint(1),
         A.nzval,
-        Cint[0],   # qstart,
-        Cint[],    # qindex,
-        Cdouble[], # qvalue,
+        C_NULL,  # qstart,
+        C_NULL,  # qindex,
+        C_NULL,  # qvalue,
         has_integrality ? integrality : C_NULL,
     )
     _check_ret(ret)
