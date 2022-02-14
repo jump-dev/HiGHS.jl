@@ -771,6 +771,7 @@ function MOI.set(
     else
         model.is_feasibility = false
     end
+    model.is_objective_sense_set = true
     return
 end
 
@@ -812,6 +813,7 @@ function MOI.set(
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
+    model.is_objective_function_set = true
     return
 end
 
@@ -2136,10 +2138,35 @@ function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
                 ),
             )
         end
+        for attr in MOI.get(src, MOI.ListOfConstraintAttributesSet{F,S}())
+            if attr in (
+                MOI.ConstraintName(),
+                MOI.ConstraintPrimalStart(),
+                MOI.ConstraintDualStart(),
+            )
+                continue
+            else
+                throw(MOI.UnsupportedAttribute(attr))
+            end
+        end
     end
-    fobj_type = MOI.get(src, MOI.ObjectiveFunctionType())
-    if !MOI.supports(dest, MOI.ObjectiveFunction{fobj_type}())
-        throw(MOI.UnsupportedAttribute(MOI.ObjectiveFunction(fobj_type)))
+    for attr in MOI.get(src, MOI.ListOfModelAttributesSet())
+        if attr in (
+            MOI.Name(),
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ObjectiveSense(),
+        )
+            continue
+        else
+            throw(MOI.UnsupportedAttribute(attr))
+        end
+    end
+    for attr in MOI.get(src, MOI.ListOfVariableAttributesSet())
+        if attr in (MOI.VariableName(), MOI.VariablePrimalStart())
+            continue
+        else
+            throw(MOI.UnsupportedAttribute(attr))
+        end
     end
     return
 end
@@ -2183,6 +2210,9 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     end
     # Build the model
     is_max = MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE
+    dest.is_feasibility = false
+    dest.is_objective_sense_set = true
+    dest.is_objective_function_set = true
     ret = Highs_passModel(
         dest,
         numcol,
@@ -2201,9 +2231,9 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         A.colptr .- Cint(1),
         A.rowval .- Cint(1),
         A.nzval,
-        Cint[0],   # qstart,
-        Cint[],    # qindex,
-        Cdouble[], # qvalue,
+        C_NULL,  # qstart,
+        C_NULL,  # qindex,
+        C_NULL,  # qvalue,
         has_integrality ? integrality : C_NULL,
     )
     _check_ret(ret)

@@ -16,20 +16,10 @@ function runtests()
     return
 end
 
-const _EXCLUDE = String[
-    # TODO(odow): investigate test failures
-    # "test_conic_NormInfinityCone_INFEASIBLE",
-    # "test_conic_NormOneCone_INFEASIBLE",
-    # "test_conic_NormOneCone_VectorAffineFunction",
-    # "test_model_LowerBoundAlreadySet",
-    # "test_model_UpperBoundAlreadySet",
-    # "test_model_copy_to_UnsupportedAttribute",
-]
-
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    # MOI.set(model, MOI.Silent(), true)
-    MOI.Test.runtests(model, MOI.Test.Config(), exclude = _EXCLUDE)
+    MOI.set(model, MOI.Silent(), true)
+    MOI.Test.runtests(model, MOI.Test.Config())
     return
 end
 
@@ -42,22 +32,7 @@ function test_runtests_cache()
         Float64,
     )
     MOI.set(model, MOI.Silent(), true)
-    MOI.Test.runtests(
-        model,
-        MOI.Test.Config(),
-        exclude = vcat(
-            _EXCLUDE,
-            "test_conic_NormInfinityCone_VectorAffineFunction",
-            "test_conic_NormInfinityCone_VectorOfVariables",
-            "test_conic_NormOneCone_VectorAffineFunction",
-            "test_conic_NormOneCone_VectorOfVariables",
-            # TODO(odow): investigate. These all seem related.
-            "test_linear_integration",
-            "test_linear_integration_Interval",
-            "test_linear_integration_delete_variables",
-            "test_modification_delete_variables_in_a_batch",
-        ),
-    )
+    MOI.Test.runtests(model, MOI.Test.Config())
     return
 end
 
@@ -67,7 +42,7 @@ function test_runtests_simplex()
     MOI.set(model, MOI.RawOptimizerAttribute("solver"), "simplex")
     for presolve in ("on", "off")
         MOI.set(model, MOI.RawOptimizerAttribute("presolve"), presolve)
-        MOI.Test.runtests(model, MOI.Test.Config(), exclude = _EXCLUDE)
+        MOI.Test.runtests(model, MOI.Test.Config())
     end
     return
 end
@@ -76,7 +51,8 @@ function test_runtests_ipm()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
     MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
-    return MOI.Test.runtests(model, MOI.Test.Config(), exclude = _EXCLUDE)
+    MOI.Test.runtests(model, MOI.Test.Config())
+    return
 end
 
 function test_runtests_ipm_no_presolve()
@@ -87,11 +63,11 @@ function test_runtests_ipm_no_presolve()
     MOI.Test.runtests(
         model,
         MOI.Test.Config(),
-        exclude = vcat(
-            _EXCLUDE,
+        exclude = String[
+            # Termination status is OTHER_ERROR
             "test_conic_linear_INFEASIBLE",
             "test_conic_linear_INFEASIBLE_2",
-        ),
+        ],
     )
     return
 end
