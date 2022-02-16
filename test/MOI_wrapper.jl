@@ -75,7 +75,7 @@ function test_runtests_ipm_no_presolve()
             # Termination status is OTHER_ERROR
             "test_conic_linear_INFEASIBLE",
             "test_conic_linear_INFEASIBLE_2",
-            _QP_FAILURES...
+            _QP_FAILURES...,
         ],
     )
     return
