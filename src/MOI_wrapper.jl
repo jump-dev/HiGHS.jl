@@ -2153,15 +2153,7 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
         info.column = Cint(i - 1)
         mapping[x] = index
     end
-    F = MOI.get(src, MOI.ObjectiveFunctionType())
-    fobj = MOI.get(src, MOI.ObjectiveFunction{F}())
-    c = fill(0.0, numcols)
-
-    for term in fobj.terms
-        i = mapping[term.variable].value
-        c[i] += term.coefficient
-    end
-    return numcols, c, fobj.constant
+    return numcols
 end
 
 _add_sizehint!(vec, n) = sizehint!(vec, length(vec) + n)
@@ -2240,6 +2232,7 @@ function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
         if attr in (
             MOI.Name(),
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}}(),
             MOI.ObjectiveSense(),
         )
             continue
@@ -2263,7 +2256,7 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     MOI.empty!(dest)
     _check_input_data(dest, src)
     mapping = MOI.Utilities.IndexMap()
-    numcol, colcost, offset = _copy_to_columns(dest, src, mapping)
+    numcol = _copy_to_columns(dest, src, mapping)
     collower, colupper = fill(-Inf, numcol), fill(Inf, numcol)
     rowlower, rowupper = Float64[], Float64[]
     I, J, V = Cint[], Cint[], Float64[]
@@ -2298,7 +2291,6 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     is_max = MOI.get(src, MOI.ObjectiveSense()) == MOI.MAX_SENSE
     dest.is_feasibility = false
     dest.is_objective_sense_set = true
-    dest.is_objective_function_set = true
     ret = Highs_passModel(
         dest,
         numcol,
@@ -2308,8 +2300,8 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         kColwise,   # a_format,
         0,          # q_format,
         is_max ? kMaximize : kMinimize,
-        offset,
-        colcost,
+        0.0,                 # The objective function is handled separately at
+        fill(0.0, numcols),  # the end.
         collower,
         colupper,
         rowlower,
@@ -2317,11 +2309,19 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         A.colptr .- Cint(1),
         A.rowval .- Cint(1),
         A.nzval,
-        C_NULL,  # qstart,
-        C_NULL,  # qindex,
+        C_NULL,  # qstart,  # The objective function is handled separately at
+        C_NULL,  # qindex,  # the end.
         C_NULL,  # qvalue,
         has_integrality ? integrality : C_NULL,
     )
     _check_ret(ret)
+    # Handle the objective function at the end.
+    F = MOI.get(src, MOI.ObjectiveFunctionType())
+    f_obj = MOI.get(src, MOI.ObjectiveFunction{F}())
+    MOI.set(
+        dest,
+        MOI.ObjectiveFunction{F}(),
+        MOI.Utilities.map_indices(mapping, f_obj),
+    )
     return mapping
 end
