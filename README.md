@@ -14,8 +14,6 @@ arguments are identical to the C API.
 
 ## Installation
 
-**Minimum version requirement:** HiGHS.jl requres at least Julia v1.3.
-
 Install HiGHS as follows:
 ```julia
 import Pkg
