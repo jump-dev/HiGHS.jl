@@ -639,6 +639,21 @@ MOI.get(model::Optimizer, ::MOI.Name) = model.name
 MOI.set(model::Optimizer, ::MOI.Name, name::String) = (model.name = name)
 
 ###
+### MOI.NumberOfThreads
+###
+
+MOI.supports(::Optimizer, ::MOI.NumberOfThreads) = true
+
+function MOI.get(model::Optimizer, ::MOI.NumberOfThreads)::Int
+    return MOI.get(model, MOI.RawOptimizerAttribute("threads"))
+end
+
+function MOI.set(model::Optimizer, ::MOI.NumberOfThreads, threads::Int)
+    MOI.set(model, MOI.RawOptimizerAttribute("threads"), threads)
+    return
+end
+
+###
 ### Variables
 ###
 
