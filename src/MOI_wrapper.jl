@@ -833,7 +833,7 @@ function MOI.set(
     _check_ret(ret)
     model.is_objective_function_set = true
     if model.hessian !== nothing
-        index = Cint[row-1 for col in 1:num_vars for row in col:num_vars]
+        index = Cint[row - 1 for col in 1:num_vars for row in col:num_vars]
         start = Cint[0]
         for col in 1:num_vars
             push!(start, start[end] + num_vars - col + 1)
@@ -938,8 +938,7 @@ function _get_objective_function(model::Optimizer, Q)
                 Q.nzval[j],
                 model.variable_info[CleverDicts.LinearIndex(col)].index,
                 model.variable_info[CleverDicts.LinearIndex(Q.rowval[j])].index,
-            )
-            for col in 1:Q.m for j in Q.colptr[col]:(Q.colptr[col+1]-1)
+            ) for col in 1:Q.m for j in Q.colptr[col]:(Q.colptr[col+1]-1)
         ],
         f.terms,
         f.constant,
