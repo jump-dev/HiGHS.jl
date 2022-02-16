@@ -2301,7 +2301,7 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         0,          # q_format,
         is_max ? kMaximize : kMinimize,
         0.0,                 # The objective function is handled separately at
-        fill(0.0, numcols),  # the end.
+        fill(0.0, numcol),  # the end.
         collower,
         colupper,
         rowlower,
