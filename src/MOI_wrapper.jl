@@ -1803,6 +1803,14 @@ function MOI.get(model::Optimizer, ::MOI.BarrierIterations)
     return Int64(p[])
 end
 
+# TODO(odow): missing an upstream method for this.
+# function MOI.get(model::Optimizer, ::MOI.NodeCount)
+#     p = Ref{Int64}(0)
+#     ret = Highs_getLongInfoValue(model, "mip_node_count", p)
+#     _check_ret(ret)
+#     return p[]
+# end
+
 function MOI.get(
     model::Optimizer,
     attr::MOI.VariablePrimal,

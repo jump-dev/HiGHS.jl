@@ -227,6 +227,45 @@ c8: w + x in MathOptInterface.Interval(1.0, 2.0)
     return
 end
 
+function _knapsack_model(; mip::Bool, solver::String)
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), solver)
+    N = 30
+    x = MOI.add_variables(model, N)
+    if mip
+        MOI.add_constraints(model, x, MOI.ZeroOne())
+    end
+    Random.seed!(1)
+    item_weights, item_values = rand(N), rand(N)
+    MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(item_weights, x), 0.0),
+        MOI.LessThan(10.0),
+    )
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(item_values, x), 0.0),
+    )
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    return model
+end
+
+function test_SimplexIterations_BarrierIterations()
+    model = _knapsack_model(mip = false, solver = "simplex")
+    @test MOI.get(model, MOI.SimplexIterations()) == 0
+    @test MOI.get(model, MOI.BarrierIterations()) == 0
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.SimplexIterations()) > 1
+    @test MOI.get(model, MOI.BarrierIterations()) == 0
+    model = _knapsack_model(mip = false, solver = "ipm")
+    MOI.optimize!(model)
+    # Not == 0 because HiGHS will use Simplex to clean-up occasionally
+    @test MOI.get(model, MOI.SimplexIterations()) >= 0
+    @test MOI.get(model, MOI.BarrierIterations()) > 0
+end
+
 end
 
 TestMOIHighs.runtests()
