@@ -256,7 +256,7 @@ function test_SimplexIterations_BarrierIterations()
     @test MOI.get(model, MOI.SimplexIterations()) == 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
     MOI.optimize!(model)
-    @test MOI.get(model, MOI.SimplexIterations()) > 1
+    @test MOI.get(model, MOI.SimplexIterations()) > 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
     model = _knapsack_model(mip = false, solver = "ipm")
     MOI.optimize!(model)
