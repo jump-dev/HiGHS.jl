@@ -236,7 +236,6 @@ function _knapsack_model(; mip::Bool, solver::String)
     if mip
         MOI.add_constraints(model, x, MOI.ZeroOne())
     end
-    Random.seed!(1)
     item_weights, item_values = rand(N), rand(N)
     MOI.add_constraint(
         model,
