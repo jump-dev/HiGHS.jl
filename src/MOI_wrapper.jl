@@ -1790,7 +1790,17 @@ function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
 end
 
 function MOI.get(model::Optimizer, ::MOI.SimplexIterations)
-    return Highs_getSimplexIterationCount(model)
+    p = Ref{Cint}(0)
+    ret = Highs_getIntInfoValue(model, "simplex_iteration_count", p)
+    _check_ret(ret)
+    return Int64(p[])
+end
+
+function MOI.get(model::Optimizer, ::MOI.BarrierIterations)
+    p = Ref{Cint}(0)
+    ret = Highs_getIntInfoValue(model, "ipm_iteration_count", p)
+    _check_ret(ret)
+    return Int64(p[])
 end
 
 function MOI.get(
