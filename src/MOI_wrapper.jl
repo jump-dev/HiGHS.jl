@@ -741,10 +741,13 @@ function MOI.set(
     _check_ret(ret)
     if sense == MOI.FEASIBILITY_SENSE
         model.is_feasibility = true
-        # TODO(odow): cache the mask.
         n = MOI.get(model, MOI.NumberOfVariables())
-        ret =
-            Highs_changeColsCostByMask(model, ones(HighsInt, n), zeros(Cdouble, n))
+        ret = Highs_changeColsCostByRange(
+            model,
+            HighsInt(0),
+            HighsInt(n - 1),
+            zeros(Cdouble, n),
+        )
         _check_ret(ret)
         ret = Highs_changeObjectiveOffset(model, 0.0)
         _check_ret(ret)
@@ -788,15 +791,13 @@ function MOI.set(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     f::MOI.ScalarAffineFunction{Float64},
 )
-    num_vars = length(model.variable_info)
+    num_vars = HighsInt(length(model.variable_info))
     obj = zeros(Float64, num_vars)
     for term in f.terms
         col = column(model, term.variable)
         obj[col+1] += term.coefficient
     end
-    # TODO(odow): cache the mask.
-    mask = ones(HighsInt, num_vars)
-    ret = Highs_changeColsCostByMask(model, mask, obj)
+    ret = Highs_changeColsCostByRange(model, HighsInt(0), num_vars, obj)
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
@@ -1596,11 +1597,11 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     if x.model_status == kHighsModelStatusInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_dual_ray = (ret ==kHighsStatusOk) && (statusP[] == 1)
+        x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
     elseif x.model_status == kHighsModelStatusUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_primal_ray = (ret ==kHighsStatusOk) && (statusP[] == 1)
+        x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
     else
         Highs_getIntInfoValue(model, "primal_solution_status", statusP)
         x.has_primal_solution = statusP[] == 2

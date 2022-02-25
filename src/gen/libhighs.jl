@@ -1,3 +1,5 @@
+#!format:off
+
 const HighsInt = Cint
 
 """
