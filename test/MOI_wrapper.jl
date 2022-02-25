@@ -265,6 +265,25 @@ function test_SimplexIterations_BarrierIterations()
     @test MOI.get(model, MOI.BarrierIterations()) > 0
 end
 
+function test_NodeCount()
+    p = HiGHS.Highs_create()
+    @show HiGHS.Highs_readModel(p, "fail-on-32-bit.mps")
+    # @show HiGHS.Highs_setStringOptionValue(p, "presolve", "off")
+    # ptr = Ref{Int64}(0)
+    # @show HiGHS.Highs_getInt64InfoValue(p, "mip_node_count", ptr)
+    # @show ptr[]
+    @show HiGHS.Highs_run(p)
+    HiGHS.Highs_destroy(p)
+    # model = _knapsack_model(mip = true, solver = "choose")
+    # @info "Calling once"
+    # @test MOI.get(model, MOI.NodeCount()) == 0
+    # @info "Calling optimize!"
+    # MOI.optimize!(model)
+    # @info "Calling twice"
+    # @test MOI.get(model, MOI.NodeCount()) > 0
+    return
+end
+
 end
 
 TestMOIHighs.runtests()

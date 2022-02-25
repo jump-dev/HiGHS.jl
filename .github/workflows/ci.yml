@@ -12,14 +12,20 @@ jobs:
       fail-fast: false
       matrix:
         version: ['1']  # Test against current minor release only since jll requres 1.3+
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-        arch: [x64]
-        include:
+        # os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: ubuntu-latest
+        arch: ['x86', 'x64']
+        # include:
           # Also test against 32-bit Linux.
-          - version: '1'
-            os: ubuntu-latest
-            arch: x86
+          # - version: '1'
+            # os: ubuntu-latest
+            # arch: x86
     steps:
+      - name: install dependencies
+        run: |
+          sudo snap install --classic valgrind
+          sudo apt-get update
+          sudo apt-get install libc6-dbg
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
         with:
