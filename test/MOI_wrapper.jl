@@ -251,6 +251,19 @@ function _knapsack_model(; mip::Bool, solver::String)
     return model
 end
 
+function test_NodeCount()
+    model = _knapsack_model(mip = false, solver = "choose")
+    @test isnan(MOI.get(model, MOI.ObjectiveBound()))
+    MOI.optimize!(model)
+    @test isfinite(MOI.get(model, MOI.ObjectiveBound()))
+
+    model = _knapsack_model(mip = true, solver = "choose")
+    @test isnan(MOI.get(model, MOI.ObjectiveBound()))
+    MOI.optimize!(model)
+    @test isfinite(MOI.get(model, MOI.ObjectiveBound()))
+    return
+end
+
 function test_SimplexIterations_BarrierIterations()
     model = _knapsack_model(mip = false, solver = "simplex")
     @test MOI.get(model, MOI.SimplexIterations()) == 0

@@ -1730,14 +1730,10 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
-    # TODO(odow): there is a bug in HiGHS where it reports incorrect values for
-    # mip_dual_bound in the LP case. As a work-around, just return the most
-    # optimistic of the primal and dual values.
     p = Ref{Cdouble}()
-    Highs_getDoubleInfoValue(model, "mip_dual_bound", p)
-    sense = _sense_corrector(model)
-    primal = Highs_getObjectiveValue(model)
-    return sense == -1 ? max(primal, -p[]) : min(primal, p[])
+    ret = Highs_getDoubleInfoValue(model, "mip_dual_bound", p)
+    _check_ret(ret)
+    return ret == kHighsStatusWarning ? NaN : p[]
 end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
