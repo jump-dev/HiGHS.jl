@@ -1,6 +1,8 @@
 module HiGHS
 
 import HiGHS_jll
+import MathOptInterface
+import SparseArrays
 
 function __init__()
     global libhighs = HiGHS_jll.libhighs
@@ -14,7 +16,7 @@ include("MOI_wrapper.jl")
 # in your environment, then use `import HiGHS` instead of `using HiGHS`.
 
 for sym in names(@__MODULE__, all = true)
-    if startswith(string(sym), "Highs_")
+    if startswith("$sym", "Highs_") || startswith("$sym", "kHighs")
         @eval export $sym
     end
 end
