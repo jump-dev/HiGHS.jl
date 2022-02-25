@@ -1,3 +1,4 @@
+# Disable JuliaFormatter for this file.
 #!format:off
 
 const HighsInt = Cint
