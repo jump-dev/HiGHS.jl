@@ -44,8 +44,8 @@ function test_Direct_C_call()
         n_col,
         n_row,
         n_nz,
-        HiGHS.kColwise,
-        HiGHS.kMaximize,
+        HiGHS.kHighsMatrixFormatColwise,
+        HiGHS.kHighsObjSenseMaximize,
         0.0,
         colcost,
         collower,
@@ -64,7 +64,7 @@ function test_Direct_C_call()
         modelstatus,
     )
     @test status == 0
-    @test modelstatus[] == Cint(HiGHS.kOptimal)
+    @test modelstatus[] == HiGHS.kHighsModelStatusOptimal
 end
 
 function test_create()

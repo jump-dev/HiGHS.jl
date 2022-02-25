@@ -1,35 +1,9 @@
-import MathOptInterface
-import SparseArrays
-
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
-"""
-    HighsBasisStatus
-
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L151-L159
-"""
 @enum(HighsBasisStatus, kLower = 0, kBasic, kUpper, kZero, kNonbasic)
-
-"""
-    HighsHessianFormat
-
-    https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L90
-"""
 @enum(HighsHessianFormat, kNoneHessian = 0, kTriangular, kSquare)
-
-"""
-    HighsMatrixFormat
-
-https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/lp_data/HConst.h#L106
-"""
 @enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
-
-"""
-    HighsModelStatus
-
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L126-L148
-"""
 @enum(
     HighsModelStatus,
     kNotset = 0,
@@ -49,26 +23,8 @@ https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839
     kIterationLimit,
     kUnknown,
 )
-
-"""
-    HighsObjSense
-
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L86
-"""
 @enum(HighsObjSense, kMinimize = 1, kMaximize = -1)
-
-"""
-    HighsVartype
-
-https://github.com/ERGO-Code/HiGHS/blob/4a5dd7499522f1fa730a31c59bba419b2bcc6839/src/lp_data/HConst.h#L69-L73
-"""
 @enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
-
-"""
-    HighsStatus
-
-https://github.com/ERGO-Code/HiGHS/blob/500cdf47a6330252db4156148f90d99cc8d22cf7/src/interfaces/highs_c_api.h#L17-L19
-"""
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 @enum(
@@ -109,7 +65,7 @@ const _SCALAR_SETS = Union{
 }
 
 """
-_VariableInfo
+    _VariableInfo
 
 A struct to store information about the variables.
 """
@@ -119,7 +75,7 @@ mutable struct _VariableInfo
     # The variable name.
     name::String
     # The zero-indexed column in the HiGHS object.
-    column::Cint
+    column::HighsInt
     # Storage to keep track of the variable bounds.
     bound::_BoundEnum
     lower::Float64
@@ -128,7 +84,7 @@ mutable struct _VariableInfo
     type::_TypeEnum
     function _VariableInfo(
         index::MOI.VariableIndex,
-        column::Cint,
+        column::HighsInt,
         bound::_BoundEnum = _BOUND_NONE,
     )
         return new(index, "", column, bound, -Inf, Inf, _TYPE_CONTINUOUS)
@@ -191,7 +147,7 @@ mutable struct _ConstraintInfo
     # The constraint name.
     name::String
     # The zero-indexed row in the HiGHS object.
-    row::Cint
+    row::HighsInt
     # Storage to keep track of the constraint bounds.
     set::_RowType
     lower::Float64
@@ -242,13 +198,13 @@ accessing them element-wise.
 """
 mutable struct _Solution
     status::_OptimizeStatus
-    model_status::HighsModelStatus
+    model_status::HighsInt
     colvalue::Vector{Cdouble}
     coldual::Vector{Cdouble}
-    colstatus::Vector{Cint}
+    colstatus::Vector{HighsInt}
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
-    rowstatus::Vector{Cint}
+    rowstatus::Vector{HighsInt}
     has_primal_solution::Bool
     has_dual_solution::Bool
     has_primal_ray::Bool
@@ -256,13 +212,13 @@ mutable struct _Solution
     function _Solution()
         return new(
             _OPTIMIZE_NOT_CALLED,
-            kNotset,
+            kHighsModelStatusNotset,
             Cdouble[],
             Cdouble[],
-            Cint[],
+            HighsInt[],
             Cdouble[],
             Cdouble[],
-            Cint[],
+            HighsInt[],
             false,
             false,
             false,
@@ -273,7 +229,7 @@ end
 
 function Base.empty!(x::_Solution)
     x.status = _OPTIMIZE_NOT_CALLED
-    x.model_status = kNotset
+    x.model_status = kHighsModelStatusNotset
     empty!(x.colvalue)
     empty!(x.coldual)
     empty!(x.colstatus)
@@ -311,7 +267,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     is_objective_sense_set::Bool
 
     # A flag to keep track of whether the objective is linear or quadratic.
-    hessian::Union{Nothing,SparseArrays.SparseMatrixCSC{Float64,Cint}}
+    hessian::Union{Nothing,SparseArrays.SparseMatrixCSC{Float64,HighsInt}}
 
     # HiGHS doesn't have special support for binary variables. Cache them here
     # to modify bounds on solve.
@@ -365,8 +321,8 @@ function MOI.get(::Optimizer, ::MOI.SolverVersion)
     return "v$(HIGHS_VERSION_MAJOR).$(HIGHS_VERSION_MINOR).$(HIGHS_VERSION_PATCH)"
 end
 
-function _check_ret(ret::HighsStatus)
-    if ret == HighsStatuskError
+function _check_ret(ret::HighsInt)
+    if ret == kHighsStatusError
         error(
             "Encountered an error in HiGHS (Status $(ret)). Check the log " *
             "for details.",
@@ -374,8 +330,6 @@ function _check_ret(ret::HighsStatus)
     end
     return
 end
-
-_check_ret(ret::Cint) = _check_ret(HighsStatus(ret))
 
 function Base.show(io::IO, model::Optimizer)
     return print(
@@ -502,11 +456,11 @@ end
 ###
 
 function MOI.supports(model::Optimizer, param::MOI.RawOptimizerAttribute)
-    typeP = Ref{Cint}()
+    typeP = Ref{HighsInt}()
     return Highs_getOptionType(model, param.name, typeP) == 0
 end
 
-function _check_option_status(ret::Cint)
+function _check_option_status(ret::HighsInt)
     if ret != 0
         error("Encountered an error in HiGHS: Check the log for details.")
     end
@@ -514,11 +468,11 @@ function _check_option_status(ret::Cint)
 end
 
 function _set_option(model::Optimizer, option::String, value::Bool)
-    return Highs_setBoolOptionValue(model, option, Cint(value))
+    return Highs_setBoolOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::Integer)
-    return Highs_setIntOptionValue(model, option, Cint(value))
+    return Highs_setIntOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::AbstractFloat)
@@ -541,14 +495,14 @@ end
 ### MOI.get
 
 function _get_bool_option(model::Optimizer, option::String)
-    value = Ref{Cint}(0)
+    value = Ref{HighsInt}(0)
     ret = Highs_getBoolOptionValue(model, option, value)
     _check_option_status(ret)
     return Bool(value[])
 end
 
 function _get_int_option(model::Optimizer, option::String)
-    value = Ref{Cint}(0)
+    value = Ref{HighsInt}(0)
     ret = Highs_getIntOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
@@ -575,14 +529,14 @@ function MOI.get(model::Optimizer, param::MOI.RawOptimizerAttribute)
     if !(param.name isa String)
         throw(MOI.UnsupportedAttribute(param))
     end
-    typeP = Ref{Cint}()
+    typeP = Ref{HighsInt}()
     ret = Highs_getOptionType(model, param.name, typeP)
     if ret != 0
         throw(MOI.UnsupportedAttribute(param))
     elseif typeP[] == 0
         return _get_bool_option(model, param.name)::Bool
     elseif typeP[] == 1
-        return _get_int_option(model, param.name)::Cint
+        return _get_int_option(model, param.name)::HighsInt
     elseif typeP[] == 2
         return _get_double_option(model, param.name)::Cdouble
     else
@@ -684,12 +638,12 @@ function MOI.add_variable(model::Optimizer)
     # because we need `add_item` to tell us what the `VariableIndex` is.
     index = CleverDicts.add_item(
         model.variable_info,
-        _VariableInfo(MOI.VariableIndex(0), Cint(0)),
+        _VariableInfo(MOI.VariableIndex(0), HighsInt(0)),
     )
     info = _info(model, index)
     # Now, set `.index` and `.column`.
     info.index = index
-    info.column = Cint(length(model.variable_info) - 1)
+    info.column = HighsInt(length(model.variable_info) - 1)
     ret = Highs_addCol(model, 0.0, -Inf, Inf, 0, C_NULL, C_NULL)
     _check_ret(ret)
     return index
@@ -782,15 +736,18 @@ function MOI.set(
     ::MOI.ObjectiveSense,
     sense::MOI.OptimizationSense,
 )
-    x = sense == MOI.MAX_SENSE ? Cint(kMaximize) : Cint(kMinimize)
+    x = sense == MOI.MAX_SENSE ? kHighsObjSenseMaximize : kHighsObjSenseMinimize
     ret = Highs_changeObjectiveSense(model, x)
     _check_ret(ret)
     if sense == MOI.FEASIBILITY_SENSE
         model.is_feasibility = true
-        # TODO(odow): cache the mask.
         n = MOI.get(model, MOI.NumberOfVariables())
-        ret =
-            Highs_changeColsCostByMask(model, ones(Cint, n), zeros(Cdouble, n))
+        ret = Highs_changeColsCostByRange(
+            model,
+            HighsInt(0),
+            HighsInt(n - 1),
+            zeros(Cdouble, n),
+        )
         _check_ret(ret)
         ret = Highs_changeObjectiveOffset(model, 0.0)
         _check_ret(ret)
@@ -805,10 +762,10 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
     if model.is_feasibility
         return MOI.FEASIBILITY_SENSE
     end
-    senseP = Ref{Cint}()
+    senseP = Ref{HighsInt}()
     ret = Highs_getObjectiveSense(model, senseP)
     _check_ret(ret)
-    return senseP[] == Cint(kMinimize) ? MOI.MIN_SENSE : MOI.MAX_SENSE
+    return senseP[] == kHighsObjSenseMinimize ? MOI.MIN_SENSE : MOI.MAX_SENSE
 end
 
 function MOI.supports(
@@ -834,22 +791,20 @@ function MOI.set(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     f::MOI.ScalarAffineFunction{Float64},
 )
-    num_vars = length(model.variable_info)
+    num_vars = HighsInt(length(model.variable_info))
     obj = zeros(Float64, num_vars)
     for term in f.terms
         col = column(model, term.variable)
         obj[col+1] += term.coefficient
     end
-    # TODO(odow): cache the mask.
-    mask = ones(Cint, num_vars)
-    ret = Highs_changeColsCostByMask(model, mask, obj)
+    ret = Highs_changeColsCostByRange(model, HighsInt(0), num_vars - 1, obj)
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
     model.is_objective_function_set = true
     if model.hessian !== nothing
-        index = Cint[row - 1 for col in 1:num_vars for row in col:num_vars]
-        start = Cint[0]
+        index = HighsInt[row - 1 for col in 1:num_vars for row in col:num_vars]
+        start = HighsInt[0]
         for col in 1:num_vars
             push!(start, start[end] + num_vars - col + 1)
         end
@@ -857,7 +812,7 @@ function MOI.set(
             model,
             num_vars,
             length(index),
-            kTriangular,
+            kHighsHessianFormatTriangular,
             start,
             index,
             fill(0.0, length(index)),
@@ -878,11 +833,11 @@ function MOI.set(
     for term in f.affine_terms
         obj[column(model, term.variable)+1] += term.coefficient
     end
-    ret = Highs_changeColsCostByMask(model, ones(Cint, numcol), obj)
+    ret = Highs_changeColsCostByMask(model, ones(HighsInt, numcol), obj)
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
-    I, J, V = Cint[], Cint[], Cdouble[]
+    I, J, V = HighsInt[], HighsInt[], Cdouble[]
     for term in f.quadratic_terms
         if iszero(term.coefficient)
             continue
@@ -899,9 +854,9 @@ function MOI.set(
         model,
         numcol,
         length(Q.nzval),
-        kTriangular,
-        Q.colptr .- Cint(1),
-        Q.rowval .- Cint(1),
+        kHighsHessianFormatTriangular,
+        Q.colptr .- HighsInt(1),
+        Q.rowval .- HighsInt(1),
         Q.nzval,
     )
     _check_ret(ret)
@@ -920,7 +875,7 @@ function _get_objective_function(model::Optimizer, ::Nothing)
             offset[],
         )
     end
-    num_colsP, nnzP = Ref{Cint}(0), Ref{Cint}(0)
+    num_colsP, nnzP = Ref{HighsInt}(0), Ref{HighsInt}(0)
     costs = Vector{Cdouble}(undef, numcol)
     ret = Highs_getColsByRange(
         model,
@@ -1342,7 +1297,7 @@ function MOI.is_valid(
 end
 
 function _indices_and_coefficients(
-    indices::Vector{Cint},
+    indices::Vector{HighsInt},
     coefficients::Vector{Float64},
     model::Optimizer,
     f::MOI.ScalarAffineFunction{Float64},
@@ -1362,7 +1317,7 @@ function _indices_and_coefficients(
 )
     f_canon = MOI.Utilities.canonical(f)
     nnz = length(f_canon.terms)
-    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
+    indices, coefficients = zeros(HighsInt, nnz), zeros(Cdouble, nnz)
     _indices_and_coefficients(indices, coefficients, model, f_canon)
     return indices, coefficients
 end
@@ -1381,7 +1336,7 @@ function MOI.add_constraint(
     end
     key = CleverDicts.add_item(model.affine_constraint_info, _ConstraintInfo(s))
     model.affine_constraint_info[key].row =
-        Cint(length(model.affine_constraint_info) - 1)
+        HighsInt(length(model.affine_constraint_info) - 1)
     indices, coefficients = _indices_and_coefficients(model, f)
     lower, upper = _bounds(s)
     ret = Highs_addRow(
@@ -1442,9 +1397,9 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     r = row(model, c)
-    num_row = Ref{Cint}(0)
-    num_nz = Ref{Cint}(0)
-    matrix_start = Ref{Cint}(0)
+    num_row = Ref{HighsInt}(0)
+    num_nz = Ref{HighsInt}(0)
+    matrix_start = Ref{HighsInt}(0)
     lower, upper = Ref{Cdouble}(), Ref{Cdouble}()
     _ = Highs_getRowsByRange(
         model,
@@ -1458,7 +1413,7 @@ function MOI.get(
         C_NULL,
         C_NULL,
     )
-    matrix_index = Vector{Cint}(undef, num_nz[])
+    matrix_index = Vector{HighsInt}(undef, num_nz[])
     matrix_value = Vector{Cdouble}(undef, num_nz[])
     ret = Highs_getRowsByRange(
         model,
@@ -1616,13 +1571,13 @@ end
 ###
 
 """
-    _store_solution(model::Optimizer, ret::Cint)
+    _store_solution(model::Optimizer, ret::HighsInt)
 
 Get the solution from a run of HiGHS.
 
-`ret` is the `HighsStatus` enum {OK = 0, Warning, Error} from `Highs_run`.
+`ret` is the `kHighsStatus` constant from `Highs_run`.
 """
-function _store_solution(model::Optimizer, ret::Cint)
+function _store_solution(model::Optimizer, ret::HighsInt)
     x = model.solution
     x.status = ret == 0 ? _OPTIMIZE_OK : _OPTIMIZE_ERRORED
     x.has_primal_solution = false
@@ -1637,16 +1592,16 @@ function _store_solution(model::Optimizer, ret::Cint)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
     resize!(x.rowstatus, numRows)
-    x.model_status = HighsModelStatus(Highs_getModelStatus(model))
-    statusP = Ref{Cint}()
-    if x.model_status == kInfeasible
+    x.model_status = Highs_getModelStatus(model)
+    statusP = Ref{HighsInt}()
+    if x.model_status == kHighsModelStatusInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_dual_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
-    elseif x.model_status == kUnbounded
+        x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
+    elseif x.model_status == kHighsModelStatusUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_primal_ray = (ret == HighsStatuskOk) && (statusP[] == 1)
+        x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
     else
         Highs_getIntInfoValue(model, "primal_solution_status", statusP)
         x.has_primal_solution = statusP[] == 2
@@ -1690,38 +1645,38 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
         return MOI.OPTIMIZE_NOT_CALLED
     elseif model.solution.status == _OPTIMIZE_ERRORED
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kNotset
+    elseif model.solution.model_status == kHighsModelStatusNotset
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kLoadError
+    elseif model.solution.model_status == kHighsModelStatusLoadError
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kModelError
+    elseif model.solution.model_status == kHighsModelStatusModelError
         return MOI.INVALID_MODEL
-    elseif model.solution.model_status == kPresolveError
+    elseif model.solution.model_status == kHighsModelStatusPresolveError
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kSolveError
+    elseif model.solution.model_status == kHighsModelStatusSolveError
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kPostsolveError
+    elseif model.solution.model_status == kHighsModelStatusPostsolveError
         return MOI.OTHER_ERROR
-    elseif model.solution.model_status == kModelEmpty
+    elseif model.solution.model_status == kHighsModelStatusModelEmpty
         return MOI.INVALID_MODEL
-    elseif model.solution.model_status == kOptimal
+    elseif model.solution.model_status == kHighsModelStatusOptimal
         return MOI.OPTIMAL
-    elseif model.solution.model_status == kInfeasible
+    elseif model.solution.model_status == kHighsModelStatusInfeasible
         return MOI.INFEASIBLE
-    elseif model.solution.model_status == kUnboundedOrInfeasible
+    elseif model.solution.model_status == kHighsModelStatusUnboundedOrInfeasible
         return MOI.INFEASIBLE_OR_UNBOUNDED
-    elseif model.solution.model_status == kUnbounded
+    elseif model.solution.model_status == kHighsModelStatusUnbounded
         return MOI.DUAL_INFEASIBLE
-    elseif model.solution.model_status == kObjectiveBound
+    elseif model.solution.model_status == kHighsModelStatusObjectiveBound
         return MOI.OBJECTIVE_LIMIT
-    elseif model.solution.model_status == kObjectiveTarget
+    elseif model.solution.model_status == kHighsModelStatusObjectiveTarget
         return MOI.OBJECTIVE_LIMIT
-    elseif model.solution.model_status == kTimeLimit
+    elseif model.solution.model_status == kHighsModelStatusTimeLimit
         return MOI.TIME_LIMIT
-    elseif model.solution.model_status == kIterationLimit
+    elseif model.solution.model_status == kHighsModelStatusIterationLimit
         return MOI.ITERATION_LIMIT
     else
-        @assert model.solution.model_status kUnknown
+        @assert model.solution.model_status kHighsModelStatusUnknown
         return MOI.OTHER_ERROR
     end
 end
@@ -1790,14 +1745,14 @@ function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
 end
 
 function MOI.get(model::Optimizer, ::MOI.SimplexIterations)
-    p = Ref{Cint}(0)
+    p = Ref{HighsInt}(0)
     ret = Highs_getIntInfoValue(model, "simplex_iteration_count", p)
     _check_ret(ret)
     return Int64(p[])
 end
 
 function MOI.get(model::Optimizer, ::MOI.BarrierIterations)
-    p = Ref{Cint}(0)
+    p = Ref{HighsInt}(0)
     ret = Highs_getIntInfoValue(model, "ipm_iteration_count", p)
     _check_ret(ret)
     return Int64(p[])
@@ -1848,14 +1803,14 @@ Return `-1` if `MAX_SENSE`, and `1` is `MIN_SENSE`. Useful for correcting
 solution attributes which are sense-dependent.
 """
 function _sense_corrector(model::Optimizer)
-    senseP = Ref{Cint}()
+    senseP = Ref{HighsInt}()
     ret = Highs_getObjectiveSense(model, senseP)
     _check_ret(ret)
     return senseP[]
 end
 
 """
-    _farkas_variable_dual(model::Optimizer, col::Cint)
+    _farkas_variable_dual(model::Optimizer, col::HighsInt)
 
 Return a Farkas dual associated with the variable bounds of `col`. Given a dual
 ray:
@@ -1865,12 +1820,12 @@ ray:
 The Farkas dual of the variable is ā, and it applies to the upper bound if ā < 0,
 and it applies to the lower bound if ā > 0.
 """
-function _farkas_variable_dual(model::Optimizer, col::Cint)
-    num_nz, num_cols = Ref{Cint}(0), Ref{Cint}(0)
+function _farkas_variable_dual(model::Optimizer, col::HighsInt)
+    num_nz, num_cols = Ref{HighsInt}(0), Ref{HighsInt}(0)
     # TODO(odow): how does getColsByRangeWork???
     m = Highs_getNumRows(model)
-    matrix_start = zeros(Cint, 2)
-    matrix_index = Vector{Cint}(undef, m)
+    matrix_start = zeros(HighsInt, 2)
+    matrix_index = Vector{HighsInt}(undef, m)
     matrix_value = Vector{Cdouble}(undef, m)
     ret = Highs_getColsByRange(
         model,
@@ -1904,7 +1859,7 @@ _signed_dual(dual::Float64, ::Type{MOI.GreaterThan{Float64}}) = max(dual, 0.0)
 _signed_dual(dual::Float64, ::Any) = dual
 
 """
-    _signed_dual(dual::Float64, ::Type{Set}, status::HighsBasisStatus)
+    _signed_dual(dual::Float64, ::Type{Set}, status::HighsInt)
 
 Determine whether the dual of an interval constraint applies to the lower or
 upper bound using the basis status reported by HiGHS.
@@ -1912,20 +1867,20 @@ upper bound using the basis status reported by HiGHS.
 function _signed_dual(
     dual::Float64,
     ::Type{MOI.LessThan{Float64}},
-    status::HighsBasisStatus,
+    status::HighsInt,
 )
-    return status == kUpper ? dual : 0.0
+    return status == kHighsBasisStatusUpper ? dual : 0.0
 end
 
 function _signed_dual(
     dual::Float64,
     ::Type{MOI.GreaterThan{Float64}},
-    status::HighsBasisStatus,
+    status::HighsInt,
 )
-    return status == kLower ? dual : 0.0
+    return status == kHighsBasisStatusLower ? dual : 0.0
 end
 
-_signed_dual(dual::Float64, ::Any, ::HighsBasisStatus) = dual
+_signed_dual(dual::Float64, ::Any, ::HighsInt) = dual
 
 function MOI.get(
     model::Optimizer,
@@ -1938,7 +1893,7 @@ function MOI.get(
         return _signed_dual(_farkas_variable_dual(model, col), S)
     end
     dual = _sense_corrector(model) * model.solution.coldual[col+1]
-    stat = HighsBasisStatus(model.solution.colstatus[col+1])
+    stat = model.solution.colstatus[col+1]
     return _signed_dual(dual, S, stat)
 end
 
@@ -1953,7 +1908,7 @@ function MOI.get(
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(dual, S)
     end
-    stat = HighsBasisStatus(model.solution.rowstatus[r])
+    stat = model.solution.rowstatus[r]
     return _signed_dual(_sense_corrector(model) * dual, S, stat)
 end
 
@@ -1962,18 +1917,22 @@ end
 ###
 
 # HiGHS only reports a single basis status for each ranged constraint. Therefore
-# if the status is kLower or kUpper, we must distinguish whether or not it is
-# refering to the given constraint.
-function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.Interval})
-    return code == kLower ? MOI.NONBASIC_AT_LOWER : MOI.NONBASIC_AT_UPPER
+# if the status is kHighsBasisStatusLower or kHighsBasisStatusUpper, we must
+# distinguish whether or not it is refering to the given constraint.
+function _nonbasic_status(code::HighsInt, ::Type{<:MOI.Interval})
+    if code == kHighsBasisStatusLower
+        return MOI.NONBASIC_AT_LOWER
+    else
+        return MOI.NONBASIC_AT_UPPER
+    end
 end
-function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.LessThan})
-    return code == kLower ? MOI.BASIC : MOI.NONBASIC
+function _nonbasic_status(code::HighsInt, ::Type{<:MOI.LessThan})
+    return code == kHighsBasisStatusLower ? MOI.BASIC : MOI.NONBASIC
 end
-function _nonbasic_status(code::HighsBasisStatus, ::Type{<:MOI.GreaterThan})
-    return code == kLower ? MOI.NONBASIC : MOI.BASIC
+function _nonbasic_status(code::HighsInt, ::Type{<:MOI.GreaterThan})
+    return code == kHighsBasisStatusLower ? MOI.NONBASIC : MOI.BASIC
 end
-_nonbasic_status(::HighsBasisStatus, ::Type{<:MOI.EqualTo}) = MOI.NONBASIC
+_nonbasic_status(::HighsInt, ::Type{<:MOI.EqualTo}) = MOI.NONBASIC
 
 function MOI.get(
     model::Optimizer,
@@ -1981,15 +1940,15 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    stat = HighsBasisStatus(model.solution.rowstatus[row(model, c)+1])
-    if stat == kLower
+    stat = model.solution.rowstatus[row(model, c)+1]
+    if stat == kHighsBasisStatusLower
         return _nonbasic_status(stat, S)
-    elseif stat == kBasic
+    elseif stat == kHighsBasisStatusBasic
         return MOI.BASIC
-    elseif stat == kUpper
+    elseif stat == kHighsBasisStatusUpper
         return _nonbasic_status(stat, S)
     end
-    @assert stat == kZero || stat == kNonbasic
+    @assert stat == kHighsBasisStatusZero || stat == kHighsBasisStatusNonbasic
     return MOI.NONBASIC
 end
 
@@ -1999,15 +1958,15 @@ function MOI.get(
     x::MOI.VariableIndex,
 )
     MOI.check_result_index_bounds(model, attr)
-    stat = HighsBasisStatus(model.solution.colstatus[column(model, x)+1])
-    if stat == kLower
+    stat = model.solution.colstatus[column(model, x)+1]
+    if stat == kHighsBasisStatusLower
         return MOI.NONBASIC_AT_LOWER
-    elseif stat == kBasic
+    elseif stat == kHighsBasisStatusBasic
         return MOI.BASIC
-    elseif stat == kUpper
+    elseif stat == kHighsBasisStatusUpper
         return MOI.NONBASIC_AT_UPPER
     end
-    @assert stat == kZero || stat == kNonbasic
+    @assert stat == kHighsBasisStatusZero || stat == kHighsBasisStatusNonbasic
     return MOI.NONBASIC
 end
 
@@ -2068,7 +2027,7 @@ function MOI.add_constraint(
     info = _info(model, f)
     info.type = _TYPE_INTEGER
     ci = MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer}(f.value)
-    Highs_changeColIntegrality(model, info.column, kInteger)
+    Highs_changeColIntegrality(model, info.column, kHighsVarTypeInteger)
     return ci
 end
 
@@ -2080,7 +2039,7 @@ function MOI.add_constraint(
     info = _info(model, f)
     info.type = _TYPE_BINARY
     ci = MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne}(f.value)
-    Highs_changeColIntegrality(model, info.column, kInteger)
+    Highs_changeColIntegrality(model, info.column, kHighsVarTypeInteger)
     push!(model.binaries, info)
     return ci
 end
@@ -2110,7 +2069,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, ci)
     info = _info(model, ci)
     info.type = _TYPE_CONTINUOUS
-    Highs_changeColIntegrality(model, info.column, kContinuous)
+    Highs_changeColIntegrality(model, info.column, kHighsVarTypeContinuous)
     return
 end
 
@@ -2121,7 +2080,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, ci)
     info = _info(model, ci)
     info.type = _TYPE_CONTINUOUS
-    Highs_changeColIntegrality(model, info.column, kContinuous)
+    Highs_changeColIntegrality(model, info.column, kHighsVarTypeContinuous)
     delete!(model.binaries, info)
     return
 end
@@ -2174,16 +2133,16 @@ end
 
 function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
     x_src = MOI.get(src, MOI.ListOfVariableIndices())
-    numcols = Cint(length(x_src))
+    numcols = HighsInt(length(x_src))
     for (i, x) in enumerate(x_src)
         index = CleverDicts.add_item(
             dest.variable_info,
-            _VariableInfo(MOI.VariableIndex(0), Cint(0)),
+            _VariableInfo(MOI.VariableIndex(0), HighsInt(0)),
         )
         info = _info(dest, index)
         info.name = MOI.get(dest, MOI.VariableName(), x)
         info.index = index
-        info.column = Cint(i - 1)
+        info.column = HighsInt(i - 1)
         mapping[x] = index
     end
     return numcols
@@ -2197,8 +2156,8 @@ function _extract_row_data(
     mapping,
     rowlower::Vector{Float64},
     rowupper::Vector{Float64},
-    I::Vector{Cint},
-    J::Vector{Cint},
+    I::Vector{HighsInt},
+    J::Vector{HighsInt},
     V::Vector{Float64},
     ::Type{S},
 ) where {S}
@@ -2222,7 +2181,7 @@ function _extract_row_data(
             _ConstraintInfo(set),
         )
         dest.affine_constraint_info[key].row =
-            Cint(length(dest.affine_constraint_info) - 1)
+            HighsInt(length(dest.affine_constraint_info) - 1)
         mapping[c_index] =
             MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value)
     end
@@ -2232,7 +2191,7 @@ function _extract_row_data(
     for f in fs
         for term in f.terms
             push!(I, row)
-            push!(J, Cint(mapping[term.variable].value))
+            push!(J, HighsInt(mapping[term.variable].value))
             push!(V, term.coefficient)
         end
         row += 1
@@ -2292,7 +2251,7 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     numcol = _copy_to_columns(dest, src, mapping)
     collower, colupper = fill(-Inf, numcol), fill(Inf, numcol)
     rowlower, rowupper = Float64[], Float64[]
-    I, J, V = Cint[], Cint[], Float64[]
+    I, J, V = HighsInt[], HighsInt[], Float64[]
     for S in (
         MOI.GreaterThan{Float64},
         MOI.LessThan{Float64},
@@ -2302,20 +2261,20 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         _extract_bound_data(dest, src, mapping, collower, colupper, S)
         _extract_row_data(dest, src, mapping, rowlower, rowupper, I, J, V, S)
     end
-    numrow = Cint(length(rowlower))
+    numrow = HighsInt(length(rowlower))
     A = SparseArrays.sparse(I, J, V, numrow, numcol)
     # Extract integrality constraints
-    integrality = fill(kContinuous, numcol)
+    integrality = fill(kHighsVarTypeContinuous, numcol)
     has_integrality = false
     for ci in _constraints(src, MOI.VariableIndex, MOI.ZeroOne)
-        integrality[_info(dest, ci).column+1] = kInteger
+        integrality[_info(dest, ci).column+1] = kHighsVarTypeInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
         push!(dest.binaries, _info(dest, mapping[ci]))
         has_integrality = true
     end
     for ci in _constraints(src, MOI.VariableIndex, MOI.Integer)
-        integrality[_info(dest, ci).column+1] = kInteger
+        integrality[_info(dest, ci).column+1] = kHighsVarTypeInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
         has_integrality = true
@@ -2330,17 +2289,17 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         numrow,
         length(A.nzval),
         0,          # q_num_nz,
-        kColwise,   # a_format,
+        kHighsMatrixFormatColwise,   # a_format,
         0,          # q_format,
-        is_max ? kMaximize : kMinimize,
+        is_max ? kHighsObjSenseMaximize : kHighsObjSenseMinimize,
         0.0,                 # The objective function is handled separately at
         fill(0.0, numcol),  # the end.
         collower,
         colupper,
         rowlower,
         rowupper,
-        A.colptr .- Cint(1),
-        A.rowval .- Cint(1),
+        A.colptr .- HighsInt(1),
+        A.rowval .- HighsInt(1),
         A.nzval,
         C_NULL,  # qstart,  # The objective function is handled separately at
         C_NULL,  # qindex,  # the end.
