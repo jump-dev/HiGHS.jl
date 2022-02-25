@@ -797,7 +797,7 @@ function MOI.set(
         col = column(model, term.variable)
         obj[col+1] += term.coefficient
     end
-    ret = Highs_changeColsCostByRange(model, HighsInt(0), num_vars, obj)
+    ret = Highs_changeColsCostByRange(model, HighsInt(0), num_vars - 1, obj)
     _check_ret(ret)
     ret = Highs_changeObjectiveOffset(model, f.constant)
     _check_ret(ret)
