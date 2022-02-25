@@ -1,32 +1,6 @@
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
-@enum(HighsBasisStatus, kLower = 0, kBasic, kUpper, kZero, kNonbasic)
-@enum(HighsHessianFormat, kNoneHessian = 0, kTriangular, kSquare)
-@enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
-@enum(
-    HighsModelStatus,
-    kNotset = 0,
-    kLoadError,
-    kModelError,
-    kPresolveError,
-    kSolveError,
-    kPostsolveError,
-    kModelEmpty,
-    kOptimal,
-    kInfeasible,
-    kUnboundedOrInfeasible,
-    kUnbounded,
-    kObjectiveBound,
-    kObjectiveTarget,
-    kTimeLimit,
-    kIterationLimit,
-    kUnknown,
-)
-@enum(HighsObjSense, kMinimize = 1, kMaximize = -1)
-@enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
-@enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
-
 @enum(
     _RowType,
     _ROW_TYPE_LESSTHAN,
@@ -2317,3 +2291,32 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     )
     return mapping
 end
+
+# These enums are deprecated. Use the `kHighsXXX` constants defined in
+# libhighs.jl instead.
+
+@enum(HighsBasisStatus, kLower = 0, kBasic, kUpper, kZero, kNonbasic)
+@enum(HighsHessianFormat, kNoneHessian = 0, kTriangular, kSquare)
+@enum(HighsMatrixFormat, kColwise = 1, kRowwise, kRowwisePartitioned)
+@enum(
+    HighsModelStatus,
+    kNotset = 0,
+    kLoadError,
+    kModelError,
+    kPresolveError,
+    kSolveError,
+    kPostsolveError,
+    kModelEmpty,
+    kOptimal,
+    kInfeasible,
+    kUnboundedOrInfeasible,
+    kUnbounded,
+    kObjectiveBound,
+    kObjectiveTarget,
+    kTimeLimit,
+    kIterationLimit,
+    kUnknown,
+)
+@enum(HighsObjSense, kMinimize = 1, kMaximize = -1)
+@enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
+@enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
