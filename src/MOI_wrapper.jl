@@ -179,8 +179,8 @@ mutable struct _Solution
     rowvalue::Vector{Cdouble}
     rowdual::Vector{Cdouble}
     rowstatus::Vector{HighsInt}
-    has_primal_solution::Bool
-    has_dual_solution::Bool
+    primal_solution_status::HighsInt
+    dual_solution_status::HighsInt
     has_primal_ray::Bool
     has_dual_ray::Bool
     function _Solution()
@@ -193,8 +193,8 @@ mutable struct _Solution
             Cdouble[],
             Cdouble[],
             HighsInt[],
-            false,
-            false,
+            kHighsSolutionStatusNone,
+            kHighsSolutionStatusNone,
             false,
             false,
         )
@@ -210,8 +210,8 @@ function Base.empty!(x::_Solution)
     empty!(x.rowvalue)
     empty!(x.rowdual)
     empty!(x.rowstatus)
-    x.has_primal_solution = false
-    x.has_dual_solution = false
+    x.primal_solution_status = kHighsSolutionStatusNone
+    x.dual_solution_status = kHighsSolutionStatusNone
     x.has_dual_ray = false
     x.has_primal_ray = false
     return x
@@ -1554,8 +1554,8 @@ Get the solution from a run of HiGHS.
 function _store_solution(model::Optimizer, ret::HighsInt)
     x = model.solution
     x.status = ret == 0 ? _OPTIMIZE_OK : _OPTIMIZE_ERRORED
-    x.has_primal_solution = false
-    x.has_dual_solution = false
+    x.primal_solution_status = kHighsSolutionStatusNone
+    x.dual_solution_status = kHighsSolutionStatusNone
     x.has_dual_ray = false
     x.has_primal_ray = false
     numCols = Highs_getNumCols(model)
@@ -1578,10 +1578,10 @@ function _store_solution(model::Optimizer, ret::HighsInt)
         x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
     else
         Highs_getIntInfoValue(model, "primal_solution_status", statusP)
-        x.has_primal_solution = statusP[] == 2
+        x.primal_solution_status = statusP[]
         Highs_getIntInfoValue(model, "dual_solution_status", statusP)
-        x.has_dual_solution = statusP[] == 2
-        if x.has_primal_solution
+        x.dual_solution_status = statusP[]
+        if x.primal_solution_status != kHighsSolutionStatusNone
             Highs_getSolution(
                 model,
                 x.colvalue,
@@ -1657,7 +1657,9 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)
     x = model.solution
-    if x.has_primal_solution || x.has_dual_ray || x.has_primal_ray
+    if x.primal_solution_status != kHighsSolutionStatusNone
+        return 1
+    elseif x.has_dual_ray || x.has_primal_ray
         return 1
     else
         return 0
@@ -1669,21 +1671,27 @@ function MOI.get(model::Optimizer, ::MOI.RawStatusString)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
+    sol = model.solution
     if attr.result_index != 1
         return MOI.NO_SOLUTION
-    elseif model.solution.has_primal_solution
+    elseif sol.primal_solution_status == kHighsSolutionStatusFeasible
         return MOI.FEASIBLE_POINT
-    elseif model.solution.has_primal_ray
+    elseif sol.primal_solution_status == kHighsSolutionStatusInfeasible
+        return MOI.INFEASIBLE_POINT
+    elseif sol.has_primal_ray
         return MOI.INFEASIBILITY_CERTIFICATE
     end
     return MOI.NO_SOLUTION
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualStatus)
+    sol = model.solution
     if attr.result_index != 1
         return MOI.NO_SOLUTION
-    elseif model.solution.has_dual_solution
+    elseif sol.dual_solution_status == kHighsSolutionStatusFeasible
         return MOI.FEASIBLE_POINT
+    elseif sol.dual_solution_status == kHighsSolutionStatusInfeasible
+        return MOI.INFEASIBLE_POINT
     elseif model.solution.has_dual_ray
         return MOI.INFEASIBILITY_CERTIFICATE
     end
