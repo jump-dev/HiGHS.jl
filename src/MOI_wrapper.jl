@@ -1667,7 +1667,44 @@ function MOI.get(model::Optimizer, ::MOI.ResultCount)
 end
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
-    return string(model.solution.model_status)
+    if model.solution.status == _OPTIMIZE_NOT_CALLED
+        return "OPTIMIZE_NOT_CALLED"
+    elseif model.solution.status == _OPTIMIZE_ERRORED
+        return "There was an error calling optimize!"
+    elseif model.solution.model_status == kHighsModelStatusNotset
+        return "kHighsModelStatusNotset"
+    elseif model.solution.model_status == kHighsModelStatusLoadError
+        return "kHighsModelStatusLoadError"
+    elseif model.solution.model_status == kHighsModelStatusModelError
+        return "kHighsModelStatusModelError"
+    elseif model.solution.model_status == kHighsModelStatusPresolveError
+        return "kHighsModelStatusPresolveError"
+    elseif model.solution.model_status == kHighsModelStatusSolveError
+        return "kHighsModelStatusSolveError"
+    elseif model.solution.model_status == kHighsModelStatusPostsolveError
+        return "kHighsModelStatusPostsolveError"
+    elseif model.solution.model_status == kHighsModelStatusModelEmpty
+        return "kHighsModelStatusModelEmpty"
+    elseif model.solution.model_status == kHighsModelStatusOptimal
+        return "kHighsModelStatusOptimal"
+    elseif model.solution.model_status == kHighsModelStatusInfeasible
+        return "kHighsModelStatusInfeasible"
+    elseif model.solution.model_status == kHighsModelStatusUnboundedOrInfeasible
+        return "kHighsModelStatusUnboundedOrInfeasible"
+    elseif model.solution.model_status == kHighsModelStatusUnbounded
+        return "kHighsModelStatusUnbounded"
+    elseif model.solution.model_status == kHighsModelStatusObjectiveBound
+        return "kHighsModelStatusObjectiveBound"
+    elseif model.solution.model_status == kHighsModelStatusObjectiveTarget
+        return "kHighsModelStatusObjectiveTarget"
+    elseif model.solution.model_status == kHighsModelStatusTimeLimit
+        return "kHighsModelStatusTimeLimit"
+    elseif model.solution.model_status == kHighsModelStatusIterationLimit
+        return "kHighsModelStatusIterationLimit"
+    else
+        @assert model.solution.model_status kHighsModelStatusUnknown
+        return "kHighsModelStatusUnknown"
+    end
 end
 
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
