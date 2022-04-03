@@ -1650,7 +1650,7 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
     elseif model.solution.model_status == kHighsModelStatusIterationLimit
         return MOI.ITERATION_LIMIT
     else
-        @assert model.solution.model_status kHighsModelStatusUnknown
+        @assert model.solution.model_status == kHighsModelStatusUnknown
         return MOI.OTHER_ERROR
     end
 end
@@ -1702,7 +1702,7 @@ function MOI.get(model::Optimizer, ::MOI.RawStatusString)
     elseif model.solution.model_status == kHighsModelStatusIterationLimit
         return "kHighsModelStatusIterationLimit"
     else
-        @assert model.solution.model_status kHighsModelStatusUnknown
+        @assert model.solution.model_status == kHighsModelStatusUnknown
         return "kHighsModelStatusUnknown"
     end
 end
