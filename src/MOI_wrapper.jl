@@ -1553,7 +1553,7 @@ Get the solution from a run of HiGHS.
 """
 function _store_solution(model::Optimizer, ret::HighsInt)
     x = model.solution
-    x.status = ret == 0 ? _OPTIMIZE_OK : _OPTIMIZE_ERRORED
+    x.status = ret == kHighsStatusError ? _OPTIMIZE_ERRORED : _OPTIMIZE_OK
     x.primal_solution_status = kHighsSolutionStatusNone
     x.dual_solution_status = kHighsSolutionStatusNone
     x.has_dual_ray = false
