@@ -267,6 +267,14 @@ function test_SimplexIterations_BarrierIterations()
     @test MOI.get(model, MOI.BarrierIterations()) > 0
 end
 
+function test_NodeCount()
+    model = _knapsack_model(mip = true, solver = "choose")
+    @test MOI.get(model, MOI.NodeCount()) == 0
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.NodeCount()) > 0
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
