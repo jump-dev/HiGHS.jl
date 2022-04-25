@@ -16,12 +16,12 @@ function runtests()
     return
 end
 
-const _QP_FAILURES = [
-    "test_objective_qp_ObjectiveFunction_edge_cases",
-    "test_objective_qp_ObjectiveFunction_zero_ofdiag",
-    "test_quadratic_duplicate_terms",
-    "test_quadratic_integration",
-    "test_quadratic_nonhomogeneous",
+const _QP_FAILURES = String[
+#     "test_objective_qp_ObjectiveFunction_edge_cases",
+#     "test_objective_qp_ObjectiveFunction_zero_ofdiag",
+#     "test_quadratic_duplicate_terms",
+#     "test_quadratic_integration",
+#     "test_quadratic_nonhomogeneous",
 ]
 
 function test_runtests()
