@@ -27,7 +27,8 @@ const _QP_FAILURES = [
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
-    MOI.Test.runtests(model, MOI.Test.Config())
+    # Slightly loosen tolerances, particularly for QP tests
+    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
 end
 
@@ -40,7 +41,8 @@ function test_runtests_cache()
         Float64,
     )
     MOI.set(model, MOI.Silent(), true)
-    MOI.Test.runtests(model, MOI.Test.Config())
+    # Slightly loosen tolerances, particularly for QP tests
+    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
 end
 
