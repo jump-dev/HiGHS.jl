@@ -1763,6 +1763,13 @@ function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
     return Highs_getRunTime(model)
 end
 
+function MOI.get(model::Optimizer, ::MOI.RelativeGap)
+    p = Ref{Cdouble}(0)
+    ret = Highs_getDoubleInfoValue(model, "mip_gap", p)
+    _check_ret(ret)
+    return p[]
+end
+
 function MOI.get(model::Optimizer, ::MOI.SimplexIterations)
     p = Ref{HighsInt}(0)
     ret = Highs_getIntInfoValue(model, "simplex_iteration_count", p)
