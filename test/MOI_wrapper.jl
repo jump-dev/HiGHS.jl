@@ -253,6 +253,13 @@ function _knapsack_model(; mip::Bool, solver::String)
     return model
 end
 
+function test_RelativeGap()
+    model = _knapsack_model(mip = true, solver = "choose")
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.RelativeGap()) ≈ 0.0
+    return
+end
+
 function test_SimplexIterations_BarrierIterations()
     model = _knapsack_model(mip = false, solver = "simplex")
     @test MOI.get(model, MOI.SimplexIterations()) == 0
