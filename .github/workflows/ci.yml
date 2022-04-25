@@ -11,14 +11,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ['1']  # Test against current minor release only since jll requres 1.3+
+        version: ['1']
         os: [ubuntu-latest, macOS-latest, windows-latest]
         arch: [x64]
-        include:
-          # Also test against 32-bit Linux.
-          - version: '1'
-            os: ubuntu-latest
-            arch: x86
+        # HiGHS segfaults on 32-bit.
+        # Upstream is https://github.com/ERGO-Code/HiGHS/issues/769
+        # but we decided investigating was a low priority until it
+        # impacts users.
+        # include:
+        #   # Also test against 32-bit Linux.
+        #   - version: '1'
+        #     os: ubuntu-latest
+        #     arch: x86
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
