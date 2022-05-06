@@ -1105,6 +1105,16 @@ function MOI.delete(
     return
 end
 
+function MOI.modify(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
+    change::MOI.ScalarCoefficientChange,
+)
+    MOI.throw_if_not_valid(model, c)
+    info = _info(model, c)
+    info.lower = change
+end
+
 function MOI.delete(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
@@ -1121,6 +1131,16 @@ function MOI.delete(
     end
     model.name_to_constraint_index = nothing
     return
+end
+
+function MOI.modify(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
+    change::MOI.ScalarCoefficientChange,
+)
+    MOI.throw_if_not_valid(model, c)
+    info = _info(model, c)
+    info.upper = change
 end
 
 function MOI.delete(
