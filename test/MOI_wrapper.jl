@@ -287,6 +287,15 @@ function test_NodeCount()
     return
 end
 
+function test_option_nothing()
+    model = HiGHS.Optimizer()
+    @test_throws(
+        MOI.SetAttributeNotAllowed,
+        MOI.set(model, MOI.RawOptimizerAttribute("presolve"), nothing),
+    )
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
