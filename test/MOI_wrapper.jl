@@ -182,9 +182,7 @@ end
 
 function test_option_unknown_option()
     model = HiGHS.Optimizer()
-    err = ErrorException(
-        "Encountered an error in HiGHS: Check the log for details.",
-    )
+    err = MOI.SetAttributeNotAllowed
     @test_throws(
         err,
         MOI.set(model, MOI.RawOptimizerAttribute("write_solution_to_file"), 1),
