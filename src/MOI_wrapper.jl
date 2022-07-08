@@ -446,6 +446,12 @@ function _check_option_status(ret::HighsInt)
     return
 end
 
+_highs_option_type(::Bool) = kHighsOptionTypeBool
+_highs_option_type(::Integer) = kHighsOptionTypeInt
+_highs_option_type(::AbstractFloat) = kHighsOptionTypeDouble
+_highs_option_type(::String) = kHighsOptionTypeString
+_highs_option_type(::Any) = HighsInt(-1)
+
 function _set_option(model::Optimizer, option::String, value::Bool)
     return Highs_setBoolOptionValue(model, option, HighsInt(value))
 end
@@ -463,8 +469,18 @@ function _set_option(model::Optimizer, option::String, value::String)
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
-    if !MOI.supports(model, param)
+    typeP = Ref{HighsInt}()
+    ret = Highs_getOptionType(model, param.name, typeP)
+    if ret != 0
         throw(MOI.UnsupportedAttribute(param))
+    elseif typeP[] != _highs_option_type(value)
+        throw(
+            MOI.SetAttributeNotAllowed(
+                param,
+                "\n\nInvalid value `$(value)::$(typeof(value))` for option " *
+                "\"$(param.name)\".\n\n",
+            ),
+        )
     end
     model.options[param.name] = value
     ret = _set_option(model, param.name, value)
