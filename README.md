@@ -179,11 +179,11 @@ log_to_console = true
 
 # Solution file
 # [type: string, advanced: false, default: ""]
-solution_file = 
+solution_file = ""
 
 # Log file
 # [type: string, advanced: false, default: ""]
-log_file = 
+log_file = ""
 
 # Write the primal and dual solution to a file
 # [type: bool, advanced: false, range: {false, true}, default: false]
@@ -195,7 +195,7 @@ write_solution_style = 0
 
 # Write model file
 # [type: string, advanced: false, default: ""]
-write_model_file = 
+write_model_file = "" 
 
 # Write the model to a file
 # [type: bool, advanced: false, range: {false, true}, default: false]
@@ -347,15 +347,15 @@ dual_steepest_edge_weight_error_tolerance = inf
 
 # Threshold on dual steepest edge weight errors for Devex switch
 # [type: double, advanced: true, range: [1, inf], default: 10]
-dual_steepest_edge_weight_log_error_threshold = 10
+dual_steepest_edge_weight_log_error_threshold = 10.0
 
 # Dual simplex cost perturbation multiplier: 0 => no perturbation
 # [type: double, advanced: true, range: [0, inf], default: 1]
-dual_simplex_cost_perturbation_multiplier = 1
+dual_simplex_cost_perturbation_multiplier = 1.0
 
 # Primal simplex bound perturbation multiplier: 0 => no perturbation
 # [type: double, advanced: true, range: [0, inf], default: 1]
-primal_simplex_bound_perturbation_multiplier = 1
+primal_simplex_bound_perturbation_multiplier = 1.0
 
 # Dual simplex pivot growth tolerance
 # [type: double, advanced: true, range: [1e-12, inf], default: 1e-09]
