@@ -23,6 +23,9 @@ Pkg.add("HiGHS")
 In addition to installing the HiGHS.jl package, this will also download and
 install the HiGHS binaries. (You do not need to install HiGHS separately.)
 
+To use a custom binary, read the [Custom solver binaries](https://jump.dev/JuMP.jl/stable/developers/custom_solver_binaries/)
+section of the JuMP documentation.
+
 ## Issues and feedback
 
 To report a problem (e.g., incorrect results, or a crash of the solver),
