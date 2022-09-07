@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/jump-dev/HiGHS.jl/workflows/CI/badge.svg?branch=master)](https://github.com/jump-dev/HiGHS.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/jump-dev/HiGHS.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jump-dev/HiGHS.jl)
 
-HiGHS.jl is a wrapper for the [HiGHS](https://highs.dev) linear solver.
+HiGHS.jl is a wrapper for the [HiGHS](https://highs.dev) solver.
 
 It has two components:
  - a thin wrapper around the complete C API
