@@ -168,11 +168,26 @@ function Highs_writeModel(highs, filename)
 end
 
 """
+    Highs_clear(highs)
+
+Reset the options and then calls clearModel()
+
+See [`Highs_destroy`](@ref) to free all associated memory.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_clear(highs)
+    ccall((:Highs_clear, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_clearModel(highs)
 
 Remove all variables and constraints from the model `highs`, but do not invalidate the pointer `highs`. Future calls (for example, adding new variables and constraints) are allowed.
-
-See [`Highs_destroy`](@ref) to clear the model and free all associated memory.
 
 ### Parameters
 * `highs`: a pointer to the Highs instance
@@ -182,6 +197,23 @@ a `kHighsStatus` constant indicating whether the call succeeded
 """
 function Highs_clearModel(highs)
     ccall((:Highs_clearModel, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_clearSolver(highs)
+
+Clear all solution data associated with the model
+
+See [`Highs_destroy`](@ref) to clear the model and free all associated memory.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_clearSolver(highs)
+    ccall((:Highs_clearSolver, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1002,6 +1034,29 @@ function Highs_setLogicalBasis(highs)
 end
 
 """
+    Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
+
+Set a solution by passing the column and row primal and dual solution values. For any values that are unavailable pass NULL.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `col_value`: an array of length [num\\_col] with the column solution values
+
+* `row_value`: an array of length [num\\_row] with the row solution values
+
+* `col_dual`: an array of length [num\\_col] with the column dual values
+
+* `row_dual`: an array of length [num\\_row] with the row dual values
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
+    ccall((:Highs_setSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, row_value, col_dual, row_dual)
+end
+
+"""
     Highs_getRunTime(highs)
 
 Return the cumulative wall-clock time spent in [`Highs_run`](@ref).
@@ -1014,6 +1069,104 @@ the cumulative wall-clock time spent in [`Highs_run`](@ref)
 """
 function Highs_getRunTime(highs)
     ccall((:Highs_getRunTime, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
+
+Add a new column (variable) to the model.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `cost`: objective coefficient of the column
+
+* `lower`: lower bound of the column
+
+* `upper`: upper bound of the column
+
+* `num_new_nz`: number of non-zeros in the column
+
+* `index`: array of size [num\\_new\\_nz] with the row indices
+
+* `value`: array of size [num\\_new\\_nz] with row values
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
+    ccall((:Highs_addCol, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, cost, lower, upper, num_new_nz, index, value)
+end
+
+"""
+    Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
+
+Add multiple columns (variables) to the model.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `num_new_col`: number of new columns to add
+
+* `costs`: array of size [num\\_new\\_col] with objective coefficients
+
+* `lower`: array of size [num\\_new\\_col] with lower bounds
+
+* `upper`: array of size [num\\_new\\_col] with upper bounds
+
+* `num_new_nz`: number of new nonzeros in the constraint matrix
+
+* `starts`: the constraint coefficients are given as a matrix in compressed sparse column form by the arrays `starts`, `index`, and `value`. `starts` is an array of size [num\\_new\\_cols] with the start index of each row in indices and values.
+
+* `index`: array of size [num\\_new\\_nz] with row indices
+
+* `value`: array of size [num\\_new\\_nz] with row values
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
+    ccall((:Highs_addCols, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
+end
+
+"""
+    Highs_addVar(highs, lower, upper)
+
+Add a new variable to the model.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `lower`: lower bound of the column
+
+* `upper`: upper bound of the column
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_addVar(highs, lower, upper)
+    ccall((:Highs_addVar, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble), highs, lower, upper)
+end
+
+"""
+    Highs_addVars(highs, num_new_var, lower, upper)
+
+Add multiple variables to the model.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `num_new_var`: number of new variables to add
+
+* `lower`: array of size [num\\_new\\_var] with lower bounds
+
+* `upper`: array of size [num\\_new\\_var] with upper bounds
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_addVars(highs, num_new_var, lower, upper)
+    ccall((:Highs_addVars, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_new_var, lower, upper)
 end
 
 """
@@ -1068,64 +1221,6 @@ a `kHighsStatus` constant indicating whether the call succeeded
 """
 function Highs_addRows(highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
     ccall((:Highs_addRows, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
-end
-
-"""
-    Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
-
-Add a new column (variable) to the model.
-
-### Parameters
-* `highs`: a pointer to the Highs instance
-
-* `cost`: objective coefficient of the column
-
-* `lower`: lower bound of the column
-
-* `upper`: upper bound of the column
-
-* `num_new_nz`: number of non-zeros in the column
-
-* `index`: array of size [num\\_new\\_nz] with the row indices
-
-* `value`: array of size [num\\_new\\_nz] with row values
-
-### Returns
-a `kHighsStatus` constant indicating whether the call succeeded
-"""
-function Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
-    ccall((:Highs_addCol, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, cost, lower, upper, num_new_nz, index, value)
-end
-
-"""
-    Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
-
-Add multiple columns (linear constraints) to the model.
-
-### Parameters
-* `highs`: a pointer to the Highs instance
-
-* `num_new_col`: number of new columns to add
-
-* `costs`: array of size [num\\_new\\_col] with objective coefficients
-
-* `lower`: array of size [num\\_new\\_col] with lower bounds
-
-* `upper`: array of size [num\\_new\\_col] with upper bounds
-
-* `num_new_nz`: number of new nonzeros in the constraint matrix
-
-* `starts`: the constraint coefficients are given as a matrix in compressed sparse column form by the arrays `starts`, `index`, and `value`. `starts` is an array of size [num\\_new\\_cols] with the start index of each row in indices and values.
-
-* `index`: array of size [num\\_new\\_nz] with row indices
-
-* `value`: array of size [num\\_new\\_nz] with row values
-
-### Returns
-a `kHighsStatus` constant indicating whether the call succeeded
-"""
-function Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
-    ccall((:Highs_addCols, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
 end
 
 """
@@ -1920,22 +2015,7 @@ function Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hes
 end
 
 """
-    Highs_crossover(highs)
-
-Given a model solved with an interior point method, run crossover to compute a basic feasible solution.
-
-### Parameters
-* `highs`: a pointer to the Highs instance
-
-### Returns
-a `kHighsStatus` constant indicating whether the call succeeded
-"""
-function Highs_crossover(highs)
-    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid},), highs)
-end
-
-"""
-    Highs_crossover_set(highs, num_col, num_row, col_value, col_dual, row_dual)
+    Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
 
 Set a primal (and possibly dual) solution as a starting point, then run crossover to compute a basic feasible solution. If there is no dual solution, pass col\\_dual and row\\_dual as nullptr.
 
@@ -1955,8 +2035,20 @@ Set a primal (and possibly dual) solution as a starting point, then run crossove
 ### Returns
 a `kHighsStatus` constant indicating whether the call succeeded
 """
-function Highs_crossover_set(highs, num_col, num_row, col_value, col_dual, row_dual)
-    ccall((:Highs_crossover_set, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
+function Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
+    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
+end
+
+"""
+    Highs_resetGlobalScheduler(blocking)
+
+Releases all resources held by the global scheduler instance. It is not thread-safe to call this function while calling [`Highs_run`](@ref)()/Highs\\_*call() on any other Highs instance in any thread. After this function has terminated it is guaranteed that eventually all previously created scheduler threads will terminate and allocated memory will be released. After this function has returned the option value for the number of threads may be altered to a new value before the next call to [`Highs_run`](@ref)()/Highs\\_*call(). If the given parameter has a nonzero value, then the function will not return until all memory is freed, which might be desirable when debugging heap memory but requires the calling thread to wait for all scheduler threads to wake-up which is usually not necessary.
+
+### Returns
+No status is returned since the function call cannot fail. Calling this function while any Highs instance is in use on any thread is undefined behavior and may cause crashes, but cannot be detected and hence is fully in the callers responsibility.
+"""
+function Highs_resetGlobalScheduler(blocking)
+    ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
 end
 
 function Highs_call(num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -2063,15 +2155,15 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const HIGHS_GITHASH = ""
+const HIGHS_GITHASH = "e5004072b-dirty"
 
-const HIGHS_COMPILATION_DATE = ""
+const HIGHS_COMPILATION_DATE = "1970-01-01"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 2
+const HIGHS_VERSION_MINOR = 3
 
-const HIGHS_VERSION_PATCH = 1
+const HIGHS_VERSION_PATCH = 0
 
 const HIGHS_DIR = "/workspace/srcdir/HiGHS"
 

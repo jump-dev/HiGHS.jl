@@ -6,7 +6,7 @@
 using Clang.Generators
 import HiGHS_jll
 
-highs = joinpath(HiGHS_jll.artifact_dir, "include")
+highs = joinpath(HiGHS_jll.artifact_dir, "include", "highs")
 c_api = joinpath(highs, "interfaces", "highs_c_api.h")
 
 build!(
