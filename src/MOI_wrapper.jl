@@ -373,8 +373,12 @@ end
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
-function MOI.get(::Optimizer, ::MOI.ListOfVariableAttributesSet)
-    return MOI.AbstractVariableAttribute[MOI.VariableName()]
+function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
+    ret = MOI.AbstractVariableAttribute[MOI.VariableName()]
+    if any(info -> info.start !== nothing, values(model.variable_info))
+        push!(ret, MOI.VariablePrimalStart())
+    end
+    return ret
 end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
