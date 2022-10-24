@@ -2424,6 +2424,14 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         MOI.ObjectiveFunction{F}(),
         MOI.Utilities.map_indices(mapping, f_obj),
     )
+    # VariablePrimalStart
+    start_attr = MOI.VariablePrimalStart()
+    if start_attr in MOI.get(src, MOI.ListOfVariableAttributesSet())
+        for x in MOI.get(src, MOI.ListOfVariableIndices())
+            start = MOI.get(src, start_attr, x)
+            MOI.set(dest, start_attr, mapping[x], start)
+        end
+    end
     return mapping
 end
 
