@@ -294,6 +294,17 @@ function test_option_nothing()
     return
 end
 
+function test_copy_to_names()
+    dest = HiGHS.Optimizer()
+    src = MOI.Utilities.Model{Float64}()
+    MOI.Utilities.loadfromstring!(src, "variables: x\nc: 2.0 * x <= 1.0")
+    _ = MOI.copy_to(dest, src)
+    @test MOI.get(dest, MOI.VariableIndex, "x") isa MOI.VariableIndex
+    F, S = MOI.ScalarAffineFunction{Float64}, MOI.LessThan{Float64}
+    @test MOI.get(dest, MOI.ConstraintIndex, "c") isa MOI.ConstraintIndex{F,S}
+    return
+end
+
 end
 
 TestMOIHighs.runtests()

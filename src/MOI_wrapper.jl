@@ -2186,7 +2186,9 @@ function _copy_to_columns(dest::Optimizer, src::MOI.ModelLike, mapping)
             _VariableInfo(MOI.VariableIndex(0), HighsInt(0)),
         )
         info = _info(dest, index)
-        info.name = MOI.get(dest, MOI.VariableName(), x)
+        if MOI.supports(src, MOI.VariableName(), MOI.VariableIndex)
+            info.name = MOI.get(src, MOI.VariableName(), x)
+        end
         info.index = index
         info.column = HighsInt(i - 1)
         mapping[x] = index
@@ -2207,13 +2209,14 @@ function _extract_row_data(
     V::Vector{Float64},
     ::Type{S},
 ) where {S}
+    F = MOI.ScalarAffineFunction{Float64}
     row = length(I) == 0 ? 1 : I[end] + 1
     list = _constraints(src, MOI.ScalarAffineFunction{Float64}, S)
     numrows = length(list)
     _add_sizehint!(rowlower, numrows)
     _add_sizehint!(rowupper, numrows)
     n_terms = 0
-    fs = Array{MOI.ScalarAffineFunction{Float64}}(undef, numrows)
+    fs = Array{F}(undef, numrows)
     for (i, c_index) in enumerate(list)
         f = MOI.get(src, MOI.ConstraintFunction(), c_index)
         fs[i] = f
@@ -2226,10 +2229,12 @@ function _extract_row_data(
             dest.affine_constraint_info,
             _ConstraintInfo(set),
         )
-        dest.affine_constraint_info[key].row =
-            HighsInt(length(dest.affine_constraint_info) - 1)
-        mapping[c_index] =
-            MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value)
+        info = dest.affine_constraint_info[key]
+        info.row = HighsInt(length(dest.affine_constraint_info) - 1)
+        if MOI.supports(src, MOI.ConstraintName(), MOI.ConstraintIndex{F,S})
+            info.name = MOI.get(src, MOI.ConstraintName(), c_index)
+        end
+        mapping[c_index] = MOI.ConstraintIndex{F,S}(key.value)
     end
     _add_sizehint!(I, n_terms)
     _add_sizehint!(J, n_terms)
