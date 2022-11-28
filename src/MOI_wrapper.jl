@@ -61,12 +61,22 @@ mutable struct _VariableInfo
     upper::Float64
     # Track integrality
     type::_TypeEnum
+    start::Union{Nothing,Float64}
     function _VariableInfo(
         index::MOI.VariableIndex,
         column::HighsInt,
         bound::_BoundEnum = _BOUND_NONE,
     )
-        return new(index, "", column, bound, -Inf, Inf, _TYPE_CONTINUOUS)
+        return new(
+            index,
+            "",
+            column,
+            bound,
+            -Inf,
+            Inf,
+            _TYPE_CONTINUOUS,
+            nothing,
+        )
     end
 end
 
@@ -363,8 +373,12 @@ end
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
-function MOI.get(::Optimizer, ::MOI.ListOfVariableAttributesSet)
-    return MOI.AbstractVariableAttribute[MOI.VariableName()]
+function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
+    ret = MOI.AbstractVariableAttribute[MOI.VariableName()]
+    if any(info -> info.start !== nothing, values(model.variable_info))
+        push!(ret, MOI.VariablePrimalStart())
+    end
+    return ret
 end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
@@ -718,6 +732,37 @@ function _rebuild_name_to_variable(model::Optimizer)
         end
     end
     return
+end
+
+#
+# MOI.VariablePrimalStart
+#
+
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.VariablePrimalStart,
+    ::Type{MOI.VariableIndex},
+)
+    return true
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.VariablePrimalStart,
+    x::MOI.VariableIndex,
+    start::Union{Nothing,Float64},
+)
+    info = _info(model, x)
+    info.start = start
+    return
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.VariablePrimalStart,
+    x::MOI.VariableIndex,
+)
+    return _info(model, x).start
 end
 
 ###
@@ -1616,6 +1661,22 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     return
 end
 
+function _set_variable_primal_start(model::Optimizer)
+    if all(info -> info.start === nothing, values(model.variable_info))
+        return
+    end
+    start = zeros(Cdouble, length(model.variable_info))
+    for (x, info) in model.variable_info
+        # For the default start, pick the lower bound if it exists, otherwise
+        # the minimum of the upper bound and zero.
+        default = isfinite(info.lower) ? info.lower : min(info.upper, 0.0)
+        start[info.column+1] = something(info.start, default)
+    end
+    ret = Highs_setSolution(model, start, C_NULL, C_NULL, C_NULL)
+    _check_ret(ret)
+    return
+end
+
 function MOI.optimize!(model::Optimizer)
     for info in model.binaries
         Highs_changeColBounds(
@@ -1625,6 +1686,7 @@ function MOI.optimize!(model::Optimizer)
             min(1.0, info.upper),
         )
     end
+    _set_variable_primal_start(model)
     ret = Highs_run(model)
     _store_solution(model, ret)
     # TODO(odow): resetting the bounds here invalidates previously stored
@@ -2366,6 +2428,14 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         MOI.ObjectiveFunction{F}(),
         MOI.Utilities.map_indices(mapping, f_obj),
     )
+    # VariablePrimalStart
+    start_attr = MOI.VariablePrimalStart()
+    if start_attr in MOI.get(src, MOI.ListOfVariableAttributesSet())
+        for x in MOI.get(src, MOI.ListOfVariableIndices())
+            start = MOI.get(src, start_attr, x)
+            MOI.set(dest, start_attr, mapping[x], start)
+        end
+    end
     return mapping
 end
 
