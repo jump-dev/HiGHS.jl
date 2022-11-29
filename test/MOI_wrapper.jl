@@ -21,12 +21,14 @@ function runtests()
     return
 end
 
-const _QP_FAILURES = [
+const _EXPLICIT_METHOD_FAILURES = [
     "test_objective_qp_ObjectiveFunction_edge_cases",
     "test_objective_qp_ObjectiveFunction_zero_ofdiag",
     "test_quadratic_duplicate_terms",
     "test_quadratic_integration",
     "test_quadratic_nonhomogeneous",
+    "test_linear_Semicontinuous_integration",
+    "test_linear_Semiinteger_integration",
 ]
 
 function test_runtests()
@@ -57,7 +59,11 @@ function test_runtests_simplex()
     MOI.set(model, MOI.RawOptimizerAttribute("solver"), "simplex")
     for presolve in ("on", "off")
         MOI.set(model, MOI.RawOptimizerAttribute("presolve"), presolve)
-        MOI.Test.runtests(model, MOI.Test.Config(); exclude = _QP_FAILURES)
+        MOI.Test.runtests(
+            model,
+            MOI.Test.Config();
+            exclude = _EXPLICIT_METHOD_FAILURES,
+        )
     end
     return
 end
@@ -66,7 +72,11 @@ function test_runtests_ipm()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
     MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
-    MOI.Test.runtests(model, MOI.Test.Config(); exclude = _QP_FAILURES)
+    MOI.Test.runtests(
+        model,
+        MOI.Test.Config();
+        exclude = _EXPLICIT_METHOD_FAILURES,
+    )
     return
 end
 
@@ -82,7 +92,7 @@ function test_runtests_ipm_no_presolve()
             # Termination status is OTHER_ERROR
             "test_conic_linear_INFEASIBLE",
             "test_conic_linear_INFEASIBLE_2",
-            _QP_FAILURES...,
+            _EXPLICIT_METHOD_FAILURES...,
         ],
     )
     return
@@ -302,6 +312,24 @@ function test_copy_to_names()
     @test MOI.get(dest, MOI.VariableIndex, "x") isa MOI.VariableIndex
     F, S = MOI.ScalarAffineFunction{Float64}, MOI.LessThan{Float64}
     @test MOI.get(dest, MOI.ConstraintIndex, "c") isa MOI.ConstraintIndex{F,S}
+    return
+end
+
+function test_copy_to_sets()
+    for (s_set, set) in [
+        "Semicontinuous(1.0, 2.0)" => MOI.Semicontinuous(1.0, 2.0),
+        "Semiinteger(2.0, 3.0)" => MOI.Semiinteger(2.0, 3.0),
+        "ZeroOne()" => MOI.ZeroOne(),
+        "Integer()" => MOI.Integer(),
+    ]
+        dest = HiGHS.Optimizer()
+        src = MOI.Utilities.Model{Float64}()
+        MOI.Utilities.loadfromstring!(src, "variables: x\nc: x in $s_set")
+        _ = MOI.copy_to(dest, src)
+        x = MOI.get(dest, MOI.VariableIndex, "x")
+        ci = MOI.ConstraintIndex{MOI.VariableIndex,typeof(set)}(x.value)
+        @test MOI.get(dest, MOI.ConstraintSet(), ci) == set
+    end
     return
 end
 
