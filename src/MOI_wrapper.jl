@@ -1152,9 +1152,9 @@ function _throw_if_existing_upper(
         throw(MOI.UpperBoundAlreadySet{MOI.EqualTo{Float64},S}(info.index))
     elseif info.bound == _BOUND_SEMI_CONTINUOUS
         T = MOI.Semicontinuous{Float64}
-        throw(MOI.LowerBoundAlreadySet{T,S}(info.index))
+        throw(MOI.UpperBoundAlreadySet{T,S}(info.index))
     elseif info.bound == _BOUND_SEMI_INTEGER
-        throw(MOI.LowerBoundAlreadySet{MOI.Semiinteger{Float64},S}(info.index))
+        throw(MOI.UpperBoundAlreadySet{MOI.Semiinteger{Float64},S}(info.index))
     end
     return
 end

@@ -329,6 +329,18 @@ function test_copy_to_sets()
         x = MOI.get(dest, MOI.VariableIndex, "x")
         ci = MOI.ConstraintIndex{MOI.VariableIndex,typeof(set)}(x.value)
         @test MOI.get(dest, MOI.ConstraintSet(), ci) == set
+        @test MOI.get(dest, MOI.ListOfConstraintTypesPresent()) ==
+              [(MOI.VariableIndex, typeof(set))]
+        if set isa MOI.Semicontinuous || set isa MOI.Semiinteger
+            @test_throws(
+                MOI.UpperBoundAlreadySet{typeof(set),MOI.LessThan{Float64}},
+                MOI.add_constraint(dest, x, MOI.LessThan(1.0)),
+            )
+            @test_throws(
+                MOI.LowerBoundAlreadySet{typeof(set),MOI.GreaterThan{Float64}},
+                MOI.add_constraint(dest, x, MOI.GreaterThan(1.0)),
+            )
+        end
     end
     return
 end
