@@ -32,9 +32,18 @@ _bounds(s::MOI.Interval{Float64}) = s.lower, s.upper
     _BOUND_LESS_AND_GREATER_THAN,
     _BOUND_INTERVAL,
     _BOUND_EQUAL_TO,
+    _BOUND_SEMI_INTEGER,
+    _BOUND_SEMI_CONTINUOUS,
 )
 
-@enum(_TypeEnum, _TYPE_CONTINUOUS, _TYPE_INTEGER, _TYPE_BINARY,)
+@enum(
+    _TypeEnum,
+    _TYPE_CONTINUOUS,
+    _TYPE_INTEGER,
+    _TYPE_BINARY,
+    _TYPE_SEMI_CONTINUOUS,
+    _TYPE_SEMI_INTEGER,
+)
 
 const _SCALAR_SETS = Union{
     MOI.GreaterThan{Float64},
@@ -425,9 +434,13 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
             push!(constraints, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
         elseif info.bound == _BOUND_EQUAL_TO
             push!(constraints, (MOI.VariableIndex, MOI.EqualTo{Float64}))
-        else
-            @assert info.bound == _BOUND_INTERVAL
+        elseif info.bound == _BOUND_INTERVAL
             push!(constraints, (MOI.VariableIndex, MOI.Interval{Float64}))
+        elseif info.bound == _BOUND_SEMI_CONTINUOUS
+            push!(constraints, (MOI.VariableIndex, MOI.Semicontinuous{Float64}))
+        else
+            @assert info.bound == _BOUND_SEMI_INTEGER
+            push!(constraints, (MOI.VariableIndex, MOI.Semiinteger{Float64}))
         end
         if info.type == _TYPE_INTEGER
             push!(constraints, (MOI.VariableIndex, MOI.Integer))
@@ -1116,6 +1129,11 @@ function _throw_if_existing_lower(
         throw(MOI.LowerBoundAlreadySet{MOI.Interval{Float64},S}(info.index))
     elseif info.bound == _BOUND_EQUAL_TO
         throw(MOI.LowerBoundAlreadySet{MOI.EqualTo{Float64},S}(info.index))
+    elseif info.bound == _BOUND_SEMI_CONTINUOUS
+        T = MOI.Semicontinuous{Float64}
+        throw(MOI.LowerBoundAlreadySet{T,S}(info.index))
+    elseif info.bound == _BOUND_SEMI_INTEGER
+        throw(MOI.LowerBoundAlreadySet{MOI.Semiinteger{Float64},S}(info.index))
     end
     return
 end
@@ -1132,6 +1150,11 @@ function _throw_if_existing_upper(
         throw(MOI.UpperBoundAlreadySet{MOI.Interval{Float64},S}(info.index))
     elseif info.bound == _BOUND_EQUAL_TO
         throw(MOI.UpperBoundAlreadySet{MOI.EqualTo{Float64},S}(info.index))
+    elseif info.bound == _BOUND_SEMI_CONTINUOUS
+        T = MOI.Semicontinuous{Float64}
+        throw(MOI.UpperBoundAlreadySet{T,S}(info.index))
+    elseif info.bound == _BOUND_SEMI_INTEGER
+        throw(MOI.UpperBoundAlreadySet{MOI.Semiinteger{Float64},S}(info.index))
     end
     return
 end
@@ -2194,6 +2217,105 @@ function MOI.delete(
 end
 
 ###
+### Semicontinuous and Semiinteger
+###
+
+function MOI.supports_constraint(
+    ::Optimizer,
+    ::Type{MOI.VariableIndex},
+    ::Type{S},
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger}}
+    return true
+end
+
+_bound_type(::Type{<:MOI.Semicontinuous}) = _BOUND_SEMI_CONTINUOUS
+_bound_type(::Type{<:MOI.Semiinteger}) = _BOUND_SEMI_INTEGER
+
+_type_type(::Type{<:MOI.Semicontinuous}) = _TYPE_SEMI_CONTINUOUS
+_type_type(::Type{<:MOI.Semiinteger}) = _TYPE_SEMI_INTEGER
+
+function MOI.is_valid(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
+           _info(model, c).bound == _bound_type(S)
+end
+
+function MOI.add_constraint(
+    model::Optimizer,
+    f::MOI.VariableIndex,
+    s::S,
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    info = _info(model, f)
+    _throw_if_existing_lower(info, s)
+    _throw_if_existing_upper(info, s)
+    info.bound, info.type = _bound_type(S), _type_type(S)
+    info.lower, info.upper = s.lower, s.upper
+    index = MOI.ConstraintIndex{MOI.VariableIndex,S}(f.value)
+    MOI.set(model, MOI.ConstraintSet(), index, s)
+    return index
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ListOfConstraintIndices{MOI.VariableIndex,S},
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    indices = MOI.ConstraintIndex{MOI.VariableIndex,S}[
+        MOI.ConstraintIndex{MOI.VariableIndex,S}(key.value) for
+        (key, info) in model.variable_info if info.type == _type_type(S)
+    ]
+    return sort!(indices, by = x -> x.value)
+end
+
+function MOI.delete(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    MOI.throw_if_not_valid(model, c)
+    info = _info(model, c)
+    ret = Highs_changeColBounds(model, info.column, -Inf, Inf)
+    _check_ret(ret)
+    info.lower, info.upper = -Inf, Inf
+    info.bound, info.type = _BOUND_NONE, _TYPE_CONTINUOUS
+    ret =
+        Highs_changeColIntegrality(model, info.column, kHighsVarTypeContinuous)
+    _check_ret(ret)
+    model.name_to_constraint_index = nothing
+    return
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    MOI.throw_if_not_valid(model, c)
+    info = _info(model, c)
+    return S(info.lower, info.upper)
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
+    set::S,
+) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
+    MOI.throw_if_not_valid(model, c)
+    info = _info(model, c)
+    ret = Highs_changeColBounds(model, info.column, set.lower, set.upper)
+    _check_ret(ret)
+    var_type = if S == MOI.Semicontinuous{Float64}
+        kHighsVarTypeSemiContinuous
+    else
+        kHighsVarTypeSemiInteger
+    end
+    ret = Highs_changeColIntegrality(model, info.column, var_type)
+    _check_ret(ret)
+    return
+end
+
+###
 ### MOI.copy_to
 ###
 
@@ -2380,16 +2502,46 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     integrality = fill(kHighsVarTypeContinuous, numcol)
     has_integrality = false
     for ci in _constraints(src, MOI.VariableIndex, MOI.ZeroOne)
-        integrality[_info(dest, ci).column+1] = kHighsVarTypeInteger
+        info = _info(dest, ci)
+        info.type = _TYPE_BINARY
+        integrality[info.column+1] = kHighsVarTypeInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
         push!(dest.binaries, _info(dest, mapping[ci]))
         has_integrality = true
     end
     for ci in _constraints(src, MOI.VariableIndex, MOI.Integer)
-        integrality[_info(dest, ci).column+1] = kHighsVarTypeInteger
+        info = _info(dest, ci)
+        info.type = _TYPE_INTEGER
+        integrality[info.column+1] = kHighsVarTypeInteger
         new_x = mapping[MOI.VariableIndex(ci.value)]
         mapping[ci] = typeof(ci)(new_x.value)
+        has_integrality = true
+    end
+    # Semicontinuous sets
+    for ci in _constraints(src, MOI.VariableIndex, MOI.Semicontinuous{Float64})
+        x = MOI.VariableIndex(ci.value)
+        info = _info(dest, x)
+        column = info.column + 1
+        set = MOI.get(src, MOI.ConstraintSet(), ci)
+        collower[column], colupper[column] = set.lower, set.upper
+        info.bound, info.type = _BOUND_SEMI_CONTINUOUS, _TYPE_SEMI_CONTINUOUS
+        info.lower, info.upper = set.lower, set.upper
+        integrality[column] = kHighsVarTypeSemiContinuous
+        mapping[ci] = typeof(ci)(mapping[x].value)
+        has_integrality = true
+    end
+    # Semiinteger sets
+    for ci in _constraints(src, MOI.VariableIndex, MOI.Semiinteger{Float64})
+        x = MOI.VariableIndex(ci.value)
+        info = _info(dest, x)
+        column = info.column + 1
+        set = MOI.get(src, MOI.ConstraintSet(), ci)
+        collower[column], colupper[column] = set.lower, set.upper
+        info.bound, info.type = _BOUND_SEMI_INTEGER, _TYPE_SEMI_INTEGER
+        info.lower, info.upper = set.lower, set.upper
+        integrality[column] = kHighsVarTypeSemiInteger
+        mapping[ci] = typeof(ci)(mapping[x].value)
         has_integrality = true
     end
     # Build the model
