@@ -58,13 +58,13 @@ Highs_writeOptions(model, "options.txt")
 println(read("options.txt", String))
 ```
 
-The current option list is:
+The option list as of HiGHS v1.4.0 is:
 ```
 # Presolve option: "off", "choose" or "on"
 # [type: string, advanced: false, default: "choose"]
 presolve = choose
 
-# Solver option: "simplex", "choose" or "ipm"
+# Solver option: "simplex", "choose" or "ipm". If "simplex"/"ipm" is chosen then, for a MIP (QP) the integrality constraint (quadratic term) will be ignored
 # [type: string, advanced: false, default: "choose"]
 solver = choose
 
@@ -72,7 +72,11 @@ solver = choose
 # [type: string, advanced: false, default: "choose"]
 parallel = choose
 
-# Time limit
+# Run IPM crossover: "off", "choose" or "on"
+# [type: string, advanced: false, default: "on"]
+run_crossover = on
+
+# Time limit (seconds)
 # [type: double, advanced: false, range: [0, inf], default: inf]
 time_limit = inf
 
@@ -160,10 +164,6 @@ simplex_iteration_limit = 2147483647
 # [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 5000]
 simplex_update_limit = 5000
 
-# Iteration limit for IPM solver
-# [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 2147483647]
-ipm_iteration_limit = 2147483647
-
 # Minimum level of concurrency in parallel simplex
 # [type: HighsInt, advanced: false, range: {1, 8}, default: 1]
 simplex_min_concurrency = 1
@@ -192,13 +192,49 @@ log_file = ""
 # [type: bool, advanced: false, range: {false, true}, default: false]
 write_solution_to_file = false
 
-# Write the solution in style: 0=>Raw (computer-readable); 1=>Pretty (human-readable) 
-# [type: HighsInt, advanced: false, range: {0, 2}, default: 0]
+# Style of solution file Raw (computer-readable); Pretty (human-readable): 0 => HiGHS raw; 1 => HiGHS pretty; 2 => Glpsol raw; 3 => Glpsol pretty; 
+# [type: HighsInt, advanced: false, range: {-1, 3}, default: 0]
 write_solution_style = 0
+
+# Location of cost row for Glpsol file: -2 => Last; -1 => None; 0 => None if empty, otherwise data file location; 1 <= n <= num_row => Location n; n > num_row => Last
+# [type: HighsInt, advanced: false, range: {-2, 2147483647}, default: 0]
+glpsol_cost_row_location = 0
+
+# Run iCrash
+# [type: bool, advanced: false, range: {false, true}, default: false]
+icrash = false
+
+# Dualise strategy for iCrash
+# [type: bool, advanced: false, range: {false, true}, default: false]
+icrash_dualize = false
+
+# Strategy for iCrash
+# [type: string, advanced: false, default: "ICA"]
+icrash_strategy = ICA
+
+# iCrash starting weight
+# [type: double, advanced: false, range: [1e-10, 1e+50], default: 0.001]
+icrash_starting_weight = 0.001
+
+# iCrash iterations
+# [type: HighsInt, advanced: false, range: {0, 200}, default: 30]
+icrash_iterations = 30
+
+# iCrash approximate minimization iterations
+# [type: HighsInt, advanced: false, range: {0, 100}, default: 50]
+icrash_approx_iter = 50
+
+# Exact subproblem solution for iCrash
+# [type: bool, advanced: false, range: {false, true}, default: false]
+icrash_exact = false
+
+# Exact subproblem solution for iCrash
+# [type: bool, advanced: false, range: {false, true}, default: false]
+icrash_breakpoints = false
 
 # Write model file
 # [type: string, advanced: false, default: ""]
-write_model_file = "" 
+write_model_file = ""
 
 # Write the model to a file
 # [type: bool, advanced: false, range: {false, true}, default: false]
@@ -264,13 +300,17 @@ mip_rel_gap = 0.0001
 # [type: double, advanced: false, range: [0, inf], default: 1e-06]
 mip_abs_gap = 1e-06
 
+# Iteration limit for IPM solver
+# [type: HighsInt, advanced: false, range: {0, 2147483647}, default: 2147483647]
+ipm_iteration_limit = 2147483647
+
 # Output development messages: 0 => none; 1 => info; 2 => verbose
 # [type: HighsInt, advanced: true, range: {0, 3}, default: 0]
 log_dev_level = 0
 
-# Run the crossover routine for IPX
-# [type: bool, advanced: true, range: {false, true}, default: true]
-run_crossover = true
+# Solve the relaxation of discrete model components
+# [type: bool, advanced: true, range: {false, true}, default: false]
+solve_relaxation = false
 
 # Allow ModelStatus::kUnboundedOrInfeasible
 # [type: bool, advanced: true, range: {false, true}, default: false]
@@ -350,15 +390,15 @@ dual_steepest_edge_weight_error_tolerance = inf
 
 # Threshold on dual steepest edge weight errors for Devex switch
 # [type: double, advanced: true, range: [1, inf], default: 10]
-dual_steepest_edge_weight_log_error_threshold = 10.0
+dual_steepest_edge_weight_log_error_threshold = 10
 
 # Dual simplex cost perturbation multiplier: 0 => no perturbation
 # [type: double, advanced: true, range: [0, inf], default: 1]
-dual_simplex_cost_perturbation_multiplier = 1.0
+dual_simplex_cost_perturbation_multiplier = 1
 
 # Primal simplex bound perturbation multiplier: 0 => no perturbation
 # [type: double, advanced: true, range: [0, inf], default: 1]
-primal_simplex_bound_perturbation_multiplier = 1.0
+primal_simplex_bound_perturbation_multiplier = 1
 
 # Dual simplex pivot growth tolerance
 # [type: double, advanced: true, range: [1e-12, inf], default: 1e-09]
@@ -367,6 +407,14 @@ dual_simplex_pivot_growth_tolerance = 1e-09
 # Matrix factorization pivot threshold for substitutions in presolve
 # [type: double, advanced: true, range: [0.0008, 0.5], default: 0.01]
 presolve_pivot_threshold = 0.01
+
+# Bit mask of presolve rules that are not allowed
+# [type: HighsInt, advanced: true, range: {0, 2147483647}, default: 0]
+presolve_rule_off = 0
+
+# Log effectiveness of presolve rules for LP
+# [type: bool, advanced: true, range: {false, true}, default: true]
+presolve_rule_logging = true
 
 # Maximal fillin allowed for substitutions in presolve
 # [type: HighsInt, advanced: true, range: {0, 2147483647}, default: 10]
