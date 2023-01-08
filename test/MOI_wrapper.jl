@@ -349,6 +349,7 @@ function test_delete_vector()
     model = HiGHS.Optimizer()
     x = MOI.add_variables(model, 3)
     c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:3.0))
+    F, S = MOI.ScalarAffineFunction{Float64}, MOI.GreaterThan{Float64}
     @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 3
     MOI.delete(model, c)
     @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 0
