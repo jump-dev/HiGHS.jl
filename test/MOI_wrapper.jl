@@ -345,6 +345,20 @@ function test_copy_to_sets()
     return
 end
 
+function test_delete_vector()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:3.0))
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 3
+    MOI.delete(model, c)
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 0
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:3.0))
+    MOI.delete(model, [c[1], c[3]])
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 1
+    @test MOI.get(model, MOI.ConstraintSet(), c[2]) == MOI.GreaterThan(2.0)
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
