@@ -1440,7 +1440,7 @@ function MOI.delete(
     ret = Highs_deleteRowsBySet(model, length(rows), rows)
     _check_ret(ret)
     for info in values(model.affine_constraint_info)
-        i = findfirst(Base.Fix2(<, info.row), rows)
+        i = findlast(Base.Fix2(<, info.row), rows)
         if i !== nothing
             info.row -= i
         end
