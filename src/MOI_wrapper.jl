@@ -1432,6 +1432,26 @@ function MOI.delete(
     return
 end
 
+function MOI.delete(
+    model::Optimizer,
+    c::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}},
+) where {S<:_SCALAR_SETS}
+    rows = sort(row.(model, c))
+    ret = Highs_deleteRowsBySet(model, length(rows), rows)
+    _check_ret(ret)
+    for info in values(model.affine_constraint_info)
+        i = findlast(Base.Fix2(<, info.row), rows)
+        if i !== nothing
+            info.row -= i
+        end
+    end
+    for ci in c
+        delete!(model.affine_constraint_info, _ConstraintKey(ci.value))
+    end
+    model.name_to_constraint_index = nothing
+    return
+end
+
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,

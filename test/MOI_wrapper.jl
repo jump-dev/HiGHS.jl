@@ -345,6 +345,30 @@ function test_copy_to_sets()
     return
 end
 
+function test_delete_vector()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 5)
+    MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:5.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = sum(Float64(i) * x[i] for i in 1:5)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    F, S = MOI.ScalarAffineFunction{Float64}, MOI.GreaterThan{Float64}
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 5
+    MOI.delete(model, c)
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 0
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:5.0))
+    MOI.delete(model, [c[2], c[4]])
+    @test MOI.get(model, MOI.NumberOfConstraints{F,S}()) == 3
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) ≈ 1^2 + 3^2 + 5^2
+    MOI.set.(model, MOI.ConstraintSet(), c[1:2:5], MOI.GreaterThan(1.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) ≈ 1 + 3 + 5
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
