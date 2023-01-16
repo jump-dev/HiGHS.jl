@@ -479,6 +479,19 @@ _highs_option_type(::AbstractFloat) = kHighsOptionTypeDouble
 _highs_option_type(::String) = kHighsOptionTypeString
 _highs_option_type(::Any) = HighsInt(-1)
 
+function _type_for_highs_option(k)
+    if k == kHighsOptionTypeBool
+        return Bool
+    elseif k == kHighsOptionTypeInt
+        return Integer
+    elseif k == kHighsOptionTypeDouble
+        return AbstractFloat
+    else
+        @assert k == 3
+        return String
+    end
+end
+
 function _set_option(model::Optimizer, option::String, value::Bool)
     return Highs_setBoolOptionValue(model, option, HighsInt(value))
 end
@@ -505,7 +518,8 @@ function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
             MOI.SetAttributeNotAllowed(
                 param,
                 "\n\nInvalid value `$(value)::$(typeof(value))` for option " *
-                "\"$(param.name)\".\n\n",
+                "\"$(param.name)\", expected a value of type " *
+                "`$(_type_for_highs_option(typeP[]))`.\n\n",
             ),
         )
     end

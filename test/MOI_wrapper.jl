@@ -192,17 +192,30 @@ end
 
 function test_option_unknown_option()
     model = HiGHS.Optimizer()
-    err = MOI.SetAttributeNotAllowed
-    @test_throws(
-        err,
-        MOI.set(model, MOI.RawOptimizerAttribute("write_solution_to_file"), 1),
+    param = MOI.RawOptimizerAttribute("write_solution_to_file")
+    err = MOI.SetAttributeNotAllowed(
+        param,
+        "\n\nInvalid value `1::Int64` for option \"write_solution_to_file\", expected a value of type `Bool`.\n\n",
     )
-    @test_throws(
-        err,
-        MOI.set(model, MOI.RawOptimizerAttribute("simplex_strategy"), "on"),
+    @test_throws(err, MOI.set(model, param, 1))
+    param = MOI.RawOptimizerAttribute("simplex_strategy")
+    err = MOI.SetAttributeNotAllowed(
+        param,
+        "\n\nInvalid value `on::String` for option \"simplex_strategy\", expected a value of type `Integer`.\n\n",
     )
-    @test_throws err MOI.set(model, MOI.RawOptimizerAttribute("time_limit"), 1)
-    @test_throws err MOI.set(model, MOI.RawOptimizerAttribute("presolve"), 1)
+    @test_throws(err, MOI.set(model, param, "on"))
+    param = MOI.RawOptimizerAttribute("time_limit")
+    err = MOI.SetAttributeNotAllowed(
+        param,
+        "\n\nInvalid value `1::Int64` for option \"time_limit\", expected a value of type `AbstractFloat`.\n\n",
+    )
+    @test_throws err MOI.set(model, param, 1)
+    param = MOI.RawOptimizerAttribute("presolve")
+    err = MOI.SetAttributeNotAllowed(
+        param,
+        "\n\nInvalid value `1::Int64` for option \"presolve\", expected a value of type `String`.\n\n",
+    )
+    @test_throws err MOI.set(model, param, 1)
     return
 end
 
@@ -367,6 +380,14 @@ function test_delete_vector()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) ≈ 1 + 3 + 5
     return
+end
+
+function test_option_type()
+    for x in ["1", 1.0, 1, true]
+        k = HiGHS._highs_option_type(x)
+        T = HiGHS._type_for_highs_option(k)
+        @test x isa T
+    end
 end
 
 end
