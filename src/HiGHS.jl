@@ -26,34 +26,36 @@ for sym in names(@__MODULE__, all = true)
     end
 end
 
-
 import SnoopPrecompile
 
 SnoopPrecompile.@precompile_setup begin
+    __init__()
     SnoopPrecompile.@precompile_all_calls begin
-        __init__()
-        src = MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}())
-        dest = MOI.instantiate(HiGHS.Optimizer; with_bridge_type = Float64)
-        model = MOI.Utilities.CachingOptimizer(src, dest)
-        MOI.set(model, MOI.Silent(), true)
-        x = MOI.add_variables(model, 3)
-        MOI.add_constraint(model, x[1], MOI.ZeroOne())
-        MOI.add_constraint(model, x[2], MOI.Integer())
-        MOI.add_constraint(model, x[1], MOI.GreaterThan(0.0))
-        MOI.add_constraint(model, x[2], MOI.LessThan(0.0))
-        MOI.add_constraint(model, x[3], MOI.EqualTo(0.0))
-        f = 1.0 * x[1] + x[2] + x[3]
-        MOI.add_constraint(model, f, MOI.GreaterThan(0.0))
-        MOI.add_constraint(model, f, MOI.LessThan(0.0))
-        MOI.add_constraint(model, f, MOI.EqualTo(0.0))
-        y, _ = MOI.add_constrained_variables(model, MOI.Nonnegatives(2))
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
-        MOI.optimize!(model)
-        MOI.get(model, MOI.TerminationStatus())
-        MOI.get(model, MOI.PrimalStatus())
-        MOI.get(model, MOI.DualStatus())
-        MOI.get(model, MOI.VariablePrimal(), x)
+        let
+            model = MOI.Utilities.CachingOptimizer(
+                MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+                MOI.instantiate(HiGHS.Optimizer; with_bridge_type = Float64),
+            )
+            MOI.set(model, MOI.Silent(), true)
+            x = MOI.add_variables(model, 3)
+            MOI.add_constraint(model, x[1], MOI.ZeroOne())
+            MOI.add_constraint(model, x[2], MOI.Integer())
+            MOI.add_constraint(model, x[1], MOI.GreaterThan(0.0))
+            MOI.add_constraint(model, x[2], MOI.LessThan(0.0))
+            MOI.add_constraint(model, x[3], MOI.EqualTo(0.0))
+            f = 1.0 * x[1] + x[2] + x[3]
+            MOI.add_constraint(model, f, MOI.GreaterThan(0.0))
+            MOI.add_constraint(model, f, MOI.LessThan(0.0))
+            MOI.add_constraint(model, f, MOI.EqualTo(0.0))
+            y, _ = MOI.add_constrained_variables(model, MOI.Nonnegatives(2))
+            MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+            MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+            MOI.optimize!(model)
+            MOI.get(model, MOI.TerminationStatus())
+            MOI.get(model, MOI.PrimalStatus())
+            MOI.get(model, MOI.DualStatus())
+            MOI.get(model, MOI.VariablePrimal(), x)
+        end
     end
 end
 
