@@ -928,6 +928,7 @@ function MOI.set(
     )
     _check_ret(ret)
     model.hessian = Q
+    model.is_objective_function_set = true
     return
 end
 

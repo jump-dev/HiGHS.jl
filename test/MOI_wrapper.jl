@@ -390,6 +390,20 @@ function test_option_type()
     end
 end
 
+function test_quadratic_sets_objective()
+    model = HiGHS.Optimizer()
+    MOI.Utilities.loadfromstring!(
+        model,
+        """
+        variables: x
+        minobjective: 1.0 * x * x
+        """,
+    )
+    attr = MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}}()
+    @test attr in MOI.get(model, MOI.ListOfModelAttributesSet())
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
