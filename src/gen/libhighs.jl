@@ -134,6 +134,78 @@ function Highs_destroy(highs)
 end
 
 """
+    Highs_version()
+
+Return the HiGHS version number vX.Y.Z
+
+### Returns
+the HiGHS version as a char*
+"""
+function Highs_version()
+    ccall((:Highs_version, libhighs), Ptr{Cchar}, ())
+end
+
+"""
+    Highs_versionMajor()
+
+Return the HiGHS major version number
+
+### Returns
+the HiGHS major version number
+"""
+function Highs_versionMajor()
+    ccall((:Highs_versionMajor, libhighs), HighsInt, ())
+end
+
+"""
+    Highs_versionMinor()
+
+Return the HiGHS minor version number
+
+### Returns
+the HiGHS minor version number
+"""
+function Highs_versionMinor()
+    ccall((:Highs_versionMinor, libhighs), HighsInt, ())
+end
+
+"""
+    Highs_versionPatch()
+
+Return the HiGHS patch version number
+
+### Returns
+the HiGHS patch version number
+"""
+function Highs_versionPatch()
+    ccall((:Highs_versionPatch, libhighs), HighsInt, ())
+end
+
+"""
+    Highs_githash()
+
+Return the HiGHS githash
+
+### Returns
+the HiGHS githash
+"""
+function Highs_githash()
+    ccall((:Highs_githash, libhighs), Ptr{Cchar}, ())
+end
+
+"""
+    Highs_compilationDate()
+
+Return the HiGHS compilation date
+
+### Returns
+the HiGHS compilation date
+"""
+function Highs_compilationDate()
+    ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
+end
+
+"""
     Highs_readModel(highs, filename)
 
 Read a model from `filename` into `highs`.
@@ -380,6 +452,40 @@ function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
 end
 
 """
+    Highs_passRowName(highs, row, name)
+
+Pass the name of a row
+
+### Parameters
+* `row`: the row for which the name is supplied
+
+* `name`: the name of the row
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_passRowName(highs, row, name)
+    ccall((:Highs_passRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
+end
+
+"""
+    Highs_passColName(highs, col, name)
+
+Pass the name of a column
+
+### Parameters
+* `col`: the column for which the name is supplied
+
+* `name`: the name of the column
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_passColName(highs, col, name)
+    ccall((:Highs_passColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+end
+
+"""
     Highs_setBoolOptionValue(highs, option, value)
 
 Set a boolean-valued option.
@@ -602,6 +708,121 @@ function Highs_writeOptionsDeviations(highs, filename)
 end
 
 """
+    Highs_getNumOptions(highs)
+
+Return the number of options
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+"""
+function Highs_getNumOptions(highs)
+    ccall((:Highs_getNumOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_getOptionName(highs, index, name)
+
+Get the name of an option identified by index
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `index`: the index of the option
+
+* `name`: the name of the option
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getOptionName(highs, index, name)
+    ccall((:Highs_getOptionName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Ptr{Cchar}}), highs, index, name)
+end
+
+"""
+    Highs_getBoolOptionValues(highs, option, current_value, default_value)
+
+Get the current and default values of a bool option
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `current_value`: a pointer to the current value of the option
+
+* `default_value`: a pointer to the default value of the option
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getBoolOptionValues(highs, option, current_value, default_value)
+    ccall((:Highs_getBoolOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, default_value)
+end
+
+"""
+    Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
+
+Get the current and default values of an int option
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `current_value`: a pointer to the current value of the option
+
+* `min_value`: a pointer to the minimum value of the option
+
+* `max_value`: a pointer to the maximum value of the option
+
+* `default_value`: a pointer to the default value of the option
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
+    ccall((:Highs_getIntOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, min_value, max_value, default_value)
+end
+
+"""
+    Highs_getDoubleOptionValues(highs, option, current_value, min_value, max_value, default_value)
+
+Get the current and default values of a double option
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `current_value`: a pointer to the current value of the option
+
+* `min_value`: a pointer to the minimum value of the option
+
+* `max_value`: a pointer to the maximum value of the option
+
+* `default_value`: a pointer to the default value of the option
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getDoubleOptionValues(highs, option, current_value, min_value, max_value, default_value)
+    ccall((:Highs_getDoubleOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, option, current_value, min_value, max_value, default_value)
+end
+
+"""
+    Highs_getStringOptionValues(highs, option, current_value, default_value)
+
+Get the current and default values of a string option
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `current_value`: a pointer to the current value of the option
+
+* `default_value`: a pointer to the default value of the option
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getStringOptionValues(highs, option, current_value, default_value)
+    ccall((:Highs_getStringOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}, Ptr{Cchar}), highs, option, current_value, default_value)
+end
+
+"""
     Highs_getIntInfoValue(highs, info, value)
 
 Get an int-valued info value.
@@ -656,6 +877,25 @@ a `kHighsStatus` constant indicating whether the call succeeded
 """
 function Highs_getInt64InfoValue(highs, info, value)
     ccall((:Highs_getInt64InfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Int64}), highs, info, value)
+end
+
+"""
+    Highs_getInfoType(highs, info, type)
+
+Get the type expected by an info item.
+
+### Parameters
+* `highs`: a pointer to the Highs instance
+
+* `info`: the name of the info item
+
+* `type`: int in which the corresponding `kHighsOptionType` constant is stored
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getInfoType(highs, info, type)
+    ccall((:Highs_getInfoType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, type)
 end
 
 """
@@ -1770,6 +2010,57 @@ function Highs_getRowsByMask(highs, mask, num_row, lower, upper, num_nz, matrix_
 end
 
 """
+    Highs_getRowName(highs, row, name)
+
+Get the name of a row
+
+### Parameters
+* `row`: the row for which the name is required
+
+* `name`: the name of the row
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getRowName(highs, row, name)
+    ccall((:Highs_getRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
+end
+
+"""
+    Highs_getColName(highs, col, name)
+
+Get the name of a column
+
+### Parameters
+* `col`: the column for which the name is required
+
+* `name`: the name of the column
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getColName(highs, col, name)
+    ccall((:Highs_getColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+end
+
+"""
+    Highs_getColIntegrality(highs, col, integrality)
+
+Get the integrality of a column
+
+### Parameters
+* `col`: the column for which the name is required
+
+* `integrality`: the integrality of the column
+
+### Returns
+a `kHighsStatus` constant indicating whether the call succeeded
+"""
+function Highs_getColIntegrality(highs, col, integrality)
+    ccall((:Highs_getColIntegrality, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, col, integrality)
+end
+
+"""
     Highs_deleteColsByRange(highs, from_col, to_col)
 
 Delete multiple adjacent columns.
@@ -2155,20 +2446,23 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const HIGHS_GITHASH = "e5004072b-dirty"
+const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
+
+const HIGHS_GITHASH = "93f1876e4"
 
 const HIGHS_COMPILATION_DATE = "1970-01-01"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 3
+const HIGHS_VERSION_MINOR = 5
 
-const HIGHS_VERSION_PATCH = 0
+const HIGHS_VERSION_PATCH = 1
 
 const HIGHS_DIR = "/workspace/srcdir/HiGHS"
 
 const HIGHSINT_FORMAT = "d"
 
+const kHighsMaximumStringLength = HighsInt(512)
 const kHighsStatusError = HighsInt(-1)
 const kHighsStatusOk = HighsInt(0)
 const kHighsStatusWarning = HighsInt(1)
@@ -2219,6 +2513,7 @@ const kHighsModelStatusObjectiveTarget = HighsInt(12)
 const kHighsModelStatusTimeLimit = HighsInt(13)
 const kHighsModelStatusIterationLimit = HighsInt(14)
 const kHighsModelStatusUnknown = HighsInt(15)
+const kHighsModelStatusSolutionLimit = HighsInt(16)
 const kHighsBasisStatusLower = HighsInt(0)
 const kHighsBasisStatusBasic = HighsInt(1)
 const kHighsBasisStatusUpper = HighsInt(2)
