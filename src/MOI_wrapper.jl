@@ -3,7 +3,6 @@
 # Use of this source code is governed by an MIT-style license that can be found
 # in the LICENSE.md file or at https://opensource.org/licenses/MIT.
 
-const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
 @enum(
@@ -316,7 +315,8 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, model::Optimizer) = model.inner
 MOI.get(::Optimizer, ::MOI.SolverName) = "HiGHS"
 
 function MOI.get(::Optimizer, ::MOI.SolverVersion)
-    return "v$(HIGHS_VERSION_MAJOR).$(HIGHS_VERSION_MINOR).$(HIGHS_VERSION_PATCH)"
+    X, Y, Z = Highs_versionMajor(), Highs_versionMinor(), Highs_versionPatch()
+    return "v$X.$Y.$Z"
 end
 
 function _check_ret(ret::HighsInt)
@@ -552,7 +552,7 @@ function _get_double_option(model::Optimizer, option::String)
 end
 
 function _get_string_option(model::Optimizer, option::String)
-    buffer = Vector{Cchar}(undef, 1024)
+    buffer = Vector{Cchar}(undef, kHighsMaximumStringLength)
     bufferP = pointer(buffer)
     GC.@preserve buffer begin
         ret = Highs_getStringOptionValue(model, option, bufferP)
@@ -1790,9 +1790,11 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
         return MOI.TIME_LIMIT
     elseif model.solution.model_status == kHighsModelStatusIterationLimit
         return MOI.ITERATION_LIMIT
-    else
-        @assert model.solution.model_status == kHighsModelStatusUnknown
+    elseif model.solution.model_status == kHighsModelStatusUnknown
         return MOI.OTHER_ERROR
+    else
+        @assert model.solution.model_status == kHighsModelStatusSolutionLimit
+        return MOI.SOLUTION_LIMIT
     end
 end
 

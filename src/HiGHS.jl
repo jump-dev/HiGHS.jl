@@ -6,7 +6,7 @@
 module HiGHS
 
 import HiGHS_jll
-import MathOptInterface
+import MathOptInterface as MOI
 import SparseArrays
 
 function __init__()
