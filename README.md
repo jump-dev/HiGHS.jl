@@ -3,7 +3,8 @@
 [![Build Status](https://github.com/jump-dev/HiGHS.jl/workflows/CI/badge.svg?branch=master)](https://github.com/jump-dev/HiGHS.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/jump-dev/HiGHS.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jump-dev/HiGHS.jl)
 
-HiGHS.jl is a wrapper for the [HiGHS](https://highs.dev) solver.
+[HiGHS.jl](https://github.com/jump-dev/HiGHS.jl) is a wrapper for the
+[HiGHS](https://highs.dev) solver.
 
 It has two components:
  - a thin wrapper around the complete C API
@@ -11,6 +12,18 @@ It has two components:
 
 The C API can be accessed via `HiGHS.Highs_xxx` functions, where the names and
 arguments are identical to the C API.
+
+## Affiliation
+
+This wrapper is maintained by the JuMP community and is not an official project
+of the HiGHS developers.
+
+## License
+
+`HiGHS.jl` is licensed under the [MIT License](https://github.com/jump-dev/HiGHS.jl/blob/master/LICENSE.md).
+
+The underlying solver, [ERGO-Code/HiGHS](https://github.com/ERGO-Code/HiGHS), is
+licensed under the [MIT license](https://github.com/ERGO-Code/HiGHS/blob/master/LICENSE).
 
 ## Installation
 
@@ -26,27 +39,50 @@ install the HiGHS binaries. (You do not need to install HiGHS separately.)
 To use a custom binary, read the [Custom solver binaries](https://jump.dev/JuMP.jl/stable/developers/custom_solver_binaries/)
 section of the JuMP documentation.
 
-## Issues and feedback
-
-To report a problem (e.g., incorrect results, or a crash of the solver),
-or make a suggestion for how to improve HiGHS, please [file a GitHub issue](https://github.com/jump-dev/HiGHS.jl).
-
-If you use HiGHS from JuMP, use `JuMP.write_to_file(model, "filename.mps")`
-to write your model an MPS file, then upload the MPS file to [https://gist.github.com](https://gist.github.com)
-and provide a link to the gist in the GitHub issue.
-
 ## Use with JuMP
 
-Pass `HiGHS.Optimizer` to `JuMP.Model` to create a JuMP model with HiGHS as the
-optimizer. Set options using `set_optimizer_attribute`.
+To use HiGHS with [JuMP](https://github.com/jump-dev/JuMP.jl), use
+`HiGHS.Optimizer`:
 
 ```julia
-using JuMP
-import HiGHS
+using JuMP, HiGHS
 model = Model(HiGHS.Optimizer)
-set_optimizer_attribute(model, "presolve", "on")
-set_optimizer_attribute(model, "time_limit", 60.0)
+set_attribute(model, "presolve", "on")
+set_attribute(model, "time_limit", 60.0)
 ```
+
+## MathOptInterface API
+
+The HiGHS optimizer supports the following constraints and attributes.
+
+List of supported objective functions:
+
+ * [`MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}`](@ref)
+ * [`MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}}`](@ref)
+
+List of supported variable types:
+
+ * [`MOI.Reals`](@ref)
+
+List of supported constraint types:
+
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.EqualTo{Float64}`](@ref)
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.GreaterThan{Float64}`](@ref)
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.Interval{Float64}`](@ref)
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.LessThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.EqualTo{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.GreaterThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Integer`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Interval{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.LessThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Semicontinuous{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Semiinteger{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.ZeroOne`](@ref)
+
+List of supported model attributes:
+
+ * [`MOI.Name()`](@ref)
+ * [`MOI.ObjectiveSense()`](@ref)
 
 ## Options
 
