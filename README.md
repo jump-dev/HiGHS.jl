@@ -7,11 +7,9 @@
 [HiGHS](https://highs.dev) solver.
 
 It has two components:
+
  - a thin wrapper around the complete C API
  - an interface to [MathOptInterface](https://github.com/jump-dev/MathOptInterface.jl)
-
-The C API can be accessed via `HiGHS.Highs_xxx` functions, where the names and
-arguments are identical to the C API.
 
 ## Affiliation
 
@@ -34,15 +32,14 @@ Pkg.add("HiGHS")
 ```
 
 In addition to installing the HiGHS.jl package, this will also download and
-install the HiGHS binaries. (You do not need to install HiGHS separately.)
+install the HiGHS binaries. You do not need to install HiGHS separately.
 
 To use a custom binary, read the [Custom solver binaries](https://jump.dev/JuMP.jl/stable/developers/custom_solver_binaries/)
 section of the JuMP documentation.
 
 ## Use with JuMP
 
-To use HiGHS with [JuMP](https://github.com/jump-dev/JuMP.jl), use
-`HiGHS.Optimizer`:
+To use HiGHS with JuMP, use `HiGHS.Optimizer`:
 
 ```julia
 using JuMP, HiGHS
@@ -88,3 +85,8 @@ List of supported model attributes:
 
 See the [HiGHS documentation](https://ergo-code.github.io/HiGHS/dev/options/definitions/)
 for a full list of the available options.
+
+## C API
+
+The C API can be accessed via `HiGHS.Highs_xxx` functions, where the names and
+arguments are identical to the C API.
