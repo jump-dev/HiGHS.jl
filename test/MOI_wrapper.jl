@@ -408,7 +408,7 @@ function test_dual_issue_157()
     model = HiGHS.Optimizer()
     x, y = MOI.add_variables(model, 2)
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    f = 2.0*x*x + 1.0*x*y + 1.0*y*y + x + y
+    f = 2.0 * x * x + 1.0 * x * y + 1.0 * y * y + x + y
     MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
     c = MOI.add_constraint(model, 1.0 * x + y, MOI.LessThan(-1.0))
     MOI.optimize!(model)
