@@ -1686,10 +1686,8 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     numRows = Highs_getNumRows(model)
     resize!(x.colvalue, numCols)
     resize!(x.coldual, numCols)
-    resize!(x.colstatus, numCols)
     resize!(x.rowvalue, numRows)
     resize!(x.rowdual, numRows)
-    resize!(x.rowstatus, numRows)
     x.model_status = Highs_getModelStatus(model)
     statusP = Ref{HighsInt}()
     if x.model_status == kHighsModelStatusInfeasible
@@ -1713,7 +1711,12 @@ function _store_solution(model::Optimizer, ret::HighsInt)
                 x.rowvalue,
                 x.rowdual,
             )
-            Highs_getBasis(model, x.colstatus, x.rowstatus)
+            if model.hessian === nothing
+                # No basis is present in a QP.
+                resize!(x.colstatus, numCols)
+                resize!(x.rowstatus, numRows)
+                Highs_getBasis(model, x.colstatus, x.rowstatus)
+            end
         end
     end
     return
@@ -2048,7 +2051,15 @@ function _signed_dual(
     return status == kHighsBasisStatusLower ? dual : 0.0
 end
 
-_signed_dual(dual::Float64, ::Any, ::HighsInt) = dual
+function _signed_dual(dual::Float64, ::Type{<:MOI.LessThan}, ::Nothing)
+    return min(dual, 0.0)
+end
+
+function _signed_dual(dual::Float64, ::Type{<:MOI.GreaterThan}, ::Nothing)
+    return max(dual, 0.0)
+end
+
+_signed_dual(dual::Float64, ::Any, ::Any) = dual
 
 function MOI.get(
     model::Optimizer,
@@ -2061,7 +2072,7 @@ function MOI.get(
         return _signed_dual(_farkas_variable_dual(model, col), S)
     end
     dual = _sense_corrector(model) * model.solution.coldual[col+1]
-    stat = model.solution.colstatus[col+1]
+    stat = get(model.solution.colstatus, col + 1, nothing)
     return _signed_dual(dual, S, stat)
 end
 
@@ -2076,7 +2087,7 @@ function MOI.get(
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(dual, S)
     end
-    stat = model.solution.rowstatus[r]
+    stat = get(model.solution.rowstatus, r, nothing)
     return _signed_dual(_sense_corrector(model) * dual, S, stat)
 end
 
@@ -2108,8 +2119,10 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
     MOI.check_result_index_bounds(model, attr)
-    stat = model.solution.rowstatus[row(model, c)+1]
-    if stat == kHighsBasisStatusLower
+    stat = get(model.solution.rowstatus, row(model, c) + 1, nothing)
+    if stat === nothing
+        throw(MOI.GetAttributeNotAllowed(attr, "no basis is present"))
+    elseif stat == kHighsBasisStatusLower
         return _nonbasic_status(stat, S)
     elseif stat == kHighsBasisStatusBasic
         return MOI.BASIC
@@ -2126,8 +2139,10 @@ function MOI.get(
     x::MOI.VariableIndex,
 )
     MOI.check_result_index_bounds(model, attr)
-    stat = model.solution.colstatus[column(model, x)+1]
-    if stat == kHighsBasisStatusLower
+    stat = get(model.solution.colstatus, column(model, x) + 1, nothing)
+    if stat === nothing
+        throw(MOI.GetAttributeNotAllowed(attr, "no basis is present"))
+    elseif stat == kHighsBasisStatusLower
         return MOI.NONBASIC_AT_LOWER
     elseif stat == kHighsBasisStatusBasic
         return MOI.BASIC
