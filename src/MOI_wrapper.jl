@@ -304,6 +304,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             _Solution(),
         )
         MOI.empty!(model)
+        if Sys.iswindows()
+            # Set number of threads to 1 by default on Windows. This fixes a
+            # hang in some versions of Highs_jll. For discussion, see
+            # https://github.com/ERGO-Code/HiGHS/issues/1257
+            MOI.set(model, MOI.NumberOfThreads(), 1)
+        end
         finalizer(Highs_destroy, model)
         return model
     end
