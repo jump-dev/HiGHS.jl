@@ -5,13 +5,13 @@ version = "1.5.1"
 [deps]
 HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
-SnoopPrecompile = "66db9d55-30c0-4569-8b51-7e840670fc0c"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 HiGHS_jll = "=1.5.1"
 MathOptInterface = "1"
-SnoopPrecompile = "1"
+PrecompileTools = "1"
 julia = "1.6"
 
 [extras]
