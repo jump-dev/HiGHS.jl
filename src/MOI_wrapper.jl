@@ -607,7 +607,8 @@ function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Real)
 end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
-    return MOI.get(model, MOI.RawOptimizerAttribute("time_limit"))
+    value = MOI.get(model, MOI.RawOptimizerAttribute("time_limit"))
+    return value == Inf ? nothing : value
 end
 
 ###
