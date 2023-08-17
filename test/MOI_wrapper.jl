@@ -106,7 +106,7 @@ end
 function test_attributes()
     model = HiGHS.Optimizer()
     @test MOI.get(model, MOI.SolverName()) == "HiGHS"
-    @test MOI.get(model, MOI.TimeLimitSec()) > 10000
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
     MOI.set(model, MOI.TimeLimitSec(), 500)
     @test MOI.get(model, MOI.TimeLimitSec()) == 500.0
     @test MOI.get(model, MOI.RawSolver()) == model
@@ -421,6 +421,19 @@ function test_dual_issue_157()
         MOI.GetAttributeNotAllowed,
         MOI.get(model, MOI.VariableBasisStatus(), x),
     )
+    return
+end
+
+function test_attribute_TimeLimitSec()
+    model = HiGHS.Optimizer()
+    @test MOI.supports(model, MOI.TimeLimitSec())
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
+    MOI.set(model, MOI.TimeLimitSec(), 0.0)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 0.0
+    MOI.set(model, MOI.TimeLimitSec(), nothing)
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
+    MOI.set(model, MOI.TimeLimitSec(), 1.0)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 1.0
     return
 end
 
