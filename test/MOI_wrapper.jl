@@ -106,7 +106,7 @@ end
 function test_attributes()
     model = HiGHS.Optimizer()
     @test MOI.get(model, MOI.SolverName()) == "HiGHS"
-    @test MOI.get(model, MOI.TimeLimitSec()) > 10000
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
     MOI.set(model, MOI.TimeLimitSec(), 500)
     @test MOI.get(model, MOI.TimeLimitSec()) == 500.0
     @test MOI.get(model, MOI.RawSolver()) == model
