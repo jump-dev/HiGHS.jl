@@ -612,6 +612,42 @@ function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
 end
 
 ###
+### MOI.AbsoluteGapTolerance
+###
+
+MOI.supports(::Optimizer, ::MOI.AbsoluteGapTolerance) = true
+
+function MOI.set(model::Optimizer, ::MOI.AbsoluteGapTolerance, limit::Real)
+    return MOI.set(
+        model,
+        MOI.RawOptimizerAttribute("mip_abs_gap"),
+        Float64(limit),
+    )
+end
+
+function MOI.get(model::Optimizer, ::MOI.AbsoluteGapTolerance)
+    return MOI.get(model, MOI.RawOptimizerAttribute("mip_abs_gap"))
+end
+
+###
+### MOI.RelativeGapTolerance
+###
+
+MOI.supports(::Optimizer, ::MOI.RelativeGapTolerance) = true
+
+function MOI.set(model::Optimizer, ::MOI.RelativeGapTolerance, limit::Real)
+    return MOI.set(
+        model,
+        MOI.RawOptimizerAttribute("mip_rel_gap"),
+        Float64(limit),
+    )
+end
+
+function MOI.get(model::Optimizer, ::MOI.RelativeGapTolerance)
+    return MOI.get(model, MOI.RawOptimizerAttribute("mip_rel_gap"))
+end
+
+###
 ### MOI.Silent
 ###
 
