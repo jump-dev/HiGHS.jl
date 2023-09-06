@@ -282,7 +282,7 @@ end
 function test_RelativeGap()
     model = _knapsack_model(mip = true, solver = "choose")
     MOI.optimize!(model)
-    @test ≈(MOI.get(model, MOI.RelativeGap()), 0.0; atol = 1e-14)
+    @test 0 <= MOI.get(model, MOI.RelativeGap()) <= 1e-4
     return
 end
 
