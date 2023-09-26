@@ -437,6 +437,25 @@ function test_attribute_TimeLimitSec()
     return
 end
 
+function test_copy_to_bug_172()
+    model = MOI.Utilities.Model{Float64}()
+    x = MOI.add_variable(model)
+    F = MOI.ScalarAffineFunction{Float64}
+    c1 = MOI.add_constraint(model, 2.0 * x, MOI.GreaterThan(0.0))
+    c2 = MOI.add_constraint(model, zero(F), MOI.GreaterThan(0.0))
+    c3 = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(1.0))
+    h = HiGHS.Optimizer()
+    MOI.set(h, MOI.Silent(), true)
+    index_map = MOI.copy_to(h, model)
+    y = index_map[x]
+    @test MOI.get(h, MOI.ConstraintFunction(), index_map[c1]) ≈ 2.0 * y
+    @test MOI.get(h, MOI.ConstraintFunction(), index_map[c2]) ≈ g
+    @test MOI.get(h, MOI.ConstraintFunction(), index_map[c3]) ≈ 1.0 * y
+    MOI.optimize!(h)
+    @test MOI.get(h, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
 end
 
 TestMOIHighs.runtests()

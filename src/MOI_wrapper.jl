@@ -2490,7 +2490,7 @@ function _extract_row_data(
     ::Type{S},
 ) where {S}
     F = MOI.ScalarAffineFunction{Float64}
-    row = length(I) == 0 ? 1 : I[end] + 1
+    row = length(rowlower) + 1
     list = _constraints(src, MOI.ScalarAffineFunction{Float64}, S)
     numrows = length(list)
     _add_sizehint!(rowlower, numrows)
