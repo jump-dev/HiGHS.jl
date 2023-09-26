@@ -449,7 +449,7 @@ function test_copy_to_bug_172()
     index_map = MOI.copy_to(h, model)
     y = index_map[x]
     @test MOI.get(h, MOI.ConstraintFunction(), index_map[c1]) ≈ 2.0 * y
-    @test MOI.get(h, MOI.ConstraintFunction(), index_map[c2]) ≈ g
+    @test MOI.get(h, MOI.ConstraintFunction(), index_map[c2]) ≈ zero(F)
     @test MOI.get(h, MOI.ConstraintFunction(), index_map[c3]) ≈ 1.0 * y
     @test MOI.get(h, MOI.ConstraintSet(), index_map[c1]) == MOI.GreaterThan(0.0)
     @test MOI.get(h, MOI.ConstraintSet(), index_map[c2]) == MOI.GreaterThan(0.0)
