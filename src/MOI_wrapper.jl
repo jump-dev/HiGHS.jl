@@ -648,6 +648,25 @@ function MOI.get(model::Optimizer, ::MOI.RelativeGapTolerance)
 end
 
 ###
+### MOI.ObjectiveLimit
+###
+
+MOI.supports(::Optimizer, ::MOI.ObjectiveLimit) = true
+
+function MOI.set(model::Optimizer, ::MOI.ObjectiveLimit, limit::Real)
+    return MOI.set(
+        model,
+        MOI.RawOptimizerAttribute("objective_target"),
+        Float64(limit),
+    )
+end
+
+function MOI.get(model::Optimizer, ::MOI.ObjectiveLimit)
+    return MOI.get(model, MOI.RawOptimizerAttribute("objective_target"))
+end
+
+
+###
 ### MOI.Silent
 ###
 
