@@ -9,7 +9,7 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-HiGHS_jll = "=1.5.1, =1.5.3"
+HiGHS_jll = "=1.5.1, =1.5.3, =1.6.0"
 MathOptInterface = "1.7"
 PrecompileTools = "1"
 julia = "1.6"
