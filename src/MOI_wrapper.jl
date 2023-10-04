@@ -1792,6 +1792,8 @@ function MOI.optimize!(model::Optimizer)
         )
     end
     _set_variable_primal_start(model)
+    ret = Highs_zeroAllClocks(model)
+    _check_ret(ret)
     ret = Highs_run(model)
     _store_solution(model, ret)
     # TODO(odow): resetting the bounds here invalidates previously stored
