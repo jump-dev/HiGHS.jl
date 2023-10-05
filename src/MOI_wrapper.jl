@@ -1812,7 +1812,14 @@ function MOI.optimize!(model::Optimizer)
     _set_variable_primal_start(model)
     ret = Highs_zeroAllClocks(model)
     _check_ret(ret)
-    ret = Highs_run(model)
+    # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
+    GC.@preserve model begin
+        # allow Julia to GC while this thread is in `Highs_run`
+        gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+        ret = Highs_run(model)
+        # leave GC-safe region, waiting for GC to complete if it's running
+        ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
+    end
     _store_solution(model, ret)
     # TODO(odow): resetting the bounds here invalidates previously stored
     #             solutions.
