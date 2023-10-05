@@ -1812,7 +1812,6 @@ function MOI.optimize!(model::Optimizer)
     _set_variable_primal_start(model)
     ret = Highs_zeroAllClocks(model)
     _check_ret(ret)
-
     # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
     GC.@preserve model begin
         # allow Julia to GC while this thread is in `Highs_run`
