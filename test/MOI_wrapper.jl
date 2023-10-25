@@ -459,6 +459,23 @@ function test_copy_to_bug_172()
     return
 end
 
+function test_relax_integrality_after_solve()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.LessThan(2.0))
+    c = MOI.add_constraint(model, x, MOI.ZeroOne())
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), 1.0; atol = 1e-6)
+    MOI.delete(model, c)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), 2.0; atol = 1e-6)
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
