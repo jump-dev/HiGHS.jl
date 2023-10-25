@@ -654,15 +654,19 @@ end
 MOI.supports(::Optimizer, ::MOI.ObjectiveLimit) = true
 
 function MOI.set(model::Optimizer, ::MOI.ObjectiveLimit, limit::Real)
-    return MOI.set(
-        model,
-        MOI.RawOptimizerAttribute("objective_target"),
-        Float64(limit),
-    )
+    attr = MOI.RawOptimizerAttribute("objective_target")
+    MOI.set(model, attr, Float64(limit))
+    return
+end
+
+function MOI.set(model::Optimizer, ::MOI.ObjectiveLimit, ::Nothing)
+    MOI.set(model, MOI.ObjectiveLimit(), -Inf)
+    return
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveLimit)
-    return MOI.get(model, MOI.RawOptimizerAttribute("objective_target"))
+    value = MOI.get(model, MOI.RawOptimizerAttribute("objective_target"))
+    return value == -Inf ? nothing : value
 end
 
 ###
