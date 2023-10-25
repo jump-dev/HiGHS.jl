@@ -2342,6 +2342,10 @@ function MOI.delete(
     info = _info(model, ci)
     info.type = _TYPE_CONTINUOUS
     Highs_changeColIntegrality(model, info.column, kHighsVarTypeContinuous)
+    # optimize! sets bounds to [0, 1] if not present, so if we delete the
+    # ZeroOne constraint after a call to optimize!, then we need to reset the
+    # bounds.
+    Highs_changeColBounds(model, info.column, info.lower, info.upper)
     delete!(model.binaries, info)
     return
 end
