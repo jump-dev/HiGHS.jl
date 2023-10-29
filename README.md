@@ -90,3 +90,20 @@ for a full list of the available options.
 
 The C API can be accessed via `HiGHS.Highs_xxx` functions, where the names and
 arguments are identical to the C API.
+
+## Threads
+
+HiGHS uses a global scheduler that is shared between threads.
+
+Before changing the number of theads using `MOI.Threads()`, you must call
+`Highs_resetGlobalScheduler(1)`:
+```julia
+using JuMP, HiGHS
+model = Model(HiGHS.Optimizer)
+Highs_resetGlobalScheduler(1)
+set_attribute(model, MOI.NumberOfThreads(), 1)
+```
+
+If modifying the number of HiGHS threads across different Julia threads, be sure
+to read the docstring of `Highs_resetGlobalScheduler`. In particular, resetting
+the scheduler is not thread-safe.
