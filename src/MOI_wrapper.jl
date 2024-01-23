@@ -1055,7 +1055,12 @@ end
 
 function MOI.modify(
     model::Optimizer,
-    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+    ::MOI.ObjectiveFunction{
+        <:Union{
+            MOI.ScalarAffineFunction{Float64},
+            MOI.ScalarQuadraticFunction{Float64},
+        },
+    },
     chg::MOI.ScalarConstantChange{Float64},
 )
     ret = Highs_changeObjectiveOffset(model, chg.new_constant)
@@ -1066,13 +1071,56 @@ end
 
 function MOI.modify(
     model::Optimizer,
-    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+    ::MOI.ObjectiveFunction{
+        <:Union{
+            MOI.ScalarAffineFunction{Float64},
+            MOI.ScalarQuadraticFunction{Float64},
+        },
+    },
     chg::MOI.ScalarCoefficientChange{Float64},
 )
     ret = Highs_changeColCost(
         model,
         column(model, chg.variable),
         chg.new_coefficient,
+    )
+    _check_ret(ret)
+    model.is_objective_function_set = true
+    return
+end
+
+function MOI.modify(
+    model::Optimizer,
+    attr::MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}},
+    chg::MOI.ScalarQuadraticCoefficientChange{Float64},
+)
+    if model.hessian === nothing
+        f = MOI.get(
+            model,
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        )
+        term = MOI.ScalarQuadraticTerm(
+            chg.new_coefficient,
+            chg.variable_1,
+            chg.variable_2,
+        )
+        new_f = MOI.ScalarQuadraticFunction([term], f.terms, f.constant)
+        MOI.set(model, attr, new_f)
+        return
+    end
+    i, j = column(model, chg.variable_1), column(model, chg.variable_2)
+    if i < j
+        j, i = i, j
+    end
+    model.hessian[i+1, j+1] = chg.new_coefficient
+    ret = Highs_passHessian(
+        model,
+        size(model.hessian, 1),
+        length(model.hessian.nzval),
+        kHighsHessianFormatTriangular,
+        model.hessian.colptr .- HighsInt(1),
+        model.hessian.rowval .- HighsInt(1),
+        model.hessian.nzval,
     )
     _check_ret(ret)
     model.is_objective_function_set = true
