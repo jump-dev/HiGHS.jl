@@ -1638,6 +1638,31 @@ function MOI.set(
     return
 end
 
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}},
+    s::Vector{S},
+) where {S<:_SCALAR_SETS}
+    if length(c) != length(s)
+        msg = "number of constraints does not match number of sets"
+        throw(DimensionMismatch(msg))
+    end
+    for ci in c
+        MOI.throw_if_not_valid(model, ci)
+    end
+    N = length(c)
+    rows, lower, upper = zeros(Cint, N), zeros(Cdouble, N), zeros(Cdouble, N)
+    for (i, (ci, si)) in enumerate(zip(c, s))
+        info = _info(model, ci)
+        rows[i] = info.row
+        lower[i], upper[i] = info.lower, info.upper = _bounds(si)
+    end
+    ret = Highs_changeRowsBoundsBySet(model, N, rows, lower, upper)
+    _check_ret(ret)
+    return
+end
+
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintFunction,

@@ -610,11 +610,96 @@ function test_change_col_bounds_by_set_less_than()
     return
 end
 
-function test_change_col_bounds_by_set_less_than()
+function test_change_col_bounds_by_set_equal_to()
     model = HiGHS.Optimizer()
     MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variables(model, 3)
     c = MOI.add_constraint.(model, x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 6; atol = 1e-6)
+    MOI.set(model, MOI.ConstraintSet(), [c[1], c[3]], MOI.EqualTo.([4.0, 5.0]))
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 11; atol = 1e-6)
+    @test MOI.get(model, MOI.ConstraintSet(), c) ==
+          MOI.EqualTo.([4.0, 2.0, 5.0])
+    return
+end
+
+function test_change_row_bounds_by_set_dimension_mismatch()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:3.0))
+    @test_throws(
+        DimensionMismatch,
+        MOI.set(model, MOI.ConstraintSet(), c, MOI.GreaterThan.([4.0, 5.0])),
+    )
+    return
+end
+
+function test_change_row_bounds_by_set_invalid()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    c = MOI.add_constraint(model, 1.0 .* x, MOI.GreaterThan(0.0))
+    c_invalid = typeof(c)(-123456)
+    sets = MOI.GreaterThan.(1.0:2.0)
+    @test_throws(
+        MOI.InvalidIndex(c_invalid),
+        MOI.set(model, MOI.ConstraintSet(), [c, c_invalid], sets),
+    )
+    return
+end
+
+function test_change_row_bounds_by_set_greater_than()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.GreaterThan.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 6; atol = 1e-6)
+    MOI.set(
+        model,
+        MOI.ConstraintSet(),
+        [c[1], c[3]],
+        MOI.GreaterThan.([4.0, 5.0]),
+    )
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 11; atol = 1e-6)
+    @test MOI.get(model, MOI.ConstraintSet(), c) ==
+          MOI.GreaterThan.([4.0, 2.0, 5.0])
+    return
+end
+
+function test_change_row_bounds_by_set_less_than()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.LessThan.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 6; atol = 1e-6)
+    MOI.set(model, MOI.ConstraintSet(), [c[1], c[3]], MOI.LessThan.([4.0, 5.0]))
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 11; atol = 1e-6)
+    @test MOI.get(model, MOI.ConstraintSet(), c) ==
+          MOI.LessThan.([4.0, 2.0, 5.0])
+    return
+end
+
+function test_change_row_bounds_by_set_equal_to()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
     MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     f = 1.0 * x[1] + x[2] + x[3]
     MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
