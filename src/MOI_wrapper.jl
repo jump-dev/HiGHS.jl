@@ -1427,6 +1427,41 @@ function MOI.set(
     return
 end
 
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::Vector{MOI.ConstraintIndex{MOI.VariableIndex,S}},
+    s::Vector{S},
+) where {S<:_SCALAR_SETS}
+    if length(c) != length(s)
+        msg = "number of constraints does not match number of sets"
+        throw(DimensionMismatch(msg))
+    end
+    for ci in c
+        MOI.throw_if_not_valid(model, ci)
+    end
+    N = length(c)
+    columns, lower, upper = zeros(Cint, N), zeros(Cdouble, N), zeros(Cdouble, N)
+    for (i, (ci, si)) in enumerate(zip(c, s))
+        info = _info(model, ci)
+        columns[i] = info.column
+        l, u = _bounds(si)
+        if S == MOI.LessThan{Float64}
+            info.upper = u
+            lower[i], upper[i] = info.lower, u
+        elseif S == MOI.GreaterThan{Float64}
+            info.lower = l
+            lower[i], upper[i] = l, info.upper
+        else
+            lower[i], upper[i] = l, u
+            info.lower, info.upper = l, u
+        end
+    end
+    ret = Highs_changeColsBoundsBySet(model, N, columns, lower, upper)
+    _check_ret(ret)
+    return
+end
+
 function MOI.supports(
     ::Optimizer,
     ::MOI.ConstraintName,
@@ -1600,6 +1635,31 @@ function MOI.set(
     ret = Highs_changeRowBounds(model, info.row, lower, upper)
     _check_ret(ret)
     info.lower, info.upper = lower, upper
+    return
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}},
+    s::Vector{S},
+) where {S<:_SCALAR_SETS}
+    if length(c) != length(s)
+        msg = "number of constraints does not match number of sets"
+        throw(DimensionMismatch(msg))
+    end
+    for ci in c
+        MOI.throw_if_not_valid(model, ci)
+    end
+    N = length(c)
+    rows, lower, upper = zeros(Cint, N), zeros(Cdouble, N), zeros(Cdouble, N)
+    for (i, (ci, si)) in enumerate(zip(c, s))
+        info = _info(model, ci)
+        rows[i] = info.row
+        lower[i], upper[i] = info.lower, info.upper = _bounds(si)
+    end
+    ret = Highs_changeRowsBoundsBySet(model, N, rows, lower, upper)
+    _check_ret(ret)
     return
 end
 
