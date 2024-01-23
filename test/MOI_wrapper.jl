@@ -476,6 +476,73 @@ function test_relax_integrality_after_solve()
     return
 end
 
+function test_quadratic_modification_from_affine()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.GreaterThan(2.0))
+    f = 2.0 * x + 1.0
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    attr = MOI.ObjectiveFunction{typeof(f)}()
+    MOI.set(model, attr, f)
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 5, atol = 1e-5)
+    F = MOI.ScalarQuadraticFunction{Float64}
+    attr = MOI.ObjectiveFunction{F}()
+    MOI.modify(model, attr, MOI.ScalarQuadraticCoefficientChange(x, x, 3.0))
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 11, atol = 1e-5)
+    return
+end
+
+function test_quadratic_off_diagonal_modification()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 2)
+    MOI.add_constraint.(model, x, MOI.GreaterThan.([2.0, 3.0]))
+    f = 4.0 * x[1] * x[1] + 2.0 * x[1] * x[2] + 2.0 * x[2] * x[2]
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    attr = MOI.ObjectiveFunction{typeof(f)}()
+    MOI.set(model, attr, f)
+    MOI.optimize!(model)
+    a = MOI.get(model, MOI.VariablePrimal(), x)
+    y = 0.5 * a' * [8 2; 2 4] * a
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), y, atol = 1e-5)
+    MOI.modify(
+        model,
+        attr,
+        MOI.ScalarQuadraticCoefficientChange(x[1], x[2], -1.0),
+    )
+    MOI.optimize!(model)
+    a = MOI.get(model, MOI.VariablePrimal(), x)
+    y = 0.5 * a' * [8 -1; -1 4] * a
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), y, atol = 1e-5)
+    return
+end
+
+function test_quadratic_diagonal_modification()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.GreaterThan(2.0))
+    f = 3.0 * x * x + 2.0 * x + 1.0
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    attr = MOI.ObjectiveFunction{typeof(f)}()
+    MOI.set(model, attr, f)
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 17, atol = 1e-5)
+    MOI.modify(model, attr, MOI.ScalarConstantChange(2.0))
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 18, atol = 1e-5)
+    MOI.modify(model, attr, MOI.ScalarCoefficientChange(x, 3.0))
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 20, atol = 1e-5)
+    MOI.modify(model, attr, MOI.ScalarQuadraticCoefficientChange(x, x, 8.0))
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), 24, atol = 1e-5)
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
