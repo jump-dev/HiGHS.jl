@@ -713,6 +713,25 @@ function test_change_row_bounds_by_set_equal_to()
     return
 end
 
+function test_set_affine_after_quadratic()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.GreaterThan(0.25))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = (x - 1.0)^2 + x + 1.0
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), 0.5; atol = 1e-5)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 1.75; atol = 1e-5)
+    g = 2.0 * x + 3.0
+    MOI.set(model, MOI.ObjectiveFunction{typeof(g)}(), g)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), 0.25; atol = 1e-5)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 3.5; atol = 1e-5)
+    return
+end
+
 end
 
 TestMOIHighs.runtests()

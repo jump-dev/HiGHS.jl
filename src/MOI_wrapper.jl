@@ -936,19 +936,15 @@ function MOI.set(
     _check_ret(ret)
     model.is_objective_function_set = true
     if model.hessian !== nothing
-        index = HighsInt[row - 1 for col in 1:num_vars for row in col:num_vars]
-        start = HighsInt[0]
-        for col in 1:num_vars
-            push!(start, start[end] + num_vars - col + 1)
-        end
+        start = zeros(HighsInt, num_vars)
         ret = Highs_passHessian(
             model,
             num_vars,
-            length(index),
+            0,
             kHighsHessianFormatTriangular,
             start,
-            index,
-            fill(0.0, length(index)),
+            C_NULL,
+            C_NULL,
         )
         _check_ret(ret)
         model.hessian = nothing
