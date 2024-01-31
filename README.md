@@ -95,7 +95,7 @@ arguments are identical to the C API.
 
 HiGHS uses a global scheduler that is shared between threads.
 
-Before changing the number of theads using `MOI.Threads()`, you must call
+Before changing the number of threads using `MOI.Threads()`, you must call
 `Highs_resetGlobalScheduler(1)`:
 ```julia
 using JuMP, HiGHS
