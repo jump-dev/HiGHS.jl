@@ -732,6 +732,15 @@ function test_set_affine_after_quadratic()
     return
 end
 
+function test_write_mps_gz()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    filename = joinpath(mktempdir(), "test.mps.gz")
+    @test HiGHS.Highs_writeModel(model, filename) == HiGHS.kHighsStatusWarning
+    @test isfile(filename)
+    return
+end
+
 end
 
 TestMOIHighs.runtests()
