@@ -13,17 +13,29 @@ struct HighsCallbackDataOut
     running_time::Cdouble
     simplex_iteration_count::HighsInt
     ipm_iteration_count::HighsInt
+    pdlp_iteration_count::HighsInt
     objective_function_value::Cdouble
     mip_node_count::Int64
     mip_primal_bound::Cdouble
     mip_dual_bound::Cdouble
     mip_gap::Cdouble
     mip_solution::Ptr{Cdouble}
+    cutpool_num_col::HighsInt
+    cutpool_num_cut::HighsInt
+    cutpool_num_nz::HighsInt
+    cutpool_start::Ptr{HighsInt}
+    cutpool_index::Ptr{HighsInt}
+    cutpool_value::Ptr{Cdouble}
+    cutpool_lower::Ptr{Cdouble}
+    cutpool_upper::Ptr{Cdouble}
 end
 
 struct HighsCallbackDataIn
     user_interrupt::Cint
 end
+
+# typedef void ( * HighsCCallbackType ) ( int , const char * , const HighsCallbackDataOut * , HighsCallbackDataIn * , void * )
+const HighsCCallbackType = Ptr{Cvoid}
 
 """
     Highs_lpCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -272,6 +284,20 @@ function Highs_clearSolver(highs)
 end
 
 """
+    Highs_presolve(highs)
+
+Presolve a model.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_presolve(highs)
+    ccall((:Highs_presolve, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_run(highs)
 
 Optimize a model. The algorithm used by HiGHS depends on the options that have been set.
@@ -283,6 +309,23 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_run(highs)
     ccall((:Highs_run, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_postsolve(highs, col_value, col_dual, row_dual)
+
+Postsolve a model using a primal (and possibly dual) solution.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `col_value`: An array of length [num\\_col] with the column solution values.
+* `col_dual`: An array of length [num\\_col] with the column dual values, or a null pointer if not known.
+* `row_dual`: An array of length [num\\_row] with the row dual values, or a null pointer if not known.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_postsolve(highs, col_value, col_dual, row_dual)
+    ccall((:Highs_postsolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_dual)
 end
 
 """
@@ -307,7 +350,7 @@ end
 
 Write the solution information (including dual and basis status, if available) to a file in a human-readable format.
 
-The method identical to [`Highs_writeSolution`](@ref), except that the printout is in a human-readiable format.
+The method identical to [`Highs_writeSolution`](@ref), except that the printout is in a human-readable format.
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
@@ -373,7 +416,7 @@ Pass a model to HiGHS in a single function call. This is faster than constructin
 * `q_start`: The Hessian matrix is provided in the same format as the constraint matrix, using `q_start`, `q_index`, and `q_value` in the place of `a_start`, `a_index`, and `a_value`. If the model is linear, pass NULL.
 * `q_index`: An array of length [q\\_num\\_nz] with indices of matrix entries. If the model is linear, pass NULL.
 * `q_value`: An array of length [q\\_num\\_nz] with values of matrix entries. If the model is linear, pass NULL.
-* `integrality`: An array of length [num\\_col] containing a `kHighsVarType` consatnt for each column.
+* `integrality`: An array of length [num\\_col] containing a `kHighsVarType` constant for each column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -991,9 +1034,9 @@ The arrays `solution_vector` and `solution_index` must have an allocated length 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 * `rhs`: The right-hand side vector ``b``
-* `solution_vector`: An array of length [num\\_row] in whcih to store the values of the non-zero elements.
+* `solution_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `solution_num_nz`: The number of non-zeros in the solution.
-* `solution_index`: An array of length [num\\_row] in whcih to store the indices of the non-zero elements.
+* `solution_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -1108,7 +1151,7 @@ Set the callback method to use for HiGHS
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setCallback(highs, user_callback, user_callback_data)
-    ccall((:Highs_setCallback, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), highs, user_callback, user_callback_data)
+    ccall((:Highs_setCallback, libhighs), HighsInt, (Ptr{Cvoid}, HighsCCallbackType, Ptr{Cvoid}), highs, user_callback, user_callback_data)
 end
 
 """
@@ -1382,6 +1425,20 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsIntegralityByMask(highs, mask, integrality)
     ccall((:Highs_changeColsIntegralityByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, mask, integrality)
+end
+
+"""
+    Highs_clearIntegrality(highs)
+
+Clear the integrality of all columns
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_clearIntegrality(highs)
+    ccall((:Highs_clearIntegrality, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1966,6 +2023,20 @@ function Highs_getInfinity(highs)
 end
 
 """
+    Highs_getSizeofHighsInt(highs)
+
+Return the size of integers used by HiGHS.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+The size of integers used by HiGHS.
+"""
+function Highs_getSizeofHighsInt(highs)
+    ccall((:Highs_getSizeofHighsInt, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_getNumCol(highs)
 
 Return the number of columns in the model.
@@ -2022,6 +2093,48 @@ function Highs_getHessianNumNz(highs)
 end
 
 """
+    Highs_getPresolvedNumCol(highs)
+
+Return the number of columns in the presolved model.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+The number of columns in the presolved model.
+"""
+function Highs_getPresolvedNumCol(highs)
+    ccall((:Highs_getPresolvedNumCol, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_getPresolvedNumRow(highs)
+
+Return the number of rows in the presolved model.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+The number of rows in the presolved model.
+"""
+function Highs_getPresolvedNumRow(highs)
+    ccall((:Highs_getPresolvedNumRow, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_getPresolvedNumNz(highs)
+
+Return the number of nonzeros in the constraint matrix of the presolved model.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+The number of nonzeros in the constraint matrix of the presolved model.
+"""
+function Highs_getPresolvedNumNz(highs)
+    ccall((:Highs_getPresolvedNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
 
 Get the data from a HiGHS model.
@@ -2035,6 +2148,38 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
     ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
+end
+
+"""
+    Highs_getLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+
+Get the data from a HiGHS LP.
+
+The input arguments have the same meaning (in a different order) to those used in [`Highs_passModel`](@ref).
+
+Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getNumCol`](@ref) - [`Highs_getNumRow`](@ref) - [`Highs_getNumNz`](@ref)
+
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    ccall((:Highs_getLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+end
+
+"""
+    Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+
+Get the data from a HiGHS presolved LP.
+
+The input arguments have the same meaning (in a different order) to those used in [`Highs_passModel`](@ref).
+
+Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getPresolvedNumCol`](@ref) - [`Highs_getPresolvedNumRow`](@ref) - [`Highs_getPresolvedNumNz`](@ref)
+
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    ccall((:Highs_getPresolvedLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
 end
 
 """
@@ -2059,7 +2204,7 @@ end
 """
     Highs_getRanging(highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
 
-Compute the ranging information for all costs and bounds. For nonbasic variables the ranging informaiton is relative to the active bound. For basic variables the ranging information relates to...
+Compute the ranging information for all costs and bounds. For nonbasic variables the ranging information is relative to the active bound. For basic variables the ranging information relates to...
 
 For any values that are not required, pass NULL.
 
@@ -2222,13 +2367,13 @@ const CMAKE_BUILD_TYPE = "Release"
 
 const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
 
-const HIGHS_GITHASH = "21da9b90e"
+const HIGHS_GITHASH = "50670fd4c"
 
 const HIGHS_COMPILATION_DATE = "1970-01-01"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 6
+const HIGHS_VERSION_MINOR = 7
 
 const HIGHS_VERSION_PATCH = 0
 
@@ -2297,6 +2442,7 @@ const kHighsBasisStatusNonbasic = HighsInt(4)
 const kHighsCallbackLogging = HighsInt(0)
 const kHighsCallbackSimplexInterrupt = HighsInt(1)
 const kHighsCallbackIpmInterrupt = HighsInt(2)
-const kHighsCallbackMipImprovingSolution = HighsInt(3)
-const kHighsCallbackMipLogging = HighsInt(4)
-const kHighsCallbackMipInterrupt = HighsInt(5)
+const kHighsCallbackMipSolution = HighsInt(3)
+const kHighsCallbackMipImprovingSolution = HighsInt(4)
+const kHighsCallbackMipLogging = HighsInt(5)
+const kHighsCallbackMipInterrupt = HighsInt(6)
