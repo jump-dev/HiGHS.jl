@@ -4,4 +4,4 @@ HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
 
 [compat]
 Clang = "0.17"
-HiGHS_jll = "1.6.0"
+HiGHS_jll = "1.7.0"
