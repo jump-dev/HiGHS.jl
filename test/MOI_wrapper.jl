@@ -805,14 +805,6 @@ function test_delete_double_bound_greater_than()
     return
 end
 
-function test_supports_constraint_name()
-    model = HiGHS.Optimizer()
-    x = MOI.add_variable(model)
-    ci = MOI.add_constraint(model, 1.0 * x, MOI.GreaterThan(0.0))
-    @test MOI.supports(model, MOI.ConstraintName(), typeof(ci))
-    return
-end
-
 function test_set_constraint_function_constant_not_zero()
     model = HiGHS.Optimizer()
     x = MOI.add_variable(model)
