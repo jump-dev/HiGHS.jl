@@ -1946,8 +1946,10 @@ const _TerminationStatusMap = Dict(
     kHighsModelStatusOptimal => (MOI.OPTIMAL, "kHighsModelStatusOptimal"),
     kHighsModelStatusInfeasible =>
         (MOI.INFEASIBLE, "kHighsModelStatusInfeasible"),
-    kHighsModelStatusUnboundedOrInfeasible =>
-        (MOI.INFEASIBLE_OR_UNBOUNDED, "kHighsModelStatusUnboundedOrInfeasible"),
+    kHighsModelStatusUnboundedOrInfeasible => (
+        MOI.INFEASIBLE_OR_UNBOUNDED,
+        "kHighsModelStatusUnboundedOrInfeasible",
+    ),
     kHighsModelStatusUnbounded =>
         (MOI.DUAL_INFEASIBLE, "kHighsModelStatusUnbounded"),
     kHighsModelStatusObjectiveBound =>
@@ -1958,7 +1960,8 @@ const _TerminationStatusMap = Dict(
         (MOI.TIME_LIMIT, "kHighsModelStatusTimeLimit"),
     kHighsModelStatusIterationLimit =>
         (MOI.ITERATION_LIMIT, "kHighsModelStatusIterationLimit"),
-    kHighsModelStatusUnknown => (MOI.OTHER_ERROR, "kHighsModelStatusUnknown"),
+    kHighsModelStatusUnknown =>
+        (MOI.OTHER_ERROR, "kHighsModelStatusUnknown"),
     kHighsModelStatusSolutionLimit =>
         (MOI.SOLUTION_LIMIT, "kHighsModelStatusSolutionLimit"),
 )
