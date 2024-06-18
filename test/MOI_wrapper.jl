@@ -5,10 +5,10 @@
 
 module TestMOIHighs
 
-import HiGHS
 using Test
 
-const MOI = HiGHS.MOI
+import HiGHS
+import MathOptInterface as MOI
 
 function runtests()
     for name in names(@__MODULE__; all = true)
@@ -741,6 +741,113 @@ function test_write_mps_gz()
     return
 end
 
+function test_get_empty_objective_function()
+    model = HiGHS.Optimizer()
+    F = MOI.ScalarAffineFunction{Float64}
+    f = MOI.get(model, MOI.ObjectiveFunction{F}())
+    @test f ≈ zero(F)
+    return
 end
+
+function test_is_valid_variable_bound()
+    model = HiGHS.Optimizer()
+    ci = MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}}(1)
+    @test_throws MOI.InvalidIndex HiGHS.column(model, ci)
+    @test !MOI.is_valid(model, ci)
+    return
+end
+
+function test_set_function_variable()
+    model = HiGHS.Optimizer()
+    x, ci = MOI.add_constrained_variable(model, MOI.GreaterThan(0.0))
+    y = MOI.add_variable(model)
+    @test_throws(
+        MOI.SettingVariableIndexNotAllowed,
+        MOI.set(model, MOI.ConstraintFunction(), ci, y),
+    )
+    return
+end
+
+function test_throw_if_existing_bound()
+    model = HiGHS.Optimizer()
+    x, ci = MOI.add_constrained_variable(model, MOI.GreaterThan(0.0))
+    MOI.add_constraint(model, x, MOI.LessThan(1.0))
+    @test_throws(
+        MOI.LowerBoundAlreadySet,
+        MOI.add_constraint(model, x, MOI.GreaterThan(1.0)),
+    )
+    @test_throws(
+        MOI.UpperBoundAlreadySet,
+        MOI.add_constraint(model, x, MOI.LessThan(0.5)),
+    )
+    return
+end
+
+function test_delete_double_bound_less_than()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    _ = MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    ci = MOI.add_constraint(model, x, MOI.LessThan(1.0))
+    @test MOI.is_valid(model, ci)
+    MOI.delete(model, ci)
+    @test !MOI.is_valid(model, ci)
+    return
+end
+
+function test_delete_double_bound_greater_than()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    ci = MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    _ = MOI.add_constraint(model, x, MOI.LessThan(1.0))
+    @test MOI.is_valid(model, ci)
+    MOI.delete(model, ci)
+    @test !MOI.is_valid(model, ci)
+    return
+end
+
+function test_set_constraint_function_constant_not_zero()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    ci = MOI.add_constraint(model, 1.0 * x, MOI.GreaterThan(0.0))
+    @test_throws(
+        MOI.ScalarFunctionConstantNotZero,
+        MOI.set(model, MOI.ConstraintFunction(), ci, 2.0 * x + 1.0),
+    )
+    return
+end
+
+function test_delete_integrality()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x, _ = MOI.add_constrained_variable(model, MOI.LessThan(1.5))
+    y, _ = MOI.add_constrained_variable(model, MOI.LessThan(1.5))
+    ci = MOI.add_constraint(model, y, MOI.Integer())
+    f = 1.0 * x + 1.0 * y
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 2.5; atol = 1e-6)
+    @test MOI.is_valid(model, ci)
+    MOI.delete(model, ci)
+    @test !MOI.is_valid(model, ci)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 3.0; atol = 1e-6)
+    return
+end
+
+function test_copy_to_unsupported_constraint()
+    src = MOI.Utilities.Model{Float64}()
+    x = MOI.add_variable(src)
+    f = MOI.ScalarNonlinearFunction(:log, Any[x])
+    MOI.add_constraint(src, f, MOI.EqualTo(0.0))
+    model = HiGHS.Optimizer()
+    @test_throws(
+        MOI.UnsupportedConstraint{typeof(f),MOI.EqualTo{Float64}},
+        MOI.copy_to(model, src),
+    )
+    return
+end
+
+end  # module
 
 TestMOIHighs.runtests()
