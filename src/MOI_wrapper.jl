@@ -569,9 +569,6 @@ function _get_string_option(model::Optimizer, option::String)
 end
 
 function MOI.get(model::Optimizer, param::MOI.RawOptimizerAttribute)
-    if !(param.name isa String)
-        throw(MOI.UnsupportedAttribute(param))
-    end
     typeP = Ref{HighsInt}()
     ret = Highs_getOptionType(model, param.name, typeP)
     if ret != 0
