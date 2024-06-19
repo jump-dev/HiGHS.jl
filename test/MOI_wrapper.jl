@@ -871,6 +871,7 @@ end
 
 function test_nonbasic_equality_constraint()
     model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
     ci = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(1.0))
     MOI.optimize!(model)
@@ -880,9 +881,40 @@ end
 
 function test_variable_basis_status_zero()
     model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
     MOI.optimize!(model)
     @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.NONBASIC
+    return
+end
+
+function test_optimize_errored()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.set(model, MOI.NumberOfThreads(), 123_456)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OTHER_ERROR
+    @test MOI.get(model, MOI.RawStatusString()) ==
+          "There was an error calling optimize!"
+    return
+end
+
+function test_infeasible_point()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 2)
+    MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
+    ci = MOI.add_constraint(model, x[1] + 2.0 * x[2], MOI.LessThan(-1.0))
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT
+    @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBLE_POINT
+    @test MOI.get(model, MOI.ResultCount()) == 1
+    @test MOI.get(model, MOI.VariablePrimal(), x) isa Vector{Float64}
+    @test MOI.get(model, MOI.ConstraintDual(), ci) isa Float64
     return
 end
 
