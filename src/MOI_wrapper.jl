@@ -2233,23 +2233,22 @@ end
 ### MOI.ConstraintBasisStatus
 ###
 
-# HiGHS only reports a single basis status for each ranged constraint. Therefore
-# if the status is kHighsBasisStatusLower or kHighsBasisStatusUpper, we must
-# distinguish whether or not it is refering to the given constraint.
-function _nonbasic_status(code::HighsInt, ::Type{<:MOI.Interval})
-    if code == kHighsBasisStatusLower
-        return MOI.NONBASIC_AT_LOWER
-    else
-        return MOI.NONBASIC_AT_UPPER
+const _BASIS_STATUS_MAP = Dict(
+    kHighsBasisStatusLower => MOI.NONBASIC_AT_LOWER,
+    kHighsBasisStatusBasic => MOI.BASIC,
+    kHighsBasisStatusUpper => MOI.NONBASIC_AT_UPPER,
+    kHighsBasisStatusZero => MOI.SUPER_BASIC,
+    kHighsBasisStatusNonbasic => MOI.NONBASIC
+)
+
+_replace_basis_status(b::MOI.BasisStatusCode, ::Type{<:MOI.Interval}) = b
+
+function _replace_basis_status(basis::MOI.BasisStatusCode, ::Type{S}) where {S}
+    if basis == MOI.NONBASIC_AT_LOWER || basis == MOI.NONBASIC_AT_UPPER
+        return MOI.NONBASIC
     end
+    return basis
 end
-function _nonbasic_status(code::HighsInt, ::Type{<:MOI.LessThan})
-    return code == kHighsBasisStatusLower ? MOI.BASIC : MOI.NONBASIC
-end
-function _nonbasic_status(code::HighsInt, ::Type{<:MOI.GreaterThan})
-    return code == kHighsBasisStatusLower ? MOI.NONBASIC : MOI.BASIC
-end
-_nonbasic_status(::HighsInt, ::Type{<:MOI.EqualTo}) = MOI.NONBASIC
 
 function MOI.get(
     model::Optimizer,
@@ -2260,15 +2259,8 @@ function MOI.get(
     stat = get(model.solution.rowstatus, row(model, c) + 1, nothing)
     if stat === nothing
         throw(MOI.GetAttributeNotAllowed(attr, "no basis is present"))
-    elseif stat == kHighsBasisStatusLower
-        return _nonbasic_status(stat, S)
-    elseif stat == kHighsBasisStatusBasic
-        return MOI.BASIC
-    elseif stat == kHighsBasisStatusUpper
-        return _nonbasic_status(stat, S)
     end
-    @assert stat == kHighsBasisStatusZero || stat == kHighsBasisStatusNonbasic
-    return MOI.NONBASIC
+    return _replace_basis_status(_BASIS_STATUS_MAP[stat], S)
 end
 
 function MOI.get(
@@ -2280,15 +2272,8 @@ function MOI.get(
     stat = get(model.solution.colstatus, column(model, x) + 1, nothing)
     if stat === nothing
         throw(MOI.GetAttributeNotAllowed(attr, "no basis is present"))
-    elseif stat == kHighsBasisStatusLower
-        return MOI.NONBASIC_AT_LOWER
-    elseif stat == kHighsBasisStatusBasic
-        return MOI.BASIC
-    elseif stat == kHighsBasisStatusUpper
-        return MOI.NONBASIC_AT_UPPER
     end
-    @assert stat == kHighsBasisStatusZero || stat == kHighsBasisStatusNonbasic
-    return MOI.NONBASIC
+    return _BASIS_STATUS_MAP[stat]
 end
 
 ###
