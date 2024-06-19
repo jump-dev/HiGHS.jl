@@ -93,8 +93,8 @@ function test_runtests_ipm_no_presolve()
             r"^test_conic_linear_INFEASIBLE$",
             r"^test_conic_linear_INFEASIBLE_2$",
             # See https://github.com/ERGO-Code/HiGHS/issues/1807
-            "test_conic_NormInfinityCone_INFEASIBLE",
-            "test_conic_NormOneCone_INFEASIBLE",
+            r"^test_conic_NormInfinityCone_INFEASIBLE$",
+            r"^test_conic_NormOneCone_INFEASIBLE$",
             _EXPLICIT_METHOD_FAILURES...,
         ],
     )
