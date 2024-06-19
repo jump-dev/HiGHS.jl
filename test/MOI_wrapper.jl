@@ -887,7 +887,7 @@ function test_variable_basis_status_zero()
     MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
     MOI.optimize!(model)
-    @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.NONBASIC
+    @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.SUPER_BASIC
     return
 end
 
