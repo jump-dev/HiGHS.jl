@@ -88,7 +88,7 @@ function test_runtests_ipm_no_presolve()
     MOI.Test.runtests(
         model,
         MOI.Test.Config(),
-        exclude = String[
+        exclude = [
             # Termination status is OTHER_ERROR
             r"^test_conic_linear_INFEASIBLE$",
             r"^test_conic_linear_INFEASIBLE_2$",
