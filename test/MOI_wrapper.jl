@@ -855,7 +855,7 @@ function test_delete_constraint_twice()
     @test_throws(
         ErrorException(
             "Encountered an error in HiGHS (Status -1). Check the log " *
-            "for details."
+            "for details.",
         ),
         MOI.delete(model, [ci, ci]),
     )
@@ -885,7 +885,6 @@ function test_variable_basis_status_zero()
     @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.NONBASIC
     return
 end
-
 
 end  # module
 
