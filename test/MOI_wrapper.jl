@@ -848,6 +848,44 @@ function test_copy_to_unsupported_constraint()
     return
 end
 
+function test_delete_constraint_twice()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    ci = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(1.0))
+    @test_throws(
+        ErrorException(
+            "Encountered an error in HiGHS (Status -1). Check the log " *
+            "for details.",
+        ),
+        MOI.delete(model, [ci, ci]),
+    )
+    return
+end
+
+function test_RawStatusStringOptimizeNotCalled()
+    model = HiGHS.Optimizer()
+    @test MOI.get(model, MOI.RawStatusString()) == "OPTIMIZE_NOT_CALLED"
+    @test MOI.get(model, MOI.ResultCount()) == 0
+    return
+end
+
+function test_nonbasic_equality_constraint()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    ci = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(1.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ConstraintBasisStatus(), ci) == MOI.NONBASIC
+    return
+end
+
+function test_variable_basis_status_zero()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.NONBASIC
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
