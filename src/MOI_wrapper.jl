@@ -2238,7 +2238,7 @@ const _BASIS_STATUS_MAP = Dict(
     kHighsBasisStatusBasic => MOI.BASIC,
     kHighsBasisStatusUpper => MOI.NONBASIC_AT_UPPER,
     kHighsBasisStatusZero => MOI.SUPER_BASIC,
-    kHighsBasisStatusNonbasic => MOI.NONBASIC
+    kHighsBasisStatusNonbasic => MOI.NONBASIC,
 )
 
 _replace_basis_status(b::MOI.BasisStatusCode, ::Type{<:MOI.Interval}) = b
