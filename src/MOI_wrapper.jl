@@ -1858,12 +1858,14 @@ function _store_solution(model::Optimizer, ret::HighsInt)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
         x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
     end
+    if x.has_dual_ray || x.has_primal_ray
+        return  # If a ray is present, we don't query the solution
+    end
     Highs_getIntInfoValue(model, "primal_solution_status", statusP)
     x.primal_solution_status = statusP[]
     Highs_getIntInfoValue(model, "dual_solution_status", statusP)
     x.dual_solution_status = statusP[]
-    has_ray = x.has_dual_ray || x.has_primal_ray
-    if !has_ray && x.primal_solution_status != kHighsSolutionStatusNone
+    if x.primal_solution_status != kHighsSolutionStatusNone
         Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
         if model.hessian === nothing
             # No basis is present in a QP.
