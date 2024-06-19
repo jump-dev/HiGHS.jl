@@ -1864,13 +1864,7 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     x.dual_solution_status = statusP[]
     has_ray = x.has_dual_ray || x.has_primal_ray
     if !has_ray && x.primal_solution_status != kHighsSolutionStatusNone
-        Highs_getSolution(
-            model,
-            x.colvalue,
-            x.coldual,
-            x.rowvalue,
-            x.rowdual,
-        )
+        Highs_getSolution(model, x.colvalue, x.coldual, x.rowvalue, x.rowdual)
         if model.hessian === nothing
             # No basis is present in a QP.
             resize!(x.colstatus, numCols)
