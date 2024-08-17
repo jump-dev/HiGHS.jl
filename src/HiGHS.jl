@@ -24,7 +24,6 @@ end
 import PrecompileTools
 
 PrecompileTools.@setup_workload begin
-    __init__()
     PrecompileTools.@compile_workload begin
         let
             model = MOI.Utilities.CachingOptimizer(
