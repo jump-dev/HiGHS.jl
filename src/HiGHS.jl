@@ -5,14 +5,9 @@
 
 module HiGHS
 
-import HiGHS_jll
+using HiGHS_jll: HiGHS_jll, libhighs
 import MathOptInterface as MOI
 import SparseArrays
-
-function __init__()
-    global libhighs = HiGHS_jll.libhighs
-    return
-end
 
 include("gen/libhighs.jl")
 include("MOI_wrapper.jl")
