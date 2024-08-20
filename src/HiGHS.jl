@@ -5,7 +5,7 @@
 
 module HiGHS
 
-using HiGHS_jll: HiGHS_jll, libhighs
+import HiGHS_jll: libhighs
 import MathOptInterface as MOI
 import SparseArrays
 
