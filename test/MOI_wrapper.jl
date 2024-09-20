@@ -930,7 +930,6 @@ function test_DualObjectiveValue_int()
     return
 end
 
-
 end  # module
 
 TestMOIHighs.runtests()
