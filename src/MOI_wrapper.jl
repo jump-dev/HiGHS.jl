@@ -2029,7 +2029,10 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
-    if model.solution.dual_solution_status == kHighsSolutionStatusNone
+    if model.solution.has_dual_ray
+        return MOI.Utilities.get_fallback(model, attr)
+    elseif model.solution.dual_solution_status == kHighsSolutionStatusNone
+        # For MIPs, we cannot compute a dual objective value
         return NaN
     end
     offset = Ref{Cdouble}()
