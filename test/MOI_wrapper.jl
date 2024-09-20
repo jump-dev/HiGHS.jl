@@ -921,6 +921,15 @@ function test_infeasible_point()
     return
 end
 
+function test_DualObjectiveValue_int()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
+    MOI.optimize!(model)
+    @test isnan(MOI.get(model, MOI.DualObjectiveValue()))
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()

@@ -2029,7 +2029,77 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
-    return MOI.Utilities.get_fallback(model, attr, Float64)
+    if model.solution.has_dual_ray
+        return MOI.Utilities.get_fallback(model, attr, Float64)
+    elseif model.solution.dual_solution_status == kHighsSolutionStatusNone
+        # For MIPs, we cannot compute a dual objective value
+        return NaN
+    end
+    offset = Ref{Cdouble}()
+    ret = Highs_getObjectiveOffset(model, offset)
+    _check_ret(ret)
+    dual_objective_value = offset[]
+    # Column components of the dual objective value
+    set = Cint[
+        i - 1 for (i, d) in enumerate(model.solution.coldual) if !iszero(d)
+    ]
+    n = length(set)
+    lower, upper = zeros(n), zeros(n)
+    ret = Highs_getColsBySet(
+        model,
+        n,
+        set,
+        Ref{Cint}(),  # num_col
+        C_NULL,
+        lower,
+        upper,
+        Ref{Cint}(),  # num_nnz
+        C_NULL,  # matrix_start,
+        C_NULL,  # matrix_index,
+        C_NULL,  # matrix_value,
+    )
+    _check_ret(ret)
+    for (li, i, ui) in zip(lower, set, upper)
+        xi, di = model.solution.colvalue[i+1], model.solution.coldual[i+1]
+        dual_objective_value += _dual_objective_contribution(li, xi, ui, di)
+    end
+    # Row components of the dual objective value
+    set = Cint[
+        i - 1 for (i, d) in enumerate(model.solution.rowdual) if !iszero(d)
+    ]
+    n = length(set)
+    resize!(lower, n)
+    resize!(upper, n)
+    ret = Highs_getRowsBySet(
+        model,
+        n,
+        set,
+        Ref{Cint}(),  # num_row
+        lower,
+        upper,
+        Ref{Cint}(),  # num_nnz
+        C_NULL,  # matrix_start,
+        C_NULL,  # matrix_index,
+        C_NULL,  # matrix_value,
+    )
+    _check_ret(ret)
+    for (li, i, ui) in zip(lower, set, upper)
+        ri, di = model.solution.rowvalue[i+1], model.solution.rowdual[i+1]
+        dual_objective_value += _dual_objective_contribution(li, ri, ui, di)
+    end
+    return dual_objective_value
+end
+
+function _dual_objective_contribution(l, x, u, d)
+    if isfinite(l) && isfinite(u)
+        # Pick the bound that is closest to the primal value
+        return ifelse(abs(x - l) < abs(x - u), l, u) * d
+    elseif isfinite(l)
+        return l * d
+    else
+        @assert isfinite(u)
+        return u * d
+    end
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
