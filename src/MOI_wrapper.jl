@@ -2096,10 +2096,9 @@ function _dual_objective_contribution(l, x, u, d)
         return ifelse(abs(x - l) < abs(x - u), l, u) * d
     elseif isfinite(l)
         return l * d
-    elseif isfinite(u)
-        return u * d
     else
-        return 0.0
+        @assert isfinite(u)
+        return u * d
     end
 end
 
