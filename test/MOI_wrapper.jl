@@ -930,6 +930,25 @@ function test_DualObjectiveValue_int()
     return
 end
 
+function test_continuous_objective_bound()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("run_crossover"), "off")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    primal = MOI.get(model, MOI.ObjectiveValue())
+    dual = MOI.get(model, MOI.DualObjectiveValue())
+    @test MOI.get(model, MOI.ObjectiveBound()) == dual
+    @test 0 < MOI.get(model, MOI.RelativeGap()) <= 1e-6
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
