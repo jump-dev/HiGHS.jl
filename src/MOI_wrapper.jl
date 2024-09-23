@@ -2103,14 +2103,12 @@ function _dual_objective_contribution(l, x, u, d)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
-    # TODO(odow): there is a bug in HiGHS where it reports incorrect values for
-    # mip_dual_bound in the LP case. As a work-around, just return the most
-    # optimistic of the primal and dual values.
+    if model.solution.dual_solution_status != kHighsSolutionStatusNone
+        return MOI.get(model, MOI.DualObjectiveValue())
+    end
     p = Ref{Cdouble}()
     Highs_getDoubleInfoValue(model, "mip_dual_bound", p)
-    sense = _sense_corrector(model)
-    primal = Highs_getObjectiveValue(model)
-    return sense == -1 ? max(primal, -p[]) : min(primal, p[])
+    return p[]
 end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
@@ -2118,7 +2116,12 @@ function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
 end
 
 function MOI.get(model::Optimizer, ::MOI.RelativeGap)
-    p = Ref{Cdouble}(0)
+    if model.solution.dual_solution_status != kHighsSolutionStatusNone
+        primal = MOI.get(model, MOI.ObjectiveValue())
+        dual = MOI.get(model, MOI.DualObjectiveValue())
+        return abs(primal - dual) / max(1, abs(primal))
+    end
+    p = Ref{Cdouble}(0.0)
     ret = Highs_getDoubleInfoValue(model, "mip_gap", p)
     _check_ret(ret)
     return p[]
