@@ -242,6 +242,14 @@ end
 
 Base.isempty(x::_Solution) = x.status == _OPTIMIZE_NOT_CALLED
 
+mutable struct _CallbackData
+    f::Function
+end
+
+function Base.unsafe_convert(::Type{Ptr{Cvoid}}, d::_CallbackData)
+    return pointer_from_objref(d)
+end
+
 """
     Optimizer()
 
@@ -286,6 +294,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     # HiGHS just returns a single solution struct :(
     solution::_Solution
+    callback_data::Union{Nothing,_CallbackData}
 
     function Optimizer()
         model = new(
@@ -302,6 +311,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing,
             nothing,
             _Solution(),
+            nothing,
         )
         MOI.empty!(model)
         if Sys.iswindows()
@@ -365,6 +375,7 @@ function MOI.empty!(model::Optimizer)
     empty!(model.solution)
     ret = Highs_changeObjectiveOffset(model, 0.0)
     _check_ret(ret)
+    model.callback_data = nothing
     return
 end
 
@@ -384,7 +395,8 @@ function MOI.is_empty(model::Optimizer)
            model.name_to_variable === nothing &&
            model.name_to_constraint_index === nothing &&
            isempty(model.solution) &&
-           iszero(offset[])
+           iszero(offset[]) &&
+           model.callback_data === nothing
 end
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
@@ -1960,6 +1972,8 @@ const _TerminationStatusMap = Dict(
         (MOI.OTHER_ERROR, "kHighsModelStatusUnknown"),
     kHighsModelStatusSolutionLimit =>
         (MOI.SOLUTION_LIMIT, "kHighsModelStatusSolutionLimit"),
+    kHighsModelStatusInterrupt =>
+        (MOI.INTERRUPTED, "kHighsModelStatusInterrupt"),
 )
 
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
@@ -2841,6 +2855,79 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
         end
     end
     return mapping
+end
+
+"""
+    CallbackFunction(callback_types::Vector{Cint})
+
+## Signature
+
+```julia
+function user_callback(
+    callback_type::Cint,
+    message::Ptr{Cchar},
+    data_out::HighsCallbackDataOut,
+)::Cint
+    return user_interrupt
+end
+```
+"""
+struct CallbackFunction
+    callback_types::Vector{Cint}
+end
+
+function CallbackFunction()
+    # By default, turn everything on except logging
+    return CallbackFunction([
+        # kHighsCallbackLogging,
+        kHighsCallbackSimplexInterrupt,
+        kHighsCallbackIpmInterrupt,
+        kHighsCallbackMipSolution,
+        kHighsCallbackMipImprovingSolution,
+        # kHighsCallbackMipLogging,
+        kHighsCallbackMipInterrupt,
+    ])
+end
+
+function _cfn_user_callback(
+    callback_type::Cint,
+    message::Ptr{Cchar},
+    p_data_out::Ptr{HiGHS.HighsCallbackDataOut},
+    p_data_in::Ptr{HiGHS.HighsCallbackDataIn},
+    user_callback_data::Ptr{Cvoid},
+)
+    user_data = unsafe_pointer_to_objref(user_callback_data)::_CallbackData
+    terminate = user_data.f(
+        callback_type,
+        message,
+        unsafe_load(p_data_out)::HiGHS.HighsCallbackDataOut,
+    )
+    if p_data_in != C_NULL
+        unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
+    end
+    return
+end
+
+function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
+    callback_cfn = @cfunction(
+        _cfn_user_callback,
+        Cvoid,
+        (
+            Cint,
+            Ptr{Cchar},
+            Ptr{HighsCallbackDataOut},
+            Ptr{HighsCallbackDataIn},
+            Ptr{Cvoid},
+        ),
+    )
+    model.callback_data = _CallbackData(f)
+    ret = Highs_setCallback(model, callback_cfn, model.callback_data)
+    _check_ret(ret)
+    for callback_type in attr.callback_types
+        ret = Highs_startCallback(model, callback_type)
+        _check_ret(ret)
+    end
+    return
 end
 
 # These enums are deprecated. Use the `kHighsXXX` constants defined in
