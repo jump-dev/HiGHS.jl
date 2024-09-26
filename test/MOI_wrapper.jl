@@ -949,6 +949,31 @@ function test_continuous_objective_bound()
     return
 end
 
+function test_callback_interrupt()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    callback_types = Cint[]
+    function user_callback(
+        callback_type::Cint,
+        ::Ptr{Cchar},
+        ::HiGHS.HighsCallbackDataOut,
+    )::Cint
+        push!(callback_types, callback_type)
+        return 1
+    end
+    MOI.set(model, HiGHS.CallbackFunction(), user_callback)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
+    @test HiGHS.kHighsCallbackIpmInterrupt in callback_types
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
