@@ -2858,10 +2858,26 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
 end
 
 """
-    CallbackFunction(callback_types::Vector{Cint})
+    CallbackFunction(
+        callback_types::Vector{Cint} = Cint[
+            # kHighsCallbackLogging,
+            kHighsCallbackSimplexInterrupt,
+            kHighsCallbackIpmInterrupt,
+            kHighsCallbackMipSolution,
+            kHighsCallbackMipImprovingSolution,
+            # kHighsCallbackMipLogging,
+            kHighsCallbackMipInterrupt,
+        ],
+    ) <: MOI.AbstractModelAttribute
 
-## Signature
+An `MOI.AbstractModelAttribute` for setting the callback function in HiGHS.
 
+`callback_types` is a vector of places at which HiGHS will call the callback
+function. By default, this is everything except the `Logging` callbacks.
+
+## Callback signature
+
+The function you provide as a callback must have the signature:
 ```julia
 function user_callback(
     callback_type::Cint,
@@ -2871,8 +2887,20 @@ function user_callback(
     return user_interrupt
 end
 ```
+
+The input arguments are interpreted as follows:
+
+ * `callback_type` is a `Cint` corresponding to the location of where the
+   callback is being called from
+ * `message` is a pointer with the logging string (if the callback type is a
+   `Logging` callback). Get a Julia `String` with `unsafe_string(message)`.
+ * `data_out` is a `HiGHS.HighsCallbackDataOut` struct. This has various
+   information fields, only some of which are filled.
+
+The return argument is a `Cint`. If it is non-zero and the callback type is an
+`Interrupt`, then HiGHS will interupt the solve.
 """
-struct CallbackFunction
+struct CallbackFunction <: MOI.AbstractModelAttribute
     callback_types::Vector{Cint}
 end
 
