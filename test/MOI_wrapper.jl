@@ -970,7 +970,7 @@ function test_callback_interrupt()
     MOI.set(model, HiGHS.CallbackFunction(), user_callback)
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
-    @test kHighsCallbackIpmInterrupt in callback_types
+    @test HiGHS.kHighsCallbackIpmInterrupt in callback_types
     return
 end
 
