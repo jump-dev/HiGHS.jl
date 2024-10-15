@@ -1865,6 +1865,9 @@ function _store_solution(model::Optimizer, ret::HighsInt)
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
         x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
+        if x.has_dual_ray
+            _compute_farkas_variable_dual(model, x.coldual)
+        end
     elseif x.model_status == kHighsModelStatusUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
@@ -1884,6 +1887,66 @@ function _store_solution(model::Optimizer, ret::HighsInt)
             resize!(x.colstatus, numCols)
             resize!(x.rowstatus, numRows)
             Highs_getBasis(model, x.colstatus, x.rowstatus)
+        end
+    end
+    return
+end
+
+"""
+    _compute_farkas_variable_dual(model::Optimizer, dual::Vector{Cdouble})
+
+Return a Farkas dual associated with the variable bounds of `col`. Given a dual
+ray:
+
+    ā * x = λ' * A * x <= λ' * b = -β + sum(āᵢ * Uᵢ | āᵢ < 0) + sum(āᵢ * Lᵢ | āᵢ > 0)
+
+The Farkas dual of the variable is ā, and it applies to the upper bound if ā < 0,
+and it applies to the lower bound if ā > 0.
+"""
+function _compute_farkas_variable_dual(model::Optimizer, dual::Vector{Cdouble})
+    dual_objective_value = 0.0
+    # Column components of the dual objective value
+    num_nz, num_cols = Ref{HighsInt}(0), Ref{HighsInt}(0)
+    m = Highs_getNumRows(model)
+    n = Highs_getNumCols(model)
+    ret = Highs_getColsByRange(
+        model,
+        0,
+        n - 1,
+        num_cols,
+        C_NULL,     # c_obj
+        C_NULL,     # lower
+        C_NULL,     # upper
+        num_nz,
+        C_NULL,     # matrix_start,
+        C_NULL,     # matrix_index,
+        C_NULL,     # matrix_value,
+    )
+    _check_ret(ret)
+    matrix_start = zeros(HighsInt, n)
+    matrix_index = zeros(HighsInt, num_nz[])
+    matrix_value = zeros(Cdouble, num_nz[])
+    lower, upper = zeros(n), zeros(n)
+    push!(matrix_start, num_nz[])
+    ret = Highs_getColsByRange(
+        model,
+        0,
+        n - 1,
+        num_cols,
+        C_NULL,
+        lower,
+        upper,
+        num_nz,
+        matrix_start,
+        matrix_index,
+        matrix_value,
+    )
+    _check_ret(ret)
+    for (i, (li, ui)) in enumerate(zip(lower, upper))
+        dual[i] = 0.0
+        for k in (matrix_start[i]+1):matrix_start[i+1]
+            row = matrix_index[k]
+            dual[i] -= model.solution.rowdual[row+1] * matrix_value[k]
         end
     end
     return
@@ -2043,16 +2106,18 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
+    dual_objective_value = 0.0
     if model.solution.has_dual_ray
-        return MOI.Utilities.get_fallback(model, attr, Float64)
+        # Do nothing
     elseif model.solution.dual_solution_status == kHighsSolutionStatusNone
         # For MIPs, we cannot compute a dual objective value
         return NaN
+    else
+        offset = Ref{Cdouble}()
+        ret = Highs_getObjectiveOffset(model, offset)
+        _check_ret(ret)
+        dual_objective_value += offset[]
     end
-    offset = Ref{Cdouble}()
-    ret = Highs_getObjectiveOffset(model, offset)
-    _check_ret(ret)
-    dual_objective_value = offset[]
     # Column components of the dual objective value
     set = Cint[
         i - 1 for (i, d) in enumerate(model.solution.coldual) if !iszero(d)
@@ -2073,9 +2138,15 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
         C_NULL,  # matrix_value,
     )
     _check_ret(ret)
+    sense = _sense_corrector(model)
     for (li, i, ui) in zip(lower, set, upper)
-        xi, di = model.solution.colvalue[i+1], model.solution.coldual[i+1]
-        dual_objective_value += _dual_objective_contribution(li, xi, ui, di)
+        di = model.solution.coldual[i+1]
+        if model.solution.has_dual_ray
+            dual_objective_value += sense * ifelse(di <= 0, ui, li) * di
+        else
+            xi = model.solution.colvalue[i+1]
+            dual_objective_value += _dual_objective_contribution(li, xi, ui, di)
+        end
     end
     # Row components of the dual objective value
     set = Cint[
@@ -2098,8 +2169,13 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     )
     _check_ret(ret)
     for (li, i, ui) in zip(lower, set, upper)
-        ri, di = model.solution.rowvalue[i+1], model.solution.rowdual[i+1]
-        dual_objective_value += _dual_objective_contribution(li, ri, ui, di)
+        di = model.solution.rowdual[i+1]
+        if model.solution.has_dual_ray
+            dual_objective_value += sense * ifelse(di <= 0, ui, li) * di
+        else
+            ri = model.solution.rowvalue[i+1]
+            dual_objective_value += _dual_objective_contribution(li, ri, ui, di)
+        end
     end
     return dual_objective_value
 end
@@ -2206,45 +2282,6 @@ function _sense_corrector(model::Optimizer)
 end
 
 """
-    _farkas_variable_dual(model::Optimizer, col::HighsInt)
-
-Return a Farkas dual associated with the variable bounds of `col`. Given a dual
-ray:
-
-    ā * x = λ' * A * x <= λ' * b = -β + sum(āᵢ * Uᵢ | āᵢ < 0) + sum(āᵢ * Lᵢ | āᵢ > 0)
-
-The Farkas dual of the variable is ā, and it applies to the upper bound if ā < 0,
-and it applies to the lower bound if ā > 0.
-"""
-function _farkas_variable_dual(model::Optimizer, col::HighsInt)
-    num_nz, num_cols = Ref{HighsInt}(0), Ref{HighsInt}(0)
-    # TODO(odow): how does getColsByRangeWork???
-    m = Highs_getNumRows(model)
-    matrix_start = zeros(HighsInt, 2)
-    matrix_index = Vector{HighsInt}(undef, m)
-    matrix_value = Vector{Cdouble}(undef, m)
-    ret = Highs_getColsByRange(
-        model,
-        col,
-        col,
-        num_cols,
-        C_NULL,
-        C_NULL,
-        C_NULL,
-        num_nz,
-        matrix_start,
-        matrix_index,
-        matrix_value,
-    )
-    _check_ret(ret)
-    dual = 0.0
-    for i in 1:num_nz[]
-        dual += -model.solution.rowdual[matrix_index[i]+1] * matrix_value[i]
-    end
-    return dual
-end
-
-"""
     _signed_dual(dual::Float64, ::Type{Set})
 
 A heuristic for determining whether the dual of an interval constraint applies
@@ -2294,7 +2331,7 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     col = column(model, c)
     if model.solution.has_dual_ray[] == 1
-        return _signed_dual(_farkas_variable_dual(model, col), S)
+        return _signed_dual(model.solution.coldual[col+1], S)
     end
     dual = _sense_corrector(model) * model.solution.coldual[col+1]
     stat = get(model.solution.colstatus, col + 1, nothing)
