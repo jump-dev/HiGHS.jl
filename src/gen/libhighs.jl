@@ -8,6 +8,11 @@
 
 const HighsInt = Cint
 
+"""
+    HighsCallbackDataOut
+
+Struct to handle callback output data
+"""
 struct HighsCallbackDataOut
     log_type::Cint
     running_time::Cdouble
@@ -16,6 +21,7 @@ struct HighsCallbackDataOut
     pdlp_iteration_count::HighsInt
     objective_function_value::Cdouble
     mip_node_count::Int64
+    mip_total_lp_iterations::Int64
     mip_primal_bound::Cdouble
     mip_dual_bound::Cdouble
     mip_gap::Cdouble
@@ -97,8 +103,8 @@ The signature of this method is identical to [`Highs_lpCall`](@ref), except that
 ### Parameters
 * `q_num_nz`: The number of nonzeros in the Hessian matrix.
 * `q_format`: The format of the Hessian matrix in the form of a `kHighsHessianStatus` constant. If q\\_num\\_nz > 0, this must be `kHighsHessianFormatTriangular`.
-* `q_start`: The Hessian matrix is provided in the same format as the constraint matrix, using `q_start`, `q_index`, and `q_value` in the place of `a_start`, `a_index`, and `a_value`.
-* `q_index`: An array of length [q\\_num\\_nz] with indices of matrix sentries.
+* `q_start`: The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form (or, equivalently, as the upper triangular component in compressed sparse row form). The sparse matrix consists of three arrays, `q_start`, `q_index`, and `q_value`. `q_start` is an array of length [num\\_col].
+* `q_index`: An array of length [q\\_num\\_nz] with indices of matrix entries.
 * `q_value`: An array of length [q\\_num\\_nz] with values of matrix entries.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
@@ -196,18 +202,6 @@ function Highs_githash()
 end
 
 """
-    Highs_compilationDate()
-
-Return the HiGHS compilation date.
-
-### Returns
-Thse HiGHS compilation date.
-"""
-function Highs_compilationDate()
-    ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
-end
-
-"""
     Highs_readModel(highs, filename)
 
 Read a model from `filename` into `highs`.
@@ -235,6 +229,21 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeModel(highs, filename)
     ccall((:Highs_writeModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+end
+
+"""
+    Highs_writePresolvedModel(highs, filename)
+
+Write the presolved model in `highs` to `filename`.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `filename`: The filename to write.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_writePresolvedModel(highs, filename)
+    ccall((:Highs_writePresolvedModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -413,7 +422,7 @@ Pass a model to HiGHS in a single function call. This is faster than constructin
 * `a_start`: The constraint matrix is provided to HiGHS in compressed sparse column form (if `a_format` is `kHighsMatrixFormatColwise`, otherwise compressed sparse row form). The sparse matrix consists of three arrays, `a_start`, `a_index`, and `a_value`. `a_start` is an array of length [num\\_col] containing the starting index of each column in `a_index`. If `a_format` is `kHighsMatrixFormatRowwise` the array is of length [num\\_row] corresponding to each row.
 * `a_index`: An array of length [num\\_nz] with indices of matrix entries.
 * `a_value`: An array of length [num\\_nz] with values of matrix entries.
-* `q_start`: The Hessian matrix is provided in the same format as the constraint matrix, using `q_start`, `q_index`, and `q_value` in the place of `a_start`, `a_index`, and `a_value`. If the model is linear, pass NULL.
+* `q_start`: The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form (or, equivalently, as the upper triangular component in compressed sparse row form). The sparse matrix consists of three arrays, `q_start`, `q_index`, and `q_value`. `q_start` is an array of length [num\\_col]. If the model is linear, pass NULL.
 * `q_index`: An array of length [q\\_num\\_nz] with indices of matrix entries. If the model is linear, pass NULL.
 * `q_value`: An array of length [q\\_num\\_nz] with values of matrix entries. If the model is linear, pass NULL.
 * `integrality`: An array of length [num\\_col] containing a `kHighsVarType` constant for each column.
@@ -434,7 +443,7 @@ Set the Hessian matrix for a quadratic objective.
 * `dim`: The dimension of the Hessian matrix. Should be [num\\_col].
 * `num_nz`: The number of non-zero elements in the Hessian matrix.
 * `format`: The format of the Hessian matrix as a `kHighsHessianFormat` constant. This must be `kHighsHessianFormatTriangular`.
-* `start`: The Hessian matrix is provided to HiGHS as the upper triangular component in compressed sparse column form. The sparse matrix consists of three arrays, `start`, `index`, and `value`. `start` is an array of length [num\\_col] containing the starting index of each column in `index`.
+* `start`: The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form (or, equivalently, as the upper triangular component in compressed sparse row form), using `q_start`, `q_index`, and `q_value`.The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form. The sparse matrix consists of three arrays, `start`, `index`, and `value`. `start` is an array of length [num\\_col] containing the starting index of each column in `index`.
 * `index`: An array of length [num\\_nz] with indices of matrix entries.
 * `value`: An array of length [num\\_nz] with values of matrix entries.
 ### Returns
@@ -474,6 +483,21 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passColName(highs, col, name)
     ccall((:Highs_passColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+end
+
+"""
+    Highs_passModelName(highs, name)
+
+Pass the name of the model.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `name`: The name of the model.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_passModelName(highs, name)
+    ccall((:Highs_passModelName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, name)
 end
 
 """
@@ -1136,6 +1160,23 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
     ccall((:Highs_setSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, row_value, col_dual, row_dual)
+end
+
+"""
+    Highs_setSparseSolution(highs, num_entries, index, value)
+
+Set a partial primal solution by passing values for a set of variables
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `num_entries`: Number of variables in the set
+* `index`: Indices of variables in the set
+* `value`: Values of variables in the set
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_setSparseSolution(highs, num_entries, index, value)
+    ccall((:Highs_setSparseSolution, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_entries, index, value)
 end
 
 """
@@ -2242,6 +2283,28 @@ function Highs_getRanging(highs, col_cost_up_value, col_cost_up_objective, col_c
 end
 
 """
+    Highs_feasibilityRelaxation(highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+
+Compute the solution corresponding to a (possibly weighted) sum of (allowable) infeasibilities in an LP/MIP.
+
+If local penalties are not defined, pass NULL, and the global penalty will be used. Negative penalty values imply that the bound or RHS value cannot be violated
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `const`: double global\\_lower\\_penalty The penalty for violating lower bounds on variables
+* `const`: double global\\_upper\\_penalty The penalty for violating upper bounds on variables
+* `const`: double global\\_rhs\\_penalty The penalty for violating constraint RHS values
+* `const`: double* local\\_lower\\_penalty The penalties for violating specific lower bounds on variables
+* `const`: double* local\\_upper\\_penalty The penalties for violating specific upper bounds on variables
+* `const`: double* local\\_rhs\\_penalty The penalties for violating specific constraint RHS values
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_feasibilityRelaxation(highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+    ccall((:Highs_feasibilityRelaxation, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+end
+
+"""
     Highs_resetGlobalScheduler(blocking)
 
 Releases all resources held by the global scheduler instance.
@@ -2259,6 +2322,33 @@ No status is returned since the function call cannot fail. Calling this function
 """
 function Highs_resetGlobalScheduler(blocking)
     ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
+end
+
+"""
+    Highs_getCallbackDataOutItem(data_out, item_name)
+
+Get a void* pointer to a callback data item
+
+### Parameters
+* `data_out`: A pointer to the [`HighsCallbackDataOut`](@ref) instance.
+* `item_name`: The name of the item.
+### Returns
+A void* pointer to the callback data item, or NULL if item\\_name not valid
+"""
+function Highs_getCallbackDataOutItem(data_out, item_name)
+    ccall((:Highs_getCallbackDataOutItem, libhighs), Ptr{Cvoid}, (Ptr{HighsCallbackDataOut}, Ptr{Cchar}), data_out, item_name)
+end
+
+"""
+    Highs_compilationDate()
+
+Return the HiGHS compilation date.
+
+### Returns
+Thse HiGHS compilation date.
+"""
+function Highs_compilationDate()
+    ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
 end
 
 function Highs_call(num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -2367,13 +2457,11 @@ const CMAKE_BUILD_TYPE = "Release"
 
 const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
 
-const HIGHS_GITHASH = "50670fd4c"
-
-const HIGHS_COMPILATION_DATE = "1970-01-01"
+const HIGHS_GITHASH = "fcfb53414"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 7
+const HIGHS_VERSION_MINOR = 8
 
 const HIGHS_VERSION_PATCH = 0
 
@@ -2416,6 +2504,7 @@ const kHighsPresolveStatusReducedToEmpty = HighsInt(4)
 const kHighsPresolveStatusTimeout = HighsInt(5)
 const kHighsPresolveStatusNullError = HighsInt(6)
 const kHighsPresolveStatusOptionsError = HighsInt(7)
+const kHighsPresolveStatusOutOfMemory = HighsInt(8)
 const kHighsModelStatusNotset = HighsInt(0)
 const kHighsModelStatusLoadError = HighsInt(1)
 const kHighsModelStatusModelError = HighsInt(2)
@@ -2446,3 +2535,5 @@ const kHighsCallbackMipSolution = HighsInt(3)
 const kHighsCallbackMipImprovingSolution = HighsInt(4)
 const kHighsCallbackMipLogging = HighsInt(5)
 const kHighsCallbackMipInterrupt = HighsInt(6)
+const kHighsCallbackMipGetCutPool = HighsInt(7)
+const kHighsCallbackMipDefineLazyConstraints = HighsInt(8)
