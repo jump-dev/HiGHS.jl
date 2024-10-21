@@ -2142,7 +2142,8 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     for (li, i, ui) in zip(lower, set, upper)
         di = model.solution.coldual[i+1]
         if model.solution.has_dual_ray
-            dual_objective_value += sense * ifelse(di <= 0, ui, li) * di
+            dual_objective_value +=
+                sense * _dual_objective_contribution(li, NaN, ui, di)
         else
             xi = model.solution.colvalue[i+1]
             dual_objective_value += _dual_objective_contribution(li, xi, ui, di)
@@ -2171,7 +2172,8 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     for (li, i, ui) in zip(lower, set, upper)
         di = model.solution.rowdual[i+1]
         if model.solution.has_dual_ray
-            dual_objective_value += sense * ifelse(di <= 0, ui, li) * di
+            dual_objective_value +=
+                sense * _dual_objective_contribution(li, NaN, ui, di)
         else
             ri = model.solution.rowvalue[i+1]
             dual_objective_value += _dual_objective_contribution(li, ri, ui, di)
@@ -2182,8 +2184,13 @@ end
 
 function _dual_objective_contribution(l, x, u, d)
     if isfinite(l) && isfinite(u)
-        # Pick the bound that is closest to the primal value
-        return ifelse(abs(x - l) < abs(x - u), l, u) * d
+        if isfinite(x)
+            # Pick the bound that is closest to the primal value
+            return ifelse(abs(x - l) < abs(x - u), l, u) * d
+        else
+            # Pick the bound depending on the sign of the dual value
+            return ifelse(d >= 0, l, u) * d
+        end
     elseif isfinite(l)
         return l * d
     else
