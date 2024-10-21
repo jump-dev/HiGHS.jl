@@ -974,6 +974,32 @@ function test_callback_interrupt()
     return
 end
 
+function test_active_bound()
+    for ((l, x, u, d), result) in [
+        # Primal exists. Pick closest bound lower
+        (0.0, 0.0, 1.0, 2.0) => 0.0,
+        (0.0, 0.4, 1.0, 2.0) => 0.0,
+        (0.0, 0.4, 1.0, -2.0) => 0.0,  # incorrect d but doesn't matter
+        # Primal exists. Pick closest bound upper
+        (0.0, 1.0, 1.0, -2.0) => 1.0,
+        (0.0, 0.6, 1.0, -2.0) => 1.0,
+        (0.0, 0.6, 1.0, 2.0) => 1.0,  # incorrect d but doesn't matter
+        # It's a ray. Choose based on sign
+        (0.0, NaN, 1.0, 2.0) => 0.0,
+        (0.0, NaN, 1.0, 1e-10) => 0.0,
+        (0.0, NaN, 1.0, -2.0) => 1.0,
+        (0.0, NaN, 1.0, -1e-10) => 1.0,
+        # It's a one-sided ray
+        (0.0, NaN, Inf, 2.0) => 0.0,
+        (0.0, NaN, Inf, -1e-10) => 0.0,
+        (-Inf, NaN, 1.0, 1e-10) => 1.0,
+        (-Inf, NaN, 1.0, -2.0) => 1.0,
+    ]
+        @test HiGHS._active_bound(l, x, u, d) == result
+    end
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()

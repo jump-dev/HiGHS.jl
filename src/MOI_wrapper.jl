@@ -2142,11 +2142,10 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     for (li, i, ui) in zip(lower, set, upper)
         di = model.solution.coldual[i+1]
         if model.solution.has_dual_ray
-            dual_objective_value +=
-                sense * _dual_objective_contribution(li, NaN, ui, di)
+            dual_objective_value += sense * _active_bound(li, NaN, ui, di) * di
         else
             xi = model.solution.colvalue[i+1]
-            dual_objective_value += _dual_objective_contribution(li, xi, ui, di)
+            dual_objective_value += _active_bound(li, xi, ui, di) * di
         end
     end
     # Row components of the dual objective value
@@ -2172,30 +2171,29 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     for (li, i, ui) in zip(lower, set, upper)
         di = model.solution.rowdual[i+1]
         if model.solution.has_dual_ray
-            dual_objective_value +=
-                sense * _dual_objective_contribution(li, NaN, ui, di)
+            dual_objective_value += sense * _active_bound(li, NaN, ui, di) * di
         else
             ri = model.solution.rowvalue[i+1]
-            dual_objective_value += _dual_objective_contribution(li, ri, ui, di)
+            dual_objective_value += _active_bound(li, ri, ui, di) * di
         end
     end
     return dual_objective_value
 end
 
-function _dual_objective_contribution(l, x, u, d)
+function _active_bound(l, x, u, d)
     if isfinite(l) && isfinite(u)
         if isfinite(x)
             # Pick the bound that is closest to the primal value
-            return ifelse(abs(x - l) < abs(x - u), l, u) * d
+            return ifelse(abs(x - l) < abs(x - u), l, u)
         else
             # Pick the bound depending on the sign of the dual value
-            return ifelse(d >= 0, l, u) * d
+            return ifelse(d >= 0, l, u)
         end
     elseif isfinite(l)
-        return l * d
+        return l
     else
         @assert isfinite(u)
-        return u * d
+        return u
     end
 end
 
