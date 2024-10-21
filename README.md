@@ -50,6 +50,7 @@ To use HiGHS with JuMP, use `HiGHS.Optimizer`:
 ```julia
 using JuMP, HiGHS
 model = Model(HiGHS.Optimizer)
+# Set options as needed, for example:
 set_attribute(model, "presolve", "on")
 set_attribute(model, "time_limit", 60.0)
 ```
