@@ -2410,12 +2410,11 @@ end
 ###
 
 function MOI.supports_constraint(
-    model::Optimizer,
+    ::Optimizer,
     ::Type{MOI.VariableIndex},
     ::Type{<:Union{MOI.ZeroOne,MOI.Integer}},
 )
-    solver = MOI.get(model, MOI.RawOptimizerAttribute("solver"))
-    return solver != "simplex" && solver != "ipm"
+    return true
 end
 
 function MOI.is_valid(
