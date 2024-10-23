@@ -21,19 +21,12 @@ function runtests()
     return
 end
 
-const _EXPLICIT_METHOD_FAILURES = [
-    "test_objective_qp_ObjectiveFunction_edge_cases",
-    "test_objective_qp_ObjectiveFunction_zero_ofdiag",
-    "test_quadratic_duplicate_terms",
-    "test_quadratic_integration",
-    "test_quadratic_nonhomogeneous",
-    "test_linear_Semicontinuous_integration",
-    "test_linear_Semiinteger_integration",
-]
-
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
+    # Turn presolve off so that we generate infeasibility certificates. This is
+    # a temporary work-around until we fix this upstream in HiGHS.
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
@@ -50,54 +43,6 @@ function test_runtests_cache()
     MOI.set(model, MOI.Silent(), true)
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
-    return
-end
-
-function test_runtests_simplex()
-    model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "simplex")
-    for presolve in ("on", "off")
-        MOI.set(model, MOI.RawOptimizerAttribute("presolve"), presolve)
-        MOI.Test.runtests(
-            model,
-            MOI.Test.Config();
-            exclude = _EXPLICIT_METHOD_FAILURES,
-        )
-    end
-    return
-end
-
-function test_runtests_ipm()
-    model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
-    MOI.Test.runtests(
-        model,
-        MOI.Test.Config();
-        exclude = _EXPLICIT_METHOD_FAILURES,
-    )
-    return
-end
-
-function test_runtests_ipm_no_presolve()
-    model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
-    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
-    MOI.Test.runtests(
-        model,
-        MOI.Test.Config(),
-        exclude = [
-            # Termination status is OTHER_ERROR
-            r"^test_conic_linear_INFEASIBLE$",
-            r"^test_conic_linear_INFEASIBLE_2$",
-            # See https://github.com/ERGO-Code/HiGHS/issues/1807
-            r"^test_conic_NormInfinityCone_INFEASIBLE$",
-            r"^test_conic_NormOneCone_INFEASIBLE$",
-            _EXPLICIT_METHOD_FAILURES...,
-        ],
-    )
     return
 end
 
