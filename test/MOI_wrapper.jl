@@ -24,6 +24,9 @@ end
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
+    # Turn presolve off so that we generate infeasibility certificates. This is
+    # a temporary work-around until we fix this upstream in HiGHS.
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
@@ -238,7 +241,7 @@ function test_SimplexIterations_BarrierIterations()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.SimplexIterations()) > 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
-    model = _knapsack_model(mip = false, solver = "ipm")
+    model = _knapsack_model(mip = false, solver = "")
     MOI.optimize!(model)
     # Not == 0 because HiGHS will use Simplex to clean-up occasionally
     @test MOI.get(model, MOI.SimplexIterations()) >= 0
@@ -852,7 +855,7 @@ function test_infeasible_point()
     MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
     ci = MOI.add_constraint(model, x[1] + 2.0 * x[2], MOI.LessThan(-1.0))
     MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
-    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "")
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT
