@@ -241,7 +241,7 @@ function test_SimplexIterations_BarrierIterations()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.SimplexIterations()) > 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
-    model = _knapsack_model(mip = false, solver = "")
+    model = _knapsack_model(mip = false, solver = "choose")
     MOI.optimize!(model)
     # Not == 0 because HiGHS will use Simplex to clean-up occasionally
     @test MOI.get(model, MOI.SimplexIterations()) >= 0
@@ -855,7 +855,6 @@ function test_infeasible_point()
     MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
     ci = MOI.add_constraint(model, x[1] + 2.0 * x[2], MOI.LessThan(-1.0))
     MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
-    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "")
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT
