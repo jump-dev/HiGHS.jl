@@ -744,6 +744,36 @@ Return the 0-indexed column associated with `x` in `model`.
 """
 column(model::Optimizer, x::MOI.VariableIndex) = _info(model, x).column
 
+function MOI.Utilities.add_variable_and_bounds(
+    model::Optimizer,
+    lower_bound,
+    upper_bound,
+)
+    # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
+    # because we need `add_item` to tell us what the `VariableIndex` is.
+    index = CleverDicts.add_item(
+        model.variable_info,
+        _VariableInfo(MOI.VariableIndex(0), HighsInt(0)),
+    )
+    info = _info(model, index)
+    lb = -Inf
+    if lower_bound !== nothing
+        lb = lower_bound
+        _update_info(info, MOI.GreaterThan{Float64}(lb))
+    end
+    ub = Inf
+    if upper_bound !== nothing
+        ub = upper_bound
+        _update_info(info, MOI.LessThan{Float64}(ub))
+    end
+    # Now, set `.index` and `.column`.
+    info.index = index
+    info.column = HighsInt(length(model.variable_info) - 1)
+    ret = Highs_addCol(model, 0.0, lb, ub, 0, C_NULL, C_NULL)
+    _check_ret(ret)
+    return index
+end
+
 function MOI.add_variable(model::Optimizer)
     # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
     # because we need `add_item` to tell us what the `VariableIndex` is.
