@@ -760,6 +760,48 @@ function MOI.add_variable(model::Optimizer)
     return index
 end
 
+function MOI.supports_add_constrained_variable(
+    ::Optimizer,
+    ::Type{
+        <:Union{
+            MOI.GreaterThan{Float64},
+            MOI.LessThan{Float64},
+            MOI.EqualTo{Float64},
+            MOI.Interval{Float64},
+        },
+    },
+)
+    return true
+end
+
+function MOI.add_constrained_variable(
+    model::Optimizer,
+    set::S,
+) where {
+    S<:Union{
+        MOI.GreaterThan{Float64},
+        MOI.LessThan{Float64},
+        MOI.EqualTo{Float64},
+        MOI.Interval{Float64},
+    },
+}
+    # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
+    # because we need `add_item` to tell us what the `VariableIndex` is.
+    index = CleverDicts.add_item(
+        model.variable_info,
+        _VariableInfo(MOI.VariableIndex(0), HighsInt(0)),
+    )
+    info = _info(model, index)
+    # Now, set `.index` and `.column`.
+    info.index = index
+    info.column = HighsInt(length(model.variable_info) - 1)
+    lower, upper = _bounds(set)
+    ret = Highs_addCol(model, 0.0, lower, upper, 0, C_NULL, C_NULL)
+    _check_ret(ret)
+    _update_info(info, set)
+    return index, MOI.ConstraintIndex{MOI.VariableIndex,S}(index.value)
+end
+
 function MOI.is_valid(model::Optimizer, v::MOI.VariableIndex)
     return haskey(model.variable_info, v)
 end
