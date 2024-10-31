@@ -802,7 +802,6 @@ function MOI.add_constrained_variable(
     return index, MOI.ConstraintIndex{MOI.VariableIndex,S}(index.value)
 end
 
-
 function MOI.is_valid(model::Optimizer, v::MOI.VariableIndex)
     return haskey(model.variable_info, v)
 end
