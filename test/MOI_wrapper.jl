@@ -699,9 +699,20 @@ end
 
 function test_is_valid_variable_bound()
     model = HiGHS.Optimizer()
-    ci = MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}}(1)
-    @test_throws MOI.InvalidIndex HiGHS.column(model, ci)
-    @test !MOI.is_valid(model, ci)
+    for S in (
+        MOI.LessThan{Float64},
+        MOI.GreaterThan{Float64},
+        MOI.EqualTo{Float64},
+        MOI.Interval{Float64},
+        MOI.Semicontinuous{Float64},
+        MOI.Semiinteger{Float64},
+        MOI.ZeroOne,
+        MOI.Integer,
+    )
+        ci = MOI.ConstraintIndex{MOI.VariableIndex,S}(1)
+        @test_throws MOI.InvalidIndex HiGHS.column(model, ci)
+        @test !MOI.is_valid(model, ci)
+    end
     return
 end
 

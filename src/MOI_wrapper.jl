@@ -731,10 +731,11 @@ function MOI.get(model::Optimizer, ::MOI.ListOfVariableIndices)
 end
 
 function _info(model::Optimizer, key::MOI.VariableIndex)
-    if haskey(model.variable_info, key)
-        return model.variable_info[key]
+    info = get(model.variable_info, key, nothing)
+    if info === nothing
+        return throw(MOI.InvalidIndex(key))
     end
-    return throw(MOI.InvalidIndex(key))
+    return info
 end
 
 """
@@ -837,14 +838,13 @@ function MOI.get(model::Optimizer, ::Type{MOI.VariableIndex}, name::String)
     if model.name_to_variable === nothing
         _rebuild_name_to_variable(model)
     end
-    if haskey(model.name_to_variable, name)
-        variable = model.name_to_variable[name]
-        if variable === nothing
-            error("Duplicate name detected: $(name)")
-        end
-        return variable
+    variable = get(model.name_to_variable, name, missing)
+    if variable === nothing
+        error("Duplicate name detected: $(name)")
+    elseif variable === missing
+        return nothing  # Variable with this name does not exist
     end
-    return nothing
+    return variable::MOI.VariableIndex
 end
 
 function MOI.get(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
@@ -1214,10 +1214,11 @@ function _info(
     c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any},
 )
     var_index = MOI.VariableIndex(c.value)
-    if haskey(model.variable_info, var_index)
-        return _info(model, var_index)
+    info = get(model.variable_info, var_index, nothing)
+    if info === nothing
+        return throw(MOI.InvalidIndex(c))
     end
-    return throw(MOI.InvalidIndex(c))
+    return info
 end
 
 """
@@ -1239,40 +1240,46 @@ function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
-    if haskey(model.variable_info, MOI.VariableIndex(c.value))
-        info = _info(model, c)
-        return info.bound == _BOUND_LESS_THAN ||
-               info.bound == _BOUND_LESS_AND_GREATER_THAN
+    info = get(model.variable_info, MOI.VariableIndex(c.value), nothing)
+    if info === nothing
+        return false
     end
-    return false
+    return info.bound == _BOUND_LESS_THAN ||
+           info.bound == _BOUND_LESS_AND_GREATER_THAN
 end
 
 function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
-    if haskey(model.variable_info, MOI.VariableIndex(c.value))
-        info = _info(model, c)
-        return info.bound == _BOUND_GREATER_THAN ||
-               info.bound == _BOUND_LESS_AND_GREATER_THAN
+    info = get(model.variable_info, MOI.VariableIndex(c.value), nothing)
+    if info === nothing
+        return false
     end
-    return false
+    return info.bound == _BOUND_GREATER_THAN ||
+           info.bound == _BOUND_LESS_AND_GREATER_THAN
 end
 
 function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Interval{Float64}},
 )
-    return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).bound == _BOUND_INTERVAL
+    info = get(model.variable_info, MOI.VariableIndex(c.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.bound == _BOUND_INTERVAL
 end
 
 function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.EqualTo{Float64}},
 )
-    return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).bound == _BOUND_EQUAL_TO
+    info = get(model.variable_info, MOI.VariableIndex(c.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.bound == _BOUND_EQUAL_TO
 end
 
 function MOI.get(
@@ -1537,10 +1544,11 @@ function _info(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},<:_SCALAR_SETS},
 )
     key = _ConstraintKey(c.value)
-    if haskey(model.affine_constraint_info, key)
-        return model.affine_constraint_info[key]
+    info = get(model.affine_constraint_info, key, nothing)
+    if info === nothing
+        return throw(MOI.InvalidIndex(c))
     end
-    return throw(MOI.InvalidIndex(c))
+    return info
 end
 
 function row(
@@ -1784,14 +1792,13 @@ function MOI.get(model::Optimizer, ::Type{MOI.ConstraintIndex}, name::String)
     if model.name_to_constraint_index === nothing
         _rebuild_name_to_constraint_index(model)
     end
-    if haskey(model.name_to_constraint_index, name)
-        constr = model.name_to_constraint_index[name]
-        if constr === nothing
-            error("Duplicate constraint name detected: $(name)")
-        end
-        return constr
+    constraint = get(model.name_to_constraint_index, name, missing)
+    if constraint === nothing
+        error("Duplicate constraint name detected: $(name)")
+    elseif constraint === missing
+        return nothing  # No constraint exists with this name
     end
-    return nothing
+    return constraint
 end
 
 function MOI.get(
@@ -2463,14 +2470,22 @@ function MOI.is_valid(
     model::Optimizer,
     ci::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
-    return _info(model, ci).type == _TYPE_INTEGER
+    info = get(model.variable_info, MOI.VariableIndex(ci.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.type == _TYPE_INTEGER
 end
 
 function MOI.is_valid(
     model::Optimizer,
     ci::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
-    return _info(model, ci).type == _TYPE_BINARY
+    info = get(model.variable_info, MOI.VariableIndex(ci.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.type == _TYPE_BINARY
 end
 
 function MOI.get(
@@ -2587,8 +2602,11 @@ function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,S},
 ) where {S<:Union{MOI.Semicontinuous{Float64},MOI.Semiinteger{Float64}}}
-    return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).bound == _bound_type(S)
+    info = get(model.variable_info, MOI.VariableIndex(c.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.bound == _bound_type(S)
 end
 
 function MOI.add_constraint(
