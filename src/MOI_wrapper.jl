@@ -2440,10 +2440,10 @@ function MOI.is_valid(
     ci::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
     info = get(model.variable_info, MOI.VariableIndex(ci.value), nothing)
-    if info === type
+    if info === nothing
         return false
     end
-    return info.bound == _TYPE_BINARY
+    return info.type == _TYPE_BINARY
 end
 
 function MOI.get(
