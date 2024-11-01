@@ -2428,14 +2428,22 @@ function MOI.is_valid(
     model::Optimizer,
     ci::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
-    return _info(model, ci).type == _TYPE_INTEGER
+    info = get(model.variable_info, MOI.VariableIndex(ci.value), nothing)
+    if info === nothing
+        return false
+    end
+    return info.type == _TYPE_INTEGER
 end
 
 function MOI.is_valid(
     model::Optimizer,
     ci::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
-    return _info(model, ci).type == _TYPE_BINARY
+    info = get(model.variable_info, MOI.VariableIndex(ci.value), nothing)
+    if info === type
+        return false
+    end
+    return info.bound == _TYPE_BINARY
 end
 
 function MOI.get(
