@@ -707,7 +707,7 @@ function test_is_valid_variable_bound()
         MOI.Semicontinuous{Float64},
         MOI.Semiinteger{Float64},
         MOI.ZeroOne,
-        MOI.Integer
+        MOI.Integer,
     )
         ci = MOI.ConstraintIndex{MOI.VariableIndex,S}(1)
         @test_throws MOI.InvalidIndex HiGHS.column(model, ci)
