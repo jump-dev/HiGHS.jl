@@ -960,7 +960,7 @@ function test_add_constrained_variable_tuple()
     F = MOI.VariableIndex
     model = HiGHS.Optimizer()
     set = (MOI.GreaterThan(0.0), MOI.LessThan(1.0))
-    @requires MOI.supports_add_constrained_variable(model, typeof(set))
+    @test MOI.supports_add_constrained_variable(model, typeof(set))
     x, (c_l, c_u) = MOI.add_constrained_variable(model, set)
     @test c_l == MOI.ConstraintIndex{F,MOI.GreaterThan{Float64}}(x.value)
     @test c_u == MOI.ConstraintIndex{F,MOI.LessThan{Float64}}(x.value)
