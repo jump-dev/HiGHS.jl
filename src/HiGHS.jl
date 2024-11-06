@@ -47,6 +47,11 @@ PrecompileTools.@setup_workload begin
             MOI.add_constraint(model, x[1], MOI.GreaterThan(0.0))
             MOI.add_constraint(model, x[2], MOI.LessThan(0.0))
             MOI.add_constraint(model, x[3], MOI.EqualTo(0.0))
+            MOI.add_constrained_variable(model, MOI.GreaterThan(0.0))
+            MOI.add_constrained_variable(model, MOI.LessThan(0.0))
+            MOI.add_constrained_variable(model, MOI.EqualTo(0.0))
+            MOI.add_constrained_variable(model, MOI.Integer())
+            MOI.add_constrained_variable(model, MOI.ZeroOne())
             f = 1.0 * x[1] + x[2] + x[3]
             c1 = MOI.add_constraint(model, f, MOI.GreaterThan(0.0))
             MOI.set(model, MOI.ConstraintName(), c1, "c1")
