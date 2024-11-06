@@ -805,16 +805,14 @@ end
 
 function MOI.supports_add_constrained_variable(
     ::Optimizer,
-    ::Type{MOI.GreaterThan{Float64}},
-    ::Type{MOI.LessThan{Float64}},
+    ::Type{Tuple{MOI.GreaterThan{Float64},MOI.LessThan{Float64}}},
 )
     return true
 end
 
 function MOI.add_constrained_variable(
     model::Optimizer,
-    set_gt::MOI.GreaterThan{Float64},
-    set_lt::MOI.LessThan{Float64},
+    set::Tuple{MOI.GreaterThan{Float64},MOI.LessThan{Float64}},
 )
     # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
     # because we need `add_item` to tell us what the `VariableIndex` is.
@@ -826,13 +824,13 @@ function MOI.add_constrained_variable(
     # Now, set `.index` and `.column`.
     info.index = index
     info.column = HighsInt(length(model.variable_info) - 1)
-    l, u = set_gt.lower, set_lt.upper
+    l, u = set[1].lower, set[2].upper
     ret = Highs_addCol(model, 0.0, l, u, 0, C_NULL, C_NULL)
     _check_ret(ret)
-    _update_info(info, set_gt)
-    _update_info(info, set_lt)
-    c_gt = MOI.ConstraintIndex{MOI.VariableIndex,(typeof(set_gt))}(index.value)
-    c_lt = MOI.ConstraintIndex{MOI.VariableIndex,(typeof(set_lt))}(index.value)
+    _update_info(info, set[1])
+    _update_info(info, set[2])
+    c_gt = MOI.ConstraintIndex{MOI.VariableIndex,(typeof(set[1]))}(index.value)
+    c_lt = MOI.ConstraintIndex{MOI.VariableIndex,(typeof(set[2]))}(index.value)
     return index, (c_gt, c_lt)
 end
 
