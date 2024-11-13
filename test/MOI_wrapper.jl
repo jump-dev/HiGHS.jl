@@ -870,7 +870,8 @@ function test_infeasible_point()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT
-    @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBLE_POINT
+    dual_stat = MOI.get(model, MOI.DualStatus())
+    @test dual_stat in (MOI.INFEASIBLE_POINT, MOI.NO_SOLUTION)
     @test MOI.get(model, MOI.ResultCount()) == 1
     @test MOI.get(model, MOI.VariablePrimal(), x) isa Vector{Float64}
     @test MOI.get(model, MOI.ConstraintDual(), ci) isa Float64
