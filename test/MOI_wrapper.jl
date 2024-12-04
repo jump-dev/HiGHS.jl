@@ -974,6 +974,18 @@ function test_add_constrained_variable_tuple()
     return
 end
 
+function test_dual_objective_value_infeasible()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = 1.0 * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBLE_POINT
+    @test MOI.get(model, MOI.DualObjectiveValue()) == 0.0
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
