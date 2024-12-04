@@ -941,11 +941,13 @@ function test_active_bound()
         (0.0, 1.0, 1.0, -2.0) => 1.0,
         (0.0, 0.6, 1.0, -2.0) => 1.0,
         (0.0, 0.6, 1.0, 2.0) => 1.0,  # incorrect d but doesn't matter
+        (-Inf, 0.0, Inf, 0.0) => 0.0,
         # It's a ray. Choose based on sign
         (0.0, NaN, 1.0, 2.0) => 0.0,
         (0.0, NaN, 1.0, 1e-10) => 0.0,
         (0.0, NaN, 1.0, -2.0) => 1.0,
         (0.0, NaN, 1.0, -1e-10) => 1.0,
+        (-Inf, NaN, Inf, 0.0) => 0.0,
         # It's a one-sided ray
         (0.0, NaN, Inf, 2.0) => 0.0,
         (0.0, NaN, Inf, -1e-10) => 0.0,
@@ -969,6 +971,18 @@ function test_add_constrained_variable_tuple()
     @test MOI.get(model, MOI.ConstraintSet(), c_l) == set[1]
     @test MOI.get(model, MOI.ConstraintFunction(), c_u) == x
     @test MOI.get(model, MOI.ConstraintSet(), c_u) == set[2]
+    return
+end
+
+function test_dual_objective_value_infeasible()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = 1.0 * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBLE_POINT
+    @test MOI.get(model, MOI.DualObjectiveValue()) == 0.0
     return
 end
 

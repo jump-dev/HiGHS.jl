@@ -2271,9 +2271,10 @@ function _active_bound(l, x, u, d)
         end
     elseif isfinite(l)
         return l
-    else
-        @assert isfinite(u)
+    elseif isfinite(u)
         return u
+    else
+        return 0.0
     end
 end
 
