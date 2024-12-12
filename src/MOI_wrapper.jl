@@ -644,7 +644,7 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.NodeLimit)
     value = MOI.get(model, MOI.RawOptimizerAttribute("mip_max_nodes"))
-    return value == typemax(Int32) ? nothing : Float64(value)
+    return value == typemax(Int32) ? nothing : Int(value)
 end
 
 ###
