@@ -627,7 +627,11 @@ end
 MOI.supports(::Optimizer, ::MOI.NodeLimit) = true
 
 function MOI.set(model::Optimizer, ::MOI.NodeLimit, ::Nothing)
-    return MOI.set(model, MOI.RawOptimizerAttribute("mip_max_nodes"), typemax(Int32))
+    return MOI.set(
+        model,
+        MOI.RawOptimizerAttribute("mip_max_nodes"),
+        typemax(Int32),
+    )
 end
 
 function MOI.set(model::Optimizer, ::MOI.NodeLimit, limit::Real)
