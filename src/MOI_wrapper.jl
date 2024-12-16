@@ -621,6 +621,29 @@ function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
 end
 
 ###
+### MOI.NodeLimit
+###
+
+MOI.supports(::Optimizer, ::MOI.NodeLimit) = true
+
+function MOI.set(model::Optimizer, ::MOI.NodeLimit, ::Nothing)
+    attr = MOI.RawOptimizerAttribute("mip_max_nodes")
+    MOI.set(model, attr, typemax(Cint))
+    return
+end
+
+function MOI.set(model::Optimizer, ::MOI.NodeLimit, limit::Real)
+    attr = MOI.RawOptimizerAttribute("mip_max_nodes")
+    MOI.set(model, attr, Int(limit))
+    return
+end
+
+function MOI.get(model::Optimizer, ::MOI.NodeLimit)
+    value = MOI.get(model, MOI.RawOptimizerAttribute("mip_max_nodes"))
+    return value == typemax(Cint) ? nothing : Int(value)
+end
+
+###
 ### MOI.AbsoluteGapTolerance
 ###
 
