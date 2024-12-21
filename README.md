@@ -1,6 +1,6 @@
 # HiGHS.jl
 
-[![Build Status](https://github.com/jump-dev/HiGHS.jl/workflows/CI/badge.svg?branch=master)](https://github.com/jump-dev/HiGHS.jl/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/jump-dev/HiGHS.jl/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/jump-dev/HiGHS.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/jump-dev/HiGHS.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jump-dev/HiGHS.jl)
 
 [HiGHS.jl](https://github.com/jump-dev/HiGHS.jl) is a wrapper for the
