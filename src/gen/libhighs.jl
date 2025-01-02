@@ -454,6 +454,60 @@ function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
 end
 
 """
+    Highs_passLinearObjectives(highs, num_linear_objective, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+
+Passes multiple linear objective data to HiGHS, clearing any such data already in HiGHS
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `weight`: A pointer to the weights of the linear objective, with its positive/negative sign determining whether it is minimized or maximized during lexicographic optimization
+* `offset`: A pointer to the objective offsets
+* `coefficients`: A pointer to the objective coefficients
+* `abs_tolerance`: A pointer to the absolute tolerances used when constructing objective constraints during lexicographic optimization
+* `rel_tolerance`: A pointer to the relative tolerances used when constructing objective constraints during lexicographic optimization
+* `priority`: A pointer to the priorities of the objectives during lexicographic optimization
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_passLinearObjectives(highs, num_linear_objective, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+    ccall((:Highs_passLinearObjectives, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}), highs, num_linear_objective, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+end
+
+"""
+    Highs_addLinearObjective(highs, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+
+Adds linear objective data to HiGHS
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `weight`: The weight of the linear objective, with its positive/negative sign determining whether it is minimized or maximized during lexicographic optimization
+* `offset`: The objective offset
+* `coefficients`: A pointer to the objective coefficients
+* `abs_tolerance`: The absolute tolerance used when constructing an objective constraint during lexicographic optimization
+* `rel_tolerance`: The relative tolerance used when constructing an objective constraint during lexicographic optimization
+* `priority`: The priority of this objective during lexicographic optimization
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_addLinearObjective(highs, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+    ccall((:Highs_addLinearObjective, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Ptr{Cdouble}, Cdouble, Cdouble, HighsInt), highs, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
+end
+
+"""
+    Highs_clearLinearObjectives(highs)
+
+Clears any multiple linear objective data in HiGHS
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_clearLinearObjectives(highs)
+    ccall((:Highs_clearLinearObjectives, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_passRowName(highs, row, name)
 
 Pass the name of a row.
@@ -916,11 +970,11 @@ end
 """
     Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
 
-Get an unbounded dual ray that is a certificate of primal infeasibility.
+Indicates whether a dual ray that is a certificate of primal infeasibility currently exists, and (at the expense of solving an LP) gets it if it does not and dual\\_ray\\_value is not nullptr.
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
-* `has_dual_ray`: A pointer to an int to store 1 if the dual ray exists.
+* `has_dual_ray`: A pointer to an int to store 1 if a dual ray currently exists.
 * `dual_ray_value`: An array of length [num\\_row] filled with the unbounded ray.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
@@ -930,9 +984,23 @@ function Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
 end
 
 """
+    Highs_getDualUnboundednessDirection(highs, has_dual_unboundedness_direction, dual_unboundedness_direction_value)
+
+Indicates whether a dual unboundedness direction (corresponding to a certificate of primal infeasibility) exists, and (at the expense of solving an LP) gets it if it does not and dual\\_unboundedness\\_direction is not nullptr
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `has_dual_unboundedness_direction`: A pointer to an int to store 1 if the dual unboundedness direction exists.
+* `dual_unboundedness_direction_value`: An array of length [num\\_col] filled with the unboundedness direction.
+"""
+function Highs_getDualUnboundednessDirection(highs, has_dual_unboundedness_direction, dual_unboundedness_direction_value)
+    ccall((:Highs_getDualUnboundednessDirection, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, has_dual_unboundedness_direction, dual_unboundedness_direction_value)
+end
+
+"""
     Highs_getPrimalRay(highs, has_primal_ray, primal_ray_value)
 
-Get an unbounded primal ray that is a certificate of dual infeasibility.
+Indicates whether a primal ray that is a certificate of primal unboundedness currently exists, and (at the expense of solving an LP) gets it if it does not and primal\\_ray\\_value is not nullptr.
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
@@ -2457,11 +2525,11 @@ const CMAKE_BUILD_TYPE = "Release"
 
 const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
 
-const HIGHS_GITHASH = "fcfb53414"
+const HIGHS_GITHASH = "66f735e60"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 8
+const HIGHS_VERSION_MINOR = 9
 
 const HIGHS_VERSION_PATCH = 0
 
