@@ -874,6 +874,9 @@ function MOI.delete(model::Optimizer, v::MOI.VariableIndex)
             other_info.column -= 1
         end
     end
+    if model.multi_objective !== nothing
+        MOI.Utilities.filter_variables(!=(v), model.multi_objective)
+    end
     model.name_to_variable = nothing
     model.name_to_constraint_index = nothing
     return
