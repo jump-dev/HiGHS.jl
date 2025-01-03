@@ -986,6 +986,50 @@ function test_dual_objective_value_infeasible()
     return
 end
 
+function test_ObjectiveFunction_VectorAffineFunction_to_ScalarAffineFunction()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 2)
+    MOI.add_constraint(model, x[1], MOI.Interval(1.0, 2.0))
+    MOI.add_constraint(model, x[2], MOI.Interval(3.0, 4.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = MOI.Utilities.operate(vcat, Float64, 1.0 * x[1], 1.0 * x[2])
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 4.0)
+    g = 1.0 * x[1] - 2.0 * x[2]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(g)}(), g)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), -7.0; atol = 1e-6)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), [1.0, 4.0]; atol = 1e-6)
+    @test MOI.get(model, MOI.ObjectiveFunctionType()) ==
+          MOI.ScalarAffineFunction{Float64}
+    @test model.multi_objective === nothing
+    return
+end
+
+function test_ObjectiveFunction_VectorAffineFunction_to_ScalarQuadraticFunction()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 2)
+    MOI.add_constraint(model, x[1], MOI.Interval(1.0, 2.0))
+    MOI.add_constraint(model, x[2], MOI.Interval(3.0, 4.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = MOI.Utilities.operate(vcat, Float64, 1.0 * x[1], 1.0 * x[2])
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 4.0)
+    g = 1.0 * x[1] + (1.0 * x[2] * x[2] - 8.0 * x[2] + 16.0)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(g)}(), g)
+    MOI.optimize!(model)
+    @test ≈(MOI.get(model, MOI.ObjectiveValue()), 1.0; atol = 1e-6)
+    @test ≈(MOI.get(model, MOI.VariablePrimal(), x), [1.0, 4.0]; atol = 1e-6)
+    @test MOI.get(model, MOI.ObjectiveFunctionType()) ==
+          MOI.ScalarQuadraticFunction{Float64}
+    @test model.multi_objective === nothing
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
