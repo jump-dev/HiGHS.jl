@@ -270,6 +270,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     is_feasibility::Bool
     is_objective_function_set::Bool
     is_objective_sense_set::Bool
+    multi_objective::Union{Nothing,MOI.VectorAffineFunction{Float64}}
 
     # A flag to keep track of whether the objective is linear or quadratic.
     hessian::Union{Nothing,SparseArrays.SparseMatrixCSC{Float64,HighsInt}}
@@ -304,6 +305,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             true,
             false,
             false,
+            nothing,
             nothing,
             Set{_VariableInfo}(),
             _variable_info_dict(),
@@ -366,6 +368,7 @@ function MOI.empty!(model::Optimizer)
     model.is_feasibility = true
     model.is_objective_function_set = false
     model.is_objective_sense_set = false
+    model.multi_objective = nothing
     model.hessian = nothing
     empty!(model.binaries)
     empty!(model.variable_info)
@@ -1017,7 +1020,9 @@ function MOI.supports(
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
-    if model.hessian === nothing
+    if model.multi_objective !== nothing
+        return MOI.VectorAffineFunction{Float64}
+    elseif model.hessian === nothing
         return MOI.ScalarAffineFunction{Float64}
     else
         return MOI.ScalarQuadraticFunction{Float64}
@@ -1029,6 +1034,11 @@ function MOI.set(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     f::MOI.ScalarAffineFunction{Float64},
 )
+    if model.multi_objective !== nothing
+        ret = Highs_clearLinearObjectives(model)
+        _check_ret(ret)
+        model.multi_objective = nothing
+    end
     num_vars = HighsInt(length(model.variable_info))
     obj = zeros(Float64, num_vars)
     for term in f.terms
@@ -1062,6 +1072,11 @@ function MOI.set(
     ::MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}},
     f::MOI.ScalarQuadraticFunction{Float64},
 )
+    if model.multi_objective !== nothing
+        ret = Highs_clearLinearObjectives(model)
+        _check_ret(ret)
+        model.multi_objective = nothing
+    end
     numcol = length(model.variable_info)
     obj = zeros(Float64, numcol)
     for term in f.affine_terms
@@ -1224,6 +1239,52 @@ function MOI.modify(
         model.hessian.nzval,
     )
     _check_ret(ret)
+    model.is_objective_function_set = true
+    return
+end
+
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ObjectiveFunction{MOI.VectorAffineFunction{Float64}},
+)
+    return true
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ObjectiveFunction{MOI.VectorAffineFunction{Float64}},
+)
+    return model.multi_objective
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ObjectiveFunction{MOI.VectorAffineFunction{Float64}},
+    f::MOI.VectorAffineFunction{Float64},
+)
+    num_vars = HighsInt(length(model.variable_info))
+    O = MOI.output_dimension(f)
+    obj_coefs = zeros(Float64, O * num_vars)
+    for term in f.terms
+        col = column(model, term.scalar_term.variable) + 1
+        obj_coefs[O*(term.output_index-1)+col] += term.scalar_term.coefficient
+    end
+    # senseP will be 1 if MIN and -1 if MAX
+    senseP = Ref{HighsInt}()
+    ret = Highs_getObjectiveSense(model, senseP)
+    _check_ret(ret)
+    ret = Highs_passLinearObjectives(
+        model,
+        O,                           # num_linear_objective
+        fill(Float64(senseP[]), O),  # weight: set to -1 if maximizing
+        f.constants,                 # offset
+        obj_coefs,                   # coefficients
+        zeros(Float64, O),           # abs_tolerance
+        zeros(Float64, O),           # rel_tolerance
+        ones(Cint, O),               # priority
+    )
+    _check_ret(ret)
+    model.multi_objective = f
     model.is_objective_function_set = true
     return
 end
