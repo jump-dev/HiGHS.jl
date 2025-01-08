@@ -8,10 +8,17 @@
 
 HIGHS_LOG_FILE() = nothing
 
-_trace_format_value(x) = unsafe_convert(Ptr{Cvoid}, x)
+function _trace_format_value(x)
+    if x === C_NULL
+        return "C_NULL"
+    end
+    return Base.unsafe_convert(Ptr{Cvoid}, x)
+end
+_trace_format_value(::Nothing) = "nothing"
 _trace_format_value(x::Number) = x
 _trace_format_value(x::Vector) = string(x)
 _trace_format_value(x::AbstractString) = repr(x)
+_trace_format_value(x::Base.RefValue) = repr(x)
 
 macro trace(def)
     @assert Meta.isexpr(def, :function, 2)
@@ -19,29 +26,31 @@ macro trace(def)
     fn_name, fn_args = fn_signature.args[1], fn_signature.args[2:end]
     io = gensym()
     print_args = Expr(:block)
-    print_output_args = Expr(:block)
     for arg in fn_args
         input_arg = "$arg = "
+        if arg == :highs
+            input_arg = "# " * input_arg
+        end
         push!(print_args.args, :(println($io, $input_arg, $_trace_format_value($arg))))
-        push!(print_output_args.args, :(println($io, "# ", $input_arg, $_trace_format_value($arg))))
     end
     call = string("$fn_name(", join(fn_args, ", "), ")")
-    print_call = :(println($io, "ret = ", $call))
+    if fn_name == :Highs_create
+        call = "highs = " * call
+    end
     new_body = quote
         log_file = $HIGHS_LOG_FILE()
         if log_file === nothing
             $fn_body
         else
             open(log_file, "a") do $io
-                println($io, "# === New call ===")
                 $print_args
-                $print_call
-                result = (() -> $fn_body)()
-                println($io, "# ret = ", $_trace_format_value(result))
-                $print_output_args
-                println($io)
-                result
+                println($io, "ret = ", $call)
             end
+            result = (() -> $fn_body)()
+            open(log_file, "a") do $io
+                println($io, "# ret = ", $_trace_format_value(result), "\n")
+            end
+            result
         end
     end
     return Expr(:function, fn_signature, new_body) |> esc
