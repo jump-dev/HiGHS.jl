@@ -3179,6 +3179,12 @@ function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
     return
 end
 
+function MOI.write_to_file(model::Optimizer, filename::String)
+    ret = Highs_writeModel(model, filename)
+    _check_ret(ret)
+    return
+end
+
 # These enums are deprecated. Use the `kHighsXXX` constants defined in
 # libhighs.jl instead.
 
