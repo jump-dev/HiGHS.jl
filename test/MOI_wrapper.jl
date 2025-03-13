@@ -1050,6 +1050,37 @@ function test_write_to_file()
     return
 end
 
+function test_callback_ctrl_c()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    user_callback = (args...) -> throw(InterruptException())
+    MOI.set(model, HiGHS.CallbackFunction(), user_callback)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
+    return
+end
+
+function test_callback_error()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    user_callback = (args...) -> error("ABC")
+    MOI.set(model, HiGHS.CallbackFunction(), user_callback)
+    @test_throws ErrorException("ABC") MOI.optimize!(model)
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
