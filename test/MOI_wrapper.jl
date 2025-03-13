@@ -1080,7 +1080,6 @@ function test_callback_error()
     @test_throws ErrorException("ABC") MOI.optimize!(model)
     return
 end
-  
 function test_row_type()
     @test HiGHS._row_type(MOI.GreaterThan(0.0)) == HiGHS._ROW_TYPE_GREATERTHAN
     @test HiGHS._row_type(MOI.LessThan(0.0)) == HiGHS._ROW_TYPE_LESSTHAN
