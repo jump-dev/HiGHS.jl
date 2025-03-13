@@ -2172,15 +2172,15 @@ function MOI.optimize!(model::Optimizer)
         # leave GC-safe region, waiting for GC to complete if it's running
         ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
     end
+    if has_default_callback
+        MOI.set(model, CallbackFunction(), nothing)
+    end
     _store_solution(model, ret)
     # TODO(odow): resetting the bounds here invalidates previously stored
     #             solutions.
     # for info in model.binaries
     #     Highs_changeColBounds(model, info.column, info.lower, info.upper)
     # end
-    if has_default_callback
-        MOI.set(model, CallbackFunction(), nothing)
-    end
     return
 end
 
