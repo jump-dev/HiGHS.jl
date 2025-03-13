@@ -2151,11 +2151,24 @@ function MOI.optimize!(model::Optimizer)
         ret = Highs_zeroAllClocks(model)
         _check_ret(ret)
     end
+    has_default_callback = model.callback_data === nothing
+    if has_default_callback
+        # From the docstring of disable_sigint, "External functions that do not
+        # call julia code or julia runtime automatically disable sigint during
+        # their execution." We don't want this though! We want to be able to
+        # SIGINT HiGHS, and then catch it as an interrupt. As a hack, until
+        # Julia introduces an interruptible ccall --- which it likely won't
+        # https://github.com/JuliaLang/julia/issues/2622 --- set a null
+        # callback.
+        MOI.set(model, CallbackFunction(), (args...) -> Cint(0))
+    end
     # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
     GC.@preserve model begin
         # allow Julia to GC while this thread is in `Highs_run`
         gc_state = ccall(:jl_gc_safe_enter, Int8, ())
-        ret = Highs_run(model)
+        # We disable sigint here so that it can be called only when we are in a
+        # try-catch of our CallbackFunction.
+        ret = disable_sigint(() -> Highs_run(model))
         # leave GC-safe region, waiting for GC to complete if it's running
         ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
     end
@@ -2165,6 +2178,9 @@ function MOI.optimize!(model::Optimizer)
     # for info in model.binaries
     #     Highs_changeColBounds(model, info.column, info.lower, info.upper)
     # end
+    if has_default_callback
+        MOI.set(model, CallbackFunction(), nothing)
+    end
     return
 end
 
@@ -3088,6 +3104,8 @@ end
             kHighsCallbackMipImprovingSolution,
             # kHighsCallbackMipLogging,
             kHighsCallbackMipInterrupt,
+            kHighsCallbackMipGetCutPool,
+            kHighsCallbackMipDefineLazyConstraints,
         ],
     ) <: MOI.AbstractModelAttribute
 
@@ -3135,24 +3153,41 @@ function CallbackFunction()
         kHighsCallbackMipImprovingSolution,
         # kHighsCallbackMipLogging,
         kHighsCallbackMipInterrupt,
+        kHighsCallbackMipGetCutPool,
+        kHighsCallbackMipDefineLazyConstraints,
     ])
 end
 
 function _cfn_user_callback(
     callback_type::Cint,
     message::Ptr{Cchar},
-    p_data_out::Ptr{HiGHS.HighsCallbackDataOut},
-    p_data_in::Ptr{HiGHS.HighsCallbackDataIn},
-    user_callback_data::Ptr{Cvoid},
+    p_data_out::Ptr{HighsCallbackDataOut},
+    p_data_in::Ptr{HighsCallbackDataIn},
+    p_user_data::Ptr{Cvoid},
 )
-    user_data = unsafe_pointer_to_objref(user_callback_data)::_CallbackData
-    terminate = user_data.f(
-        callback_type,
-        message,
-        unsafe_load(p_data_out)::HiGHS.HighsCallbackDataOut,
+    user_data = unsafe_pointer_to_objref(p_user_data)::_CallbackData
+    data_out = unsafe_load(p_data_out)::HighsCallbackDataOut
+    if callback_type in (
+        kHighsCallbackSimplexInterrupt,
+        kHighsCallbackIpmInterrupt,
+        kHighsCallbackMipInterrupt,
     )
-    if p_data_in != C_NULL
-        unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
+        @assert p_data_in !== C_NULL
+        try
+            reenable_sigint() do
+                terminate = user_data.f(callback_type, message, data_out)
+                unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
+                return
+            end
+        catch err
+            unsafe_store!(p_data_in, HighsCallbackDataIn(Cint(1)))
+            if !(err isa InterruptException)
+                rethrow(err)
+            end
+        end
+    else
+        # Ignore what the user says about terminating
+        _ = user_data.f(callback_type, message, data_out)
     end
     return
 end
@@ -3174,6 +3209,17 @@ function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
     _check_ret(ret)
     for callback_type in attr.callback_types
         ret = Highs_startCallback(model, callback_type)
+        _check_ret(ret)
+    end
+    return
+end
+
+function MOI.set(model::Optimizer, attr::CallbackFunction, ::Nothing)
+    model.callback_data = nothing
+    ret = Highs_setCallback(model, C_NULL, C_NULL)
+    _check_ret(ret)
+    for callback_type in attr.callback_types
+        ret = Highs_stopCallback(model, callback_type)
         _check_ret(ret)
     end
     return
