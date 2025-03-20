@@ -1,11 +1,3 @@
-# Copyright (c) 2019 Mathieu Besançon, Oscar Dowson, and contributors
-#
-# Use of this source code is governed by an MIT-style license that can be found
-# in the LICENSE.md file or at https://opensource.org/licenses/MIT.
-
-# Disable JuliaFormatter for this file.
-#!format:off
-
 const HighsInt = Cint
 
 """
@@ -34,10 +26,12 @@ struct HighsCallbackDataOut
     cutpool_value::Ptr{Cdouble}
     cutpool_lower::Ptr{Cdouble}
     cutpool_upper::Ptr{Cdouble}
+    user_solution_callback_origin::HighsInt
 end
 
 struct HighsCallbackDataIn
     user_interrupt::Cint
+    user_solution::Ptr{Cdouble}
 end
 
 # typedef void ( * HighsCCallbackType ) ( int , const char * , const HighsCallbackDataOut * , HighsCallbackDataIn * , void * )
@@ -1441,6 +1435,34 @@ function Highs_addRows(highs, num_new_row, lower, upper, num_new_nz, starts, ind
 end
 
 """
+    Highs_ensureColwise(highs)
+
+Ensure that the constraint matrix of the incumbent model is stored column-wise.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_ensureColwise(highs)
+    ccall((:Highs_ensureColwise, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
+    Highs_ensureRowwise(highs)
+
+Ensure that the constraint matrix of the incumbent model is stored row-wise.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_ensureRowwise(highs)
+    ccall((:Highs_ensureRowwise, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_changeObjectiveSense(highs, sense)
 
 Change the objective sense of the model.
@@ -1863,7 +1885,7 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 * `highs`: A pointer to the Highs instance.
 * `from_row`: The first row for which to query data for.
 * `to_row`: The last row (inclusive) for which to query data for.
-* `num_row`: An integer to be populated with the number of rows got from the smodel.
+* `num_row`: An integer to be populated with the number of rows got from the model.
 * `lower`: An array of size [to\\_row - from\\_row + 1] for the row lower bounds.
 * `upper`: An array of size [to\\_row - from\\_row + 1] for the row upper bounds.
 * `num_nz`: An integer to be populated with the number of non-zero elements in the constraint matrix.
@@ -2525,11 +2547,11 @@ const CMAKE_BUILD_TYPE = "Release"
 
 const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
 
-const HIGHS_GITHASH = "66f735e60"
+const HIGHS_GITHASH = "fd8665394e"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 9
+const HIGHS_VERSION_MINOR = 10
 
 const HIGHS_VERSION_PATCH = 0
 
