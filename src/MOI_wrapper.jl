@@ -297,6 +297,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     solution::_Solution
     callback_data::Union{Nothing,_CallbackData}
 
+    compute_infeasibility_certificates::Bool
+
     function Optimizer()
         model = new(
             C_NULL,
@@ -314,6 +316,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing,
             _Solution(),
             nothing,
+            true,
         )
         MOI.empty!(model)
         if Sys.iswindows()
@@ -477,6 +480,31 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
         )
     end
     return collect(constraints)
+end
+
+###
+### HiGHS.ComputeInfeasibilityCertificates
+###
+
+"""
+    HiGHS.ComputeInfeasibilityCertificates()
+
+An `MOI.AbstractOptimizerAttribute` to control whether HiGHS attempts to
+compute an infeasibility certificate if the primal is primal or dual infeasible.
+
+The default is `true`. Set to `false` to disable.
+"""
+struct ComputeInfeasibilityCertificates <: MOI.AbstractOptimizerAttribute end
+
+MOI.supports(::Optimizer, ::ComputeInfeasibilityCertificates) = true
+
+function MOI.get(model::Optimizer, ::ComputeInfeasibilityCertificates)
+    return model.compute_infeasibility_certificates
+end
+
+function MOI.set(model::Optimizer, ::ComputeInfeasibilityCertificates, v::Bool)
+    model.compute_infeasibility_certificates = v
+    return
 end
 
 ###
@@ -2029,14 +2057,15 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     resize!(x.rowdual, numRows)
     x.model_status = Highs_getModelStatus(model)
     statusP = Ref{HighsInt}()
-    if x.model_status == kHighsModelStatusInfeasible
+    certificates = MOI.get(model, ComputeInfeasibilityCertificates())
+    if certificates && x.model_status == kHighsModelStatusInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
         x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
         if x.has_dual_ray
             _compute_farkas_variable_dual(model, x.coldual)
         end
-    elseif x.model_status == kHighsModelStatusUnbounded
+    elseif certificates && x.model_status == kHighsModelStatusUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
         x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
