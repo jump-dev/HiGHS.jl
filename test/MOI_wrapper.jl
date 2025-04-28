@@ -1080,11 +1080,56 @@ function test_callback_error()
     @test_throws ErrorException("ABC") MOI.optimize!(model)
     return
 end
+
 function test_row_type()
     @test HiGHS._row_type(MOI.GreaterThan(0.0)) == HiGHS._ROW_TYPE_GREATERTHAN
     @test HiGHS._row_type(MOI.LessThan(0.0)) == HiGHS._ROW_TYPE_LESSTHAN
     @test HiGHS._row_type(MOI.EqualTo(0.0)) == HiGHS._ROW_TYPE_EQUAL_TO
     @test HiGHS._row_type(MOI.Interval(0.0, 1.0)) == HiGHS._ROW_TYPE_INTERVAL
+    return
+end
+
+function test_ComputeInfeasibilityCertificate()
+    model = HiGHS.Optimizer()
+    @test MOI.supports(model, HiGHS.ComputeInfeasibilityCertificate())
+    @test MOI.get(model, HiGHS.ComputeInfeasibilityCertificate())
+    MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), false)
+    @test !MOI.get(model, HiGHS.ComputeInfeasibilityCertificate())
+    return
+end
+
+function test_ComputeInfeasibilityCertificate_dual_ray()
+    for (z, ret) in
+        (true => MOI.INFEASIBILITY_CERTIFICATE, false => MOI.NO_SOLUTION)
+        model = HiGHS.Optimizer()
+        MOI.set(model, MOI.Silent(), true)
+        MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), z)
+        x = MOI.add_variables(model, 2)
+        MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
+        ci = MOI.add_constraint(model, x[1] + 2.0 * x[2], MOI.LessThan(-1.0))
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+        @test MOI.get(model, MOI.DualStatus()) == ret
+    end
+    return
+end
+
+function test_ComputeInfeasibilityCertificate_primal_ray()
+    for (z, ret) in
+        (true => MOI.INFEASIBILITY_CERTIFICATE, false => MOI.FEASIBLE_POINT)
+        model = HiGHS.Optimizer()
+        MOI.set(model, MOI.Silent(), true)
+        MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), z)
+        x = MOI.add_variables(model, 2)
+        MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+        MOI.add_constraint(model, x[1] - 1.0 * x[2], MOI.EqualTo(1.0))
+        f = 1.0 * x[1] + 1.0 * x[2]
+        MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
+        @test MOI.get(model, MOI.PrimalStatus()) == ret
+    end
     return
 end
 

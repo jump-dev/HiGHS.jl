@@ -93,6 +93,18 @@ List of supported model attributes:
 See the [HiGHS documentation](https://ergo-code.github.io/HiGHS/dev/options/definitions/)
 for a full list of the available options.
 
+### Infeasibility certificates
+
+By default, HiGHS.jl will attempt to compute an infeasibility certificate when
+the primal or dual is infeasible. If you do not require the ceritificate, set
+the `HiGHS.ComputeInfeasibilityCertificate` attribute to `false`:
+
+```julia
+using JuMP, HiGHS
+model = Model(HiGHS.Optimizer)
+set_attribute(model, HiGHS.ComputeInfeasibilityCertificate(), false)
+```
+
 ## C API
 
 The C API can be accessed via `HiGHS.Highs_xxx` functions, where the names and
