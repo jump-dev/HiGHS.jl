@@ -483,26 +483,26 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
 end
 
 ###
-### HiGHS.ComputeInfeasibilityCertificates
+### HiGHS.ComputeInfeasibilityCertificate
 ###
 
 """
-    HiGHS.ComputeInfeasibilityCertificates()
+    HiGHS.ComputeInfeasibilityCertificate()
 
 An `MOI.AbstractOptimizerAttribute` to control whether HiGHS attempts to
 compute an infeasibility certificate if the primal is primal or dual infeasible.
 
 The default is `true`. Set to `false` to disable.
 """
-struct ComputeInfeasibilityCertificates <: MOI.AbstractOptimizerAttribute end
+struct ComputeInfeasibilityCertificate <: MOI.AbstractOptimizerAttribute end
 
-MOI.supports(::Optimizer, ::ComputeInfeasibilityCertificates) = true
+MOI.supports(::Optimizer, ::ComputeInfeasibilityCertificate) = true
 
-function MOI.get(model::Optimizer, ::ComputeInfeasibilityCertificates)
+function MOI.get(model::Optimizer, ::ComputeInfeasibilityCertificate)
     return model.compute_infeasibility_certificates
 end
 
-function MOI.set(model::Optimizer, ::ComputeInfeasibilityCertificates, v::Bool)
+function MOI.set(model::Optimizer, ::ComputeInfeasibilityCertificate, v::Bool)
     model.compute_infeasibility_certificates = v
     return
 end
@@ -2057,7 +2057,7 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     resize!(x.rowdual, numRows)
     x.model_status = Highs_getModelStatus(model)
     statusP = Ref{HighsInt}()
-    certificates = MOI.get(model, ComputeInfeasibilityCertificates())
+    certificates = MOI.get(model, ComputeInfeasibilityCertificate())
     if certificates && x.model_status == kHighsModelStatusInfeasible
         ret = Highs_getDualRay(model, statusP, x.rowdual)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.

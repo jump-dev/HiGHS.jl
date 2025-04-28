@@ -97,12 +97,12 @@ for a full list of the available options.
 
 By default, HiGHS.jl will attempt to compute an infeasibility certificate when
 the primal or dual is infeasible. If you do not require the ceritificate, set
-the `HiGHS.ComputeInfeasibilityCertificates` attribute to `false`:
+the `HiGHS.ComputeInfeasibilityCertificate` attribute to `false`:
 
 ```julia
 using JuMP, HiGHS
 model = Model(HiGHS.Optimizer)
-set_attribute(model, HiGHS.ComputeInfeasibilityCertificates(), false)
+set_attribute(model, HiGHS.ComputeInfeasibilityCertificate(), false)
 ```
 
 ## C API

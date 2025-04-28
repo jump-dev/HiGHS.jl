@@ -1089,21 +1089,21 @@ function test_row_type()
     return
 end
 
-function test_ComputeInfeasibilityCertificates()
+function test_ComputeInfeasibilityCertificate()
     model = HiGHS.Optimizer()
-    @test MOI.supports(model, HiGHS.ComputeInfeasibilityCertificates())
-    @test MOI.get(model, HiGHS.ComputeInfeasibilityCertificates())
-    MOI.set(model, HiGHS.ComputeInfeasibilityCertificates(), false)
-    @test !MOI.get(model, HiGHS.ComputeInfeasibilityCertificates())
+    @test MOI.supports(model, HiGHS.ComputeInfeasibilityCertificate())
+    @test MOI.get(model, HiGHS.ComputeInfeasibilityCertificate())
+    MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), false)
+    @test !MOI.get(model, HiGHS.ComputeInfeasibilityCertificate())
     return
 end
 
-function test_ComputeInfeasibilityCertificates_dual_ray()
+function test_ComputeInfeasibilityCertificate_dual_ray()
     for (z, ret) in
         (true => MOI.INFEASIBILITY_CERTIFICATE, false => MOI.NO_SOLUTION)
         model = HiGHS.Optimizer()
         MOI.set(model, MOI.Silent(), true)
-        MOI.set(model, HiGHS.ComputeInfeasibilityCertificates(), z)
+        MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), z)
         x = MOI.add_variables(model, 2)
         MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
         ci = MOI.add_constraint(model, x[1] + 2.0 * x[2], MOI.LessThan(-1.0))
@@ -1114,12 +1114,12 @@ function test_ComputeInfeasibilityCertificates_dual_ray()
     return
 end
 
-function test_ComputeInfeasibilityCertificates_primal_ray()
+function test_ComputeInfeasibilityCertificate_primal_ray()
     for (z, ret) in
         (true => MOI.INFEASIBILITY_CERTIFICATE, false => MOI.FEASIBLE_POINT)
         model = HiGHS.Optimizer()
         MOI.set(model, MOI.Silent(), true)
-        MOI.set(model, HiGHS.ComputeInfeasibilityCertificates(), z)
+        MOI.set(model, HiGHS.ComputeInfeasibilityCertificate(), z)
         x = MOI.add_variables(model, 2)
         MOI.add_constraint.(model, x, MOI.GreaterThan(0.0))
         MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
