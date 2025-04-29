@@ -949,6 +949,10 @@ function MOI.set(
     info = _info(model, v)
     info.name = name
     model.name_to_variable = nothing
+    if !isempty(name)
+        ret = Highs_passColName(model, info.column, name)
+        _check_ret(ret)
+    end
     return
 end
 
@@ -1932,6 +1936,10 @@ function MOI.set(
     info = _info(model, c)
     info.name = name
     model.name_to_constraint_index = nothing
+    if !isempty(name)
+        ret = Highs_passRowName(model, info.row, name)
+        _check_ret(ret)
+    end
     return
 end
 
