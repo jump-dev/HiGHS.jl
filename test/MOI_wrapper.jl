@@ -1133,6 +1133,51 @@ function test_ComputeInfeasibilityCertificate_primal_ray()
     return
 end
 
+function test_VariableName()
+    name = zeros(Cchar, kHighsMaximumStringLength)
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.set(model, MOI.VariableName(), x, "x")
+    MOI.get(model, MOI.VariableName(), x) == "x"
+    GC.@preserve name begin
+        Highs_getColName(model, 0, name)
+        @test unsafe_string(pointer(name)) == "x"
+    end
+    for _ in 1:2
+        # Test setting the name twice
+        MOI.set(model, MOI.VariableName(), x, "")
+        MOI.get(model, MOI.VariableName(), x) == ""
+        GC.@preserve name begin
+            Highs_getColName(model, 0, name)
+            @test unsafe_string(pointer(name)) == "C0"
+        end
+    end
+    return
+end
+
+function test_ConstraintName()
+    name = zeros(Cchar, kHighsMaximumStringLength)
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    c = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(2.0))
+    MOI.set(model, MOI.ConstraintName(), c, "c")
+    MOI.get(model, MOI.ConstraintName(), c) == "c"
+    GC.@preserve name begin
+        Highs_getRowName(model, 0, name)
+        @test unsafe_string(pointer(name)) == "c"
+    end
+    for _ in 1:2
+        # Test setting the name twice
+        MOI.set(model, MOI.ConstraintName(), c, "")
+        MOI.get(model, MOI.ConstraintName(), c) == ""
+        GC.@preserve name begin
+            Highs_getRowName(model, 0, name)
+            @test unsafe_string(pointer(name)) == "R0"
+        end
+    end
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
