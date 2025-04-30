@@ -1140,7 +1140,7 @@ function test_VariableName()
     MOI.set(model, MOI.VariableName(), x, "x")
     MOI.get(model, MOI.VariableName(), x) == "x"
     GC.@preserve name begin
-        Highs_getColName(model, 0, name)
+        HiGHS.Highs_getColName(model, 0, name)
         @test unsafe_string(pointer(name)) == "x"
     end
     for _ in 1:2
@@ -1148,7 +1148,7 @@ function test_VariableName()
         MOI.set(model, MOI.VariableName(), x, "")
         MOI.get(model, MOI.VariableName(), x) == ""
         GC.@preserve name begin
-            Highs_getColName(model, 0, name)
+            HiGHS.Highs_getColName(model, 0, name)
             @test unsafe_string(pointer(name)) == "C0"
         end
     end
@@ -1163,7 +1163,7 @@ function test_ConstraintName()
     MOI.set(model, MOI.ConstraintName(), c, "c")
     MOI.get(model, MOI.ConstraintName(), c) == "c"
     GC.@preserve name begin
-        Highs_getRowName(model, 0, name)
+        HiGHS.Highs_getRowName(model, 0, name)
         @test unsafe_string(pointer(name)) == "c"
     end
     for _ in 1:2
@@ -1171,7 +1171,7 @@ function test_ConstraintName()
         MOI.set(model, MOI.ConstraintName(), c, "")
         MOI.get(model, MOI.ConstraintName(), c) == ""
         GC.@preserve name begin
-            Highs_getRowName(model, 0, name)
+            HiGHS.Highs_getRowName(model, 0, name)
             @test unsafe_string(pointer(name)) == "R0"
         end
     end
