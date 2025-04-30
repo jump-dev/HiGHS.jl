@@ -1134,7 +1134,7 @@ function test_ComputeInfeasibilityCertificate_primal_ray()
 end
 
 function test_VariableName()
-    name = zeros(Cchar, kHighsMaximumStringLength)
+    name = zeros(Cchar, HiGHS.kHighsMaximumStringLength)
     model = HiGHS.Optimizer()
     x = MOI.add_variable(model)
     MOI.set(model, MOI.VariableName(), x, "x")
@@ -1156,7 +1156,7 @@ function test_VariableName()
 end
 
 function test_ConstraintName()
-    name = zeros(Cchar, kHighsMaximumStringLength)
+    name = zeros(Cchar, HiGHS.kHighsMaximumStringLength)
     model = HiGHS.Optimizer()
     x = MOI.add_variable(model)
     c = MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(2.0))
