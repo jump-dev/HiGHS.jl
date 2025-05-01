@@ -96,7 +96,7 @@ for a full list of the available options.
 ### Infeasibility certificates
 
 By default, HiGHS.jl will attempt to compute an infeasibility certificate when
-the primal or dual is infeasible. If you do not require the ceritificate, set
+the primal or dual is infeasible. If you do not require the certificate, set
 the `HiGHS.ComputeInfeasibilityCertificate` attribute to `false`:
 
 ```julia
