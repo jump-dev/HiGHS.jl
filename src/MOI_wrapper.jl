@@ -947,8 +947,18 @@ function MOI.set(
     name::String,
 )
     info = _info(model, v)
+    if info.name == name
+        return  # The name is unchanged
+    end
     info.name = name
     model.name_to_variable = nothing
+    if isempty(name)
+        # HiGHS does not support passing "" or C_NULL for names. So we default
+        # to a fairly standard C$i for the column name.
+        name = string("C", info.column)
+    end
+    ret = Highs_passColName(model, info.column, name)
+    _check_ret(ret)
     return
 end
 
@@ -1930,8 +1940,18 @@ function MOI.set(
     name::String,
 )
     info = _info(model, c)
+    if info.name == name
+        return  # The name is unchanged
+    end
     info.name = name
     model.name_to_constraint_index = nothing
+    if isempty(name)
+        # HiGHS does not support passing "" or C_NULL for names. So we default
+        # to a fairly standard R$i for the crowolumn name.
+        name = string("R", info.row)
+    end
+    ret = Highs_passRowName(model, info.row, name)
+    _check_ret(ret)
     return
 end
 
