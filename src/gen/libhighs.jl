@@ -6,6 +6,56 @@
 # Disable JuliaFormatter for this file.
 #!format:off
 
+HIGHS_LOG_FILE() = nothing
+
+function _trace_format_value(x)
+    if x === C_NULL
+        return "C_NULL"
+    end
+    return Base.unsafe_convert(Ptr{Cvoid}, x)
+end
+_trace_format_value(::Nothing) = "nothing"
+_trace_format_value(x::Number) = x
+_trace_format_value(x::Vector) = string(x)
+_trace_format_value(x::AbstractString) = repr(x)
+_trace_format_value(x::Base.RefValue) = repr(x)
+
+macro trace(def)
+    @assert Meta.isexpr(def, :function, 2)
+    fn_signature, fn_body = def.args
+    fn_name, fn_args = fn_signature.args[1], fn_signature.args[2:end]
+    io = gensym()
+    print_args = Expr(:block)
+    for arg in fn_args
+        input_arg = "$arg = "
+        if arg == :highs
+            input_arg = "# " * input_arg
+        end
+        push!(print_args.args, :(println($io, $input_arg, $_trace_format_value($arg))))
+    end
+    call = string("$fn_name(", join(fn_args, ", "), ")")
+    if fn_name == :Highs_create
+        call = "highs = " * call
+    end
+    new_body = quote
+        log_file = $HIGHS_LOG_FILE()
+        if log_file === nothing
+            $fn_body
+        else
+            open(log_file, "a") do $io
+                $print_args
+                println($io, "ret = ", $call)
+            end
+            result = (() -> $fn_body)()
+            open(log_file, "a") do $io
+                println($io, "# ret = ", $_trace_format_value(result), "\n")
+            end
+            result
+        end
+    end
+    return Expr(:function, fn_signature, new_body) |> esc
+end
+
 const HighsInt = Cint
 
 """
@@ -75,8 +125,8 @@ Formulate and solve a linear program using HiGHS.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_lpCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
-    ccall((:Highs_lpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+@trace function Highs_lpCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+    return ccall((:Highs_lpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
 end
 
 """
@@ -91,8 +141,8 @@ The signature of this method is identical to [`Highs_lpCall`](@ref), except that
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_mipCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality, col_value, row_value, model_status)
-    ccall((:Highs_mipCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}), num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality, col_value, row_value, model_status)
+@trace function Highs_mipCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality, col_value, row_value, model_status)
+    return ccall((:Highs_mipCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}), num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality, col_value, row_value, model_status)
 end
 
 """
@@ -111,8 +161,8 @@ The signature of this method is identical to [`Highs_lpCall`](@ref), except that
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_qpCall(num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
-    ccall((:Highs_qpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+@trace function Highs_qpCall(num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+    return ccall((:Highs_qpCall, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
 end
 
 """
@@ -125,8 +175,8 @@ Call [`Highs_destroy`](@ref) on the returned reference to clean up allocated mem
 ### Returns
 A pointer to the Highs instance.
 """
-function Highs_create()
-    ccall((:Highs_create, libhighs), Ptr{Cvoid}, ())
+@trace function Highs_create()
+    return ccall((:Highs_create, libhighs), Ptr{Cvoid}, ())
 end
 
 """
@@ -139,8 +189,8 @@ To empty a model without invalidating `highs`, see [`Highs_clearModel`](@ref).
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 """
-function Highs_destroy(highs)
-    ccall((:Highs_destroy, libhighs), Cvoid, (Ptr{Cvoid},), highs)
+@trace function Highs_destroy(highs)
+    return ccall((:Highs_destroy, libhighs), Cvoid, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -151,8 +201,8 @@ Return the HiGHS version number as a string of the form "vX.Y.Z".
 ### Returns
 The HiGHS version as a `char*`.
 """
-function Highs_version()
-    ccall((:Highs_version, libhighs), Ptr{Cchar}, ())
+@trace function Highs_version()
+    return ccall((:Highs_version, libhighs), Ptr{Cchar}, ())
 end
 
 """
@@ -163,8 +213,8 @@ Return the HiGHS major version number.
 ### Returns
 The HiGHS major version number.
 """
-function Highs_versionMajor()
-    ccall((:Highs_versionMajor, libhighs), HighsInt, ())
+@trace function Highs_versionMajor()
+    return ccall((:Highs_versionMajor, libhighs), HighsInt, ())
 end
 
 """
@@ -175,8 +225,8 @@ Return the HiGHS minor version number.
 ### Returns
 The HiGHS minor version number.
 """
-function Highs_versionMinor()
-    ccall((:Highs_versionMinor, libhighs), HighsInt, ())
+@trace function Highs_versionMinor()
+    return ccall((:Highs_versionMinor, libhighs), HighsInt, ())
 end
 
 """
@@ -187,8 +237,8 @@ Return the HiGHS patch version number.
 ### Returns
 The HiGHS patch version number.
 """
-function Highs_versionPatch()
-    ccall((:Highs_versionPatch, libhighs), HighsInt, ())
+@trace function Highs_versionPatch()
+    return ccall((:Highs_versionPatch, libhighs), HighsInt, ())
 end
 
 """
@@ -199,8 +249,8 @@ Return the HiGHS githash.
 ### Returns
 The HiGHS githash.
 """
-function Highs_githash()
-    ccall((:Highs_githash, libhighs), Ptr{Cchar}, ())
+@trace function Highs_githash()
+    return ccall((:Highs_githash, libhighs), Ptr{Cchar}, ())
 end
 
 """
@@ -214,8 +264,8 @@ Read a model from `filename` into `highs`.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_readModel(highs, filename)
-    ccall((:Highs_readModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_readModel(highs, filename)
+    return ccall((:Highs_readModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -229,8 +279,8 @@ Write the model in `highs` to `filename`.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writeModel(highs, filename)
-    ccall((:Highs_writeModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writeModel(highs, filename)
+    return ccall((:Highs_writeModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -244,8 +294,8 @@ Write the presolved model in `highs` to `filename`.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writePresolvedModel(highs, filename)
-    ccall((:Highs_writePresolvedModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writePresolvedModel(highs, filename)
+    return ccall((:Highs_writePresolvedModel, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -260,8 +310,8 @@ See [`Highs_destroy`](@ref) to free all associated memory.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_clear(highs)
-    ccall((:Highs_clear, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_clear(highs)
+    return ccall((:Highs_clear, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -274,8 +324,8 @@ Remove all variables and constraints from the model `highs`, but do not invalida
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_clearModel(highs)
-    ccall((:Highs_clearModel, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_clearModel(highs)
+    return ccall((:Highs_clearModel, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -290,8 +340,8 @@ See [`Highs_destroy`](@ref) to clear the model and free all associated memory.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_clearSolver(highs)
-    ccall((:Highs_clearSolver, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_clearSolver(highs)
+    return ccall((:Highs_clearSolver, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -304,8 +354,8 @@ Presolve a model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_presolve(highs)
-    ccall((:Highs_presolve, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_presolve(highs)
+    return ccall((:Highs_presolve, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -318,8 +368,8 @@ Optimize a model. The algorithm used by HiGHS depends on the options that have b
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_run(highs)
-    ccall((:Highs_run, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_run(highs)
+    return ccall((:Highs_run, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -335,8 +385,8 @@ Postsolve a model using a primal (and possibly dual) solution.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_postsolve(highs, col_value, col_dual, row_dual)
-    ccall((:Highs_postsolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_dual)
+@trace function Highs_postsolve(highs, col_value, col_dual, row_dual)
+    return ccall((:Highs_postsolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_dual)
 end
 
 """
@@ -352,8 +402,8 @@ See also: [`Highs_writeSolutionPretty`](@ref).
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writeSolution(highs, filename)
-    ccall((:Highs_writeSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writeSolution(highs, filename)
+    return ccall((:Highs_writeSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -369,8 +419,8 @@ The method identical to [`Highs_writeSolution`](@ref), except that the printout 
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writeSolutionPretty(highs, filename)
-    ccall((:Highs_writeSolutionPretty, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writeSolutionPretty(highs, filename)
+    return ccall((:Highs_writeSolutionPretty, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -383,8 +433,8 @@ The signature of this function is identical to [`Highs_passModel`](@ref), withou
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passLp(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
-    ccall((:Highs_passLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
+@trace function Highs_passLp(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
+    return ccall((:Highs_passLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
 end
 
 """
@@ -397,8 +447,8 @@ The signature of function is identical to [`Highs_passModel`](@ref), without the
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passMip(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
-    ccall((:Highs_passMip, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+@trace function Highs_passMip(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    return ccall((:Highs_passMip, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
 end
 
 """
@@ -431,8 +481,8 @@ Pass a model to HiGHS in a single function call. This is faster than constructin
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passModel(highs, num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
-    ccall((:Highs_passModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
+@trace function Highs_passModel(highs, num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
+    return ccall((:Highs_passModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, HighsInt, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
 end
 
 """
@@ -451,8 +501,8 @@ Set the Hessian matrix for a quadratic objective.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
-    ccall((:Highs_passHessian, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, dim, num_nz, format, start, index, value)
+@trace function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
+    return ccall((:Highs_passHessian, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, dim, num_nz, format, start, index, value)
 end
 
 """
@@ -521,8 +571,8 @@ Pass the name of a row.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passRowName(highs, row, name)
-    ccall((:Highs_passRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
+@trace function Highs_passRowName(highs, row, name)
+    return ccall((:Highs_passRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
 end
 
 """
@@ -537,8 +587,8 @@ Pass the name of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passColName(highs, col, name)
-    ccall((:Highs_passColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+@trace function Highs_passColName(highs, col, name)
+    return ccall((:Highs_passColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
 end
 
 """
@@ -552,8 +602,8 @@ Pass the name of the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_passModelName(highs, name)
-    ccall((:Highs_passModelName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, name)
+@trace function Highs_passModelName(highs, name)
+    return ccall((:Highs_passModelName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, name)
 end
 
 """
@@ -567,8 +617,8 @@ Read the option values from file.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_readOptions(highs, filename)
-    ccall((:Highs_readOptions, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_readOptions(highs, filename)
+    return ccall((:Highs_readOptions, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -583,8 +633,8 @@ Set a boolean-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setBoolOptionValue(highs, option, value)
-    ccall((:Highs_setBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
+@trace function Highs_setBoolOptionValue(highs, option, value)
+    return ccall((:Highs_setBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
 end
 
 """
@@ -599,8 +649,8 @@ Set an int-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setIntOptionValue(highs, option, value)
-    ccall((:Highs_setIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
+@trace function Highs_setIntOptionValue(highs, option, value)
+    return ccall((:Highs_setIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
 end
 
 """
@@ -615,8 +665,8 @@ Set a double-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setDoubleOptionValue(highs, option, value)
-    ccall((:Highs_setDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Cdouble), highs, option, value)
+@trace function Highs_setDoubleOptionValue(highs, option, value)
+    return ccall((:Highs_setDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Cdouble), highs, option, value)
 end
 
 """
@@ -631,8 +681,8 @@ Set a string-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setStringOptionValue(highs, option, value)
-    ccall((:Highs_setStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_setStringOptionValue(highs, option, value)
+    return ccall((:Highs_setStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
 """
@@ -647,8 +697,8 @@ Get a boolean-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBoolOptionValue(highs, option, value)
-    ccall((:Highs_getBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
+@trace function Highs_getBoolOptionValue(highs, option, value)
+    return ccall((:Highs_getBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
 end
 
 """
@@ -663,8 +713,8 @@ Get an int-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getIntOptionValue(highs, option, value)
-    ccall((:Highs_getIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
+@trace function Highs_getIntOptionValue(highs, option, value)
+    return ccall((:Highs_getIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
 end
 
 """
@@ -679,8 +729,8 @@ Get a double-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getDoubleOptionValue(highs, option, value)
-    ccall((:Highs_getDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, option, value)
+@trace function Highs_getDoubleOptionValue(highs, option, value)
+    return ccall((:Highs_getDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, option, value)
 end
 
 """
@@ -695,8 +745,8 @@ Get a string-valued option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getStringOptionValue(highs, option, value)
-    ccall((:Highs_getStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_getStringOptionValue(highs, option, value)
+    return ccall((:Highs_getStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
 """
@@ -711,8 +761,8 @@ Get the type expected by an option.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getOptionType(highs, option, type)
-    ccall((:Highs_getOptionType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, type)
+@trace function Highs_getOptionType(highs, option, type)
+    return ccall((:Highs_getOptionType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, type)
 end
 
 """
@@ -725,8 +775,8 @@ Reset all options to their default value.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_resetOptions(highs)
-    ccall((:Highs_resetOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_resetOptions(highs)
+    return ccall((:Highs_resetOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -740,8 +790,8 @@ Write the current options to file.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writeOptions(highs, filename)
-    ccall((:Highs_writeOptions, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writeOptions(highs, filename)
+    return ccall((:Highs_writeOptions, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -757,8 +807,8 @@ This is similar to [`Highs_writeOptions`](@ref), except only options with non-de
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_writeOptionsDeviations(highs, filename)
-    ccall((:Highs_writeOptionsDeviations, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
+@trace function Highs_writeOptionsDeviations(highs, filename)
+    return ccall((:Highs_writeOptionsDeviations, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}), highs, filename)
 end
 
 """
@@ -769,8 +819,8 @@ Return the number of options
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 """
-function Highs_getNumOptions(highs)
-    ccall((:Highs_getNumOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumOptions(highs)
+    return ccall((:Highs_getNumOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -785,8 +835,8 @@ Get the name of an option identified by index
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getOptionName(highs, index, name)
-    ccall((:Highs_getOptionName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Ptr{Cchar}}), highs, index, name)
+@trace function Highs_getOptionName(highs, index, name)
+    return ccall((:Highs_getOptionName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Ptr{Cchar}}), highs, index, name)
 end
 
 """
@@ -801,8 +851,8 @@ Get the current and default values of a bool option
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBoolOptionValues(highs, option, current_value, default_value)
-    ccall((:Highs_getBoolOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, default_value)
+@trace function Highs_getBoolOptionValues(highs, option, current_value, default_value)
+    return ccall((:Highs_getBoolOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, default_value)
 end
 
 """
@@ -819,8 +869,8 @@ Get the current and default values of an int option
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
-    ccall((:Highs_getIntOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, min_value, max_value, default_value)
+@trace function Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
+    return ccall((:Highs_getIntOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), highs, option, current_value, min_value, max_value, default_value)
 end
 
 """
@@ -837,8 +887,8 @@ Get the current and default values of a double option
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getDoubleOptionValues(highs, option, current_value, min_value, max_value, default_value)
-    ccall((:Highs_getDoubleOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, option, current_value, min_value, max_value, default_value)
+@trace function Highs_getDoubleOptionValues(highs, option, current_value, min_value, max_value, default_value)
+    return ccall((:Highs_getDoubleOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, option, current_value, min_value, max_value, default_value)
 end
 
 """
@@ -853,8 +903,8 @@ Get the current and default values of a string option
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getStringOptionValues(highs, option, current_value, default_value)
-    ccall((:Highs_getStringOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}, Ptr{Cchar}), highs, option, current_value, default_value)
+@trace function Highs_getStringOptionValues(highs, option, current_value, default_value)
+    return ccall((:Highs_getStringOptionValues, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}, Ptr{Cchar}), highs, option, current_value, default_value)
 end
 
 """
@@ -869,8 +919,8 @@ Get an int-valued info value.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getIntInfoValue(highs, info, value)
-    ccall((:Highs_getIntInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, value)
+@trace function Highs_getIntInfoValue(highs, info, value)
+    return ccall((:Highs_getIntInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, value)
 end
 
 """
@@ -885,8 +935,8 @@ Get a double-valued info value.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getDoubleInfoValue(highs, info, value)
-    ccall((:Highs_getDoubleInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, info, value)
+@trace function Highs_getDoubleInfoValue(highs, info, value)
+    return ccall((:Highs_getDoubleInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, info, value)
 end
 
 """
@@ -901,8 +951,8 @@ Get an int64-valued info value.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getInt64InfoValue(highs, info, value)
-    ccall((:Highs_getInt64InfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Int64}), highs, info, value)
+@trace function Highs_getInt64InfoValue(highs, info, value)
+    return ccall((:Highs_getInt64InfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Int64}), highs, info, value)
 end
 
 """
@@ -917,8 +967,8 @@ Get the type expected by an info item.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getInfoType(highs, info, type)
-    ccall((:Highs_getInfoType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, type)
+@trace function Highs_getInfoType(highs, info, type)
+    return ccall((:Highs_getInfoType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, type)
 end
 
 """
@@ -935,8 +985,8 @@ Get the primal and dual solution from an optimized model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getSolution(highs, col_value, col_dual, row_value, row_dual)
-    ccall((:Highs_getSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_value, row_dual)
+@trace function Highs_getSolution(highs, col_value, col_dual, row_value, row_dual)
+    return ccall((:Highs_getSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_value, row_dual)
 end
 
 """
@@ -951,8 +1001,8 @@ Given a linear program with a basic feasible solution, get the column and row ba
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasis(highs, col_status, row_status)
-    ccall((:Highs_getBasis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_status, row_status)
+@trace function Highs_getBasis(highs, col_status, row_status)
+    return ccall((:Highs_getBasis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_status, row_status)
 end
 
 """
@@ -965,8 +1015,8 @@ Return the optimization status of the model in the form of a `kHighsModelStatus`
 ### Returns
 An integer corresponding to the `kHighsModelStatus` constant
 """
-function Highs_getModelStatus(highs)
-    ccall((:Highs_getModelStatus, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getModelStatus(highs)
+    return ccall((:Highs_getModelStatus, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -981,8 +1031,8 @@ Indicates whether a dual ray that is a certificate of primal infeasibility curre
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
-    ccall((:Highs_getDualRay, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, has_dual_ray, dual_ray_value)
+@trace function Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
+    return ccall((:Highs_getDualRay, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, has_dual_ray, dual_ray_value)
 end
 
 """
@@ -1011,8 +1061,8 @@ Indicates whether a primal ray that is a certificate of primal unboundedness cur
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getPrimalRay(highs, has_primal_ray, primal_ray_value)
-    ccall((:Highs_getPrimalRay, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, has_primal_ray, primal_ray_value)
+@trace function Highs_getPrimalRay(highs, has_primal_ray, primal_ray_value)
+    return ccall((:Highs_getPrimalRay, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, has_primal_ray, primal_ray_value)
 end
 
 """
@@ -1025,8 +1075,8 @@ Get the primal objective function value.
 ### Returns
 The primal objective function value
 """
-function Highs_getObjectiveValue(highs)
-    ccall((:Highs_getObjectiveValue, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+@trace function Highs_getObjectiveValue(highs)
+    return ccall((:Highs_getObjectiveValue, libhighs), Cdouble, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1046,8 +1096,8 @@ The order of these rows and columns is important for calls to the functions:
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasicVariables(highs, basic_variables)
-    ccall((:Highs_getBasicVariables, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, basic_variables)
+@trace function Highs_getBasicVariables(highs, basic_variables)
+    return ccall((:Highs_getBasicVariables, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, basic_variables)
 end
 
 """
@@ -1068,8 +1118,8 @@ The arrays `row_vector` and `row_index` must have an allocated length of [num\\_
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasisInverseRow(highs, row, row_vector, row_num_nz, row_index)
-    ccall((:Highs_getBasisInverseRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, row, row_vector, row_num_nz, row_index)
+@trace function Highs_getBasisInverseRow(highs, row, row_vector, row_num_nz, row_index)
+    return ccall((:Highs_getBasisInverseRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, row, row_vector, row_num_nz, row_index)
 end
 
 """
@@ -1090,8 +1140,8 @@ The arrays `col_vector` and `col_index` must have an allocated length of [num\\_
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasisInverseCol(highs, col, col_vector, col_num_nz, col_index)
-    ccall((:Highs_getBasisInverseCol, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col, col_vector, col_num_nz, col_index)
+@trace function Highs_getBasisInverseCol(highs, col, col_vector, col_num_nz, col_index)
+    return ccall((:Highs_getBasisInverseCol, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col, col_vector, col_num_nz, col_index)
 end
 
 """
@@ -1112,8 +1162,8 @@ The arrays `solution_vector` and `solution_index` must have an allocated length 
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasisSolve(highs, rhs, solution_vector, solution_num_nz, solution_index)
-    ccall((:Highs_getBasisSolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, rhs, solution_vector, solution_num_nz, solution_index)
+@trace function Highs_getBasisSolve(highs, rhs, solution_vector, solution_num_nz, solution_index)
+    return ccall((:Highs_getBasisSolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, rhs, solution_vector, solution_num_nz, solution_index)
 end
 
 """
@@ -1134,8 +1184,8 @@ The arrays `solution_vector` and `solution_index` must have an allocated length 
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getBasisTransposeSolve(highs, rhs, solution_vector, solution_nz, solution_index)
-    ccall((:Highs_getBasisTransposeSolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, rhs, solution_vector, solution_nz, solution_index)
+@trace function Highs_getBasisTransposeSolve(highs, rhs, solution_vector, solution_nz, solution_index)
+    return ccall((:Highs_getBasisTransposeSolve, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, rhs, solution_vector, solution_nz, solution_index)
 end
 
 """
@@ -1156,8 +1206,8 @@ The arrays `row_vector` and `row_index` must have an allocated length of [num\\_
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getReducedRow(highs, row, row_vector, row_num_nz, row_index)
-    ccall((:Highs_getReducedRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, row, row_vector, row_num_nz, row_index)
+@trace function Highs_getReducedRow(highs, row, row_vector, row_num_nz, row_index)
+    return ccall((:Highs_getReducedRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, row, row_vector, row_num_nz, row_index)
 end
 
 """
@@ -1178,8 +1228,8 @@ The arrays `col_vector` and `col_index` must have an allocated length of [num\\_
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getReducedColumn(highs, col, col_vector, col_num_nz, col_index)
-    ccall((:Highs_getReducedColumn, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col, col_vector, col_num_nz, col_index)
+@trace function Highs_getReducedColumn(highs, col, col_vector, col_num_nz, col_index)
+    return ccall((:Highs_getReducedColumn, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col, col_vector, col_num_nz, col_index)
 end
 
 """
@@ -1194,8 +1244,8 @@ Set a basic feasible solution by passing the column and row basis statuses to th
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setBasis(highs, col_status, row_status)
-    ccall((:Highs_setBasis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_status, row_status)
+@trace function Highs_setBasis(highs, col_status, row_status)
+    return ccall((:Highs_setBasis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_status, row_status)
 end
 
 """
@@ -1208,8 +1258,8 @@ Set a logical basis in the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setLogicalBasis(highs)
-    ccall((:Highs_setLogicalBasis, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_setLogicalBasis(highs)
+    return ccall((:Highs_setLogicalBasis, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1228,8 +1278,8 @@ For any values that are unavailable, pass NULL.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
-    ccall((:Highs_setSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, row_value, col_dual, row_dual)
+@trace function Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
+    return ccall((:Highs_setSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, row_value, col_dual, row_dual)
 end
 
 """
@@ -1245,8 +1295,8 @@ Set a partial primal solution by passing values for a set of variables
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setSparseSolution(highs, num_entries, index, value)
-    ccall((:Highs_setSparseSolution, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_entries, index, value)
+@trace function Highs_setSparseSolution(highs, num_entries, index, value)
+    return ccall((:Highs_setSparseSolution, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_entries, index, value)
 end
 
 """
@@ -1261,8 +1311,8 @@ Set the callback method to use for HiGHS
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_setCallback(highs, user_callback, user_callback_data)
-    ccall((:Highs_setCallback, libhighs), HighsInt, (Ptr{Cvoid}, HighsCCallbackType, Ptr{Cvoid}), highs, user_callback, user_callback_data)
+@trace function Highs_setCallback(highs, user_callback, user_callback_data)
+    return ccall((:Highs_setCallback, libhighs), HighsInt, (Ptr{Cvoid}, HighsCCallbackType, Ptr{Cvoid}), highs, user_callback, user_callback_data)
 end
 
 """
@@ -1276,8 +1326,8 @@ Start callback of given type
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_startCallback(highs, callback_type)
-    ccall((:Highs_startCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
+@trace function Highs_startCallback(highs, callback_type)
+    return ccall((:Highs_startCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
 end
 
 """
@@ -1291,8 +1341,8 @@ Stop callback of given type
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_stopCallback(highs, callback_type)
-    ccall((:Highs_stopCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
+@trace function Highs_stopCallback(highs, callback_type)
+    return ccall((:Highs_stopCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
 end
 
 """
@@ -1305,8 +1355,8 @@ Return the cumulative wall-clock time spent in [`Highs_run`](@ref).
 ### Returns
 The cumulative wall-clock time spent in [`Highs_run`](@ref)
 """
-function Highs_getRunTime(highs)
-    ccall((:Highs_getRunTime, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+@trace function Highs_getRunTime(highs)
+    return ccall((:Highs_getRunTime, libhighs), Cdouble, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1323,8 +1373,8 @@ As a work-around, call [`Highs_zeroAllClocks`](@ref) before each call to [`Highs
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_zeroAllClocks(highs)
-    ccall((:Highs_zeroAllClocks, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_zeroAllClocks(highs)
+    return ccall((:Highs_zeroAllClocks, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1343,8 +1393,8 @@ Add a new column (variable) to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
-    ccall((:Highs_addCol, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, cost, lower, upper, num_new_nz, index, value)
+@trace function Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
+    return ccall((:Highs_addCol, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, cost, lower, upper, num_new_nz, index, value)
 end
 
 """
@@ -1365,8 +1415,8 @@ Add multiple columns (variables) to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
-    ccall((:Highs_addCols, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
+@trace function Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
+    return ccall((:Highs_addCols, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
 end
 
 """
@@ -1381,8 +1431,8 @@ Add a new variable to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addVar(highs, lower, upper)
-    ccall((:Highs_addVar, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble), highs, lower, upper)
+@trace function Highs_addVar(highs, lower, upper)
+    return ccall((:Highs_addVar, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble), highs, lower, upper)
 end
 
 """
@@ -1398,8 +1448,8 @@ Add multiple variables to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addVars(highs, num_new_var, lower, upper)
-    ccall((:Highs_addVars, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_new_var, lower, upper)
+@trace function Highs_addVars(highs, num_new_var, lower, upper)
+    return ccall((:Highs_addVars, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_new_var, lower, upper)
 end
 
 """
@@ -1417,8 +1467,8 @@ Add a new row (a linear constraint) to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addRow(highs, lower, upper, num_new_nz, index, value)
-    ccall((:Highs_addRow, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, lower, upper, num_new_nz, index, value)
+@trace function Highs_addRow(highs, lower, upper, num_new_nz, index, value)
+    return ccall((:Highs_addRow, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, lower, upper, num_new_nz, index, value)
 end
 
 """
@@ -1438,8 +1488,8 @@ Add multiple rows (linear constraints) to the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_addRows(highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
-    ccall((:Highs_addRows, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
+@trace function Highs_addRows(highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
+    return ccall((:Highs_addRows, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
 end
 
 """
@@ -1481,8 +1531,8 @@ Change the objective sense of the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeObjectiveSense(highs, sense)
-    ccall((:Highs_changeObjectiveSense, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt), highs, sense)
+@trace function Highs_changeObjectiveSense(highs, sense)
+    return ccall((:Highs_changeObjectiveSense, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt), highs, sense)
 end
 
 """
@@ -1496,8 +1546,8 @@ Change the objective offset of the model.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeObjectiveOffset(highs, offset)
-    ccall((:Highs_changeObjectiveOffset, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble), highs, offset)
+@trace function Highs_changeObjectiveOffset(highs, offset)
+    return ccall((:Highs_changeObjectiveOffset, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble), highs, offset)
 end
 
 """
@@ -1512,8 +1562,8 @@ Change the integrality of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColIntegrality(highs, col, integrality)
-    ccall((:Highs_changeColIntegrality, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt), highs, col, integrality)
+@trace function Highs_changeColIntegrality(highs, col, integrality)
+    return ccall((:Highs_changeColIntegrality, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt), highs, col, integrality)
 end
 
 """
@@ -1529,8 +1579,8 @@ Change the integrality of multiple adjacent columns.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsIntegralityByRange(highs, from_col, to_col, integrality)
-    ccall((:Highs_changeColsIntegralityByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}), highs, from_col, to_col, integrality)
+@trace function Highs_changeColsIntegralityByRange(highs, from_col, to_col, integrality)
+    return ccall((:Highs_changeColsIntegralityByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}), highs, from_col, to_col, integrality)
 end
 
 """
@@ -1546,8 +1596,8 @@ Change the integrality of multiple columns given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsIntegralityBySet(highs, num_set_entries, set, integrality)
-    ccall((:Highs_changeColsIntegralityBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}), highs, num_set_entries, set, integrality)
+@trace function Highs_changeColsIntegralityBySet(highs, num_set_entries, set, integrality)
+    return ccall((:Highs_changeColsIntegralityBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}), highs, num_set_entries, set, integrality)
 end
 
 """
@@ -1562,8 +1612,8 @@ Change the integrality of multiple columns given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsIntegralityByMask(highs, mask, integrality)
-    ccall((:Highs_changeColsIntegralityByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, mask, integrality)
+@trace function Highs_changeColsIntegralityByMask(highs, mask, integrality)
+    return ccall((:Highs_changeColsIntegralityByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, mask, integrality)
 end
 
 """
@@ -1576,8 +1626,8 @@ Clear the integrality of all columns
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_clearIntegrality(highs)
-    ccall((:Highs_clearIntegrality, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_clearIntegrality(highs)
+    return ccall((:Highs_clearIntegrality, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -1592,8 +1642,8 @@ Change the objective coefficient of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColCost(highs, col, cost)
-    ccall((:Highs_changeColCost, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, col, cost)
+@trace function Highs_changeColCost(highs, col, cost)
+    return ccall((:Highs_changeColCost, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, col, cost)
 end
 
 """
@@ -1609,8 +1659,8 @@ Change the cost coefficients of multiple adjacent columns.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsCostByRange(highs, from_col, to_col, cost)
-    ccall((:Highs_changeColsCostByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}), highs, from_col, to_col, cost)
+@trace function Highs_changeColsCostByRange(highs, from_col, to_col, cost)
+    return ccall((:Highs_changeColsCostByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}), highs, from_col, to_col, cost)
 end
 
 """
@@ -1626,8 +1676,8 @@ Change the cost of multiple columns given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsCostBySet(highs, num_set_entries, set, cost)
-    ccall((:Highs_changeColsCostBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, cost)
+@trace function Highs_changeColsCostBySet(highs, num_set_entries, set, cost)
+    return ccall((:Highs_changeColsCostBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, cost)
 end
 
 """
@@ -1642,8 +1692,8 @@ Change the cost of multiple columns given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsCostByMask(highs, mask, cost)
-    ccall((:Highs_changeColsCostByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, cost)
+@trace function Highs_changeColsCostByMask(highs, mask, cost)
+    return ccall((:Highs_changeColsCostByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, cost)
 end
 
 """
@@ -1659,8 +1709,8 @@ Change the variable bounds of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColBounds(highs, col, lower, upper)
-    ccall((:Highs_changeColBounds, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble, Cdouble), highs, col, lower, upper)
+@trace function Highs_changeColBounds(highs, col, lower, upper)
+    return ccall((:Highs_changeColBounds, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble, Cdouble), highs, col, lower, upper)
 end
 
 """
@@ -1677,8 +1727,8 @@ Change the variable bounds of multiple adjacent columns.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsBoundsByRange(highs, from_col, to_col, lower, upper)
-    ccall((:Highs_changeColsBoundsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, from_col, to_col, lower, upper)
+@trace function Highs_changeColsBoundsByRange(highs, from_col, to_col, lower, upper)
+    return ccall((:Highs_changeColsBoundsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, from_col, to_col, lower, upper)
 end
 
 """
@@ -1695,8 +1745,8 @@ Change the bounds of multiple columns given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsBoundsBySet(highs, num_set_entries, set, lower, upper)
-    ccall((:Highs_changeColsBoundsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_set_entries, set, lower, upper)
+@trace function Highs_changeColsBoundsBySet(highs, num_set_entries, set, lower, upper)
+    return ccall((:Highs_changeColsBoundsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_set_entries, set, lower, upper)
 end
 
 """
@@ -1712,8 +1762,8 @@ Change the variable bounds of multiple columns given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeColsBoundsByMask(highs, mask, lower, upper)
-    ccall((:Highs_changeColsBoundsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
+@trace function Highs_changeColsBoundsByMask(highs, mask, lower, upper)
+    return ccall((:Highs_changeColsBoundsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
 end
 
 """
@@ -1729,8 +1779,8 @@ Change the bounds of a row.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeRowBounds(highs, row, lower, upper)
-    ccall((:Highs_changeRowBounds, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble, Cdouble), highs, row, lower, upper)
+@trace function Highs_changeRowBounds(highs, row, lower, upper)
+    return ccall((:Highs_changeRowBounds, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble, Cdouble), highs, row, lower, upper)
 end
 
 """
@@ -1747,8 +1797,8 @@ Change the bounds of multiple rows given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeRowsBoundsBySet(highs, num_set_entries, set, lower, upper)
-    ccall((:Highs_changeRowsBoundsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_set_entries, set, lower, upper)
+@trace function Highs_changeRowsBoundsBySet(highs, num_set_entries, set, lower, upper)
+    return ccall((:Highs_changeRowsBoundsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_set_entries, set, lower, upper)
 end
 
 """
@@ -1764,8 +1814,8 @@ Change the bounds of multiple rows given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeRowsBoundsByMask(highs, mask, lower, upper)
-    ccall((:Highs_changeRowsBoundsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
+@trace function Highs_changeRowsBoundsByMask(highs, mask, lower, upper)
+    return ccall((:Highs_changeRowsBoundsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}), highs, mask, lower, upper)
 end
 
 """
@@ -1781,8 +1831,8 @@ Change a coefficient in the constraint matrix.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_changeCoeff(highs, row, col, value)
-    ccall((:Highs_changeCoeff, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Cdouble), highs, row, col, value)
+@trace function Highs_changeCoeff(highs, row, col, value)
+    return ccall((:Highs_changeCoeff, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Cdouble), highs, row, col, value)
 end
 
 """
@@ -1796,8 +1846,8 @@ Get the objective sense.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getObjectiveSense(highs, sense)
-    ccall((:Highs_getObjectiveSense, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, sense)
+@trace function Highs_getObjectiveSense(highs, sense)
+    return ccall((:Highs_getObjectiveSense, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, sense)
 end
 
 """
@@ -1811,8 +1861,8 @@ Get the objective offset.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getObjectiveOffset(highs, offset)
-    ccall((:Highs_getObjectiveOffset, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}), highs, offset)
+@trace function Highs_getObjectiveOffset(highs, offset)
+    return ccall((:Highs_getObjectiveOffset, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}), highs, offset)
 end
 
 """
@@ -1841,8 +1891,8 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColsByRange(highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getColsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getColsByRange(highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getColsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1858,8 +1908,8 @@ This function is identical to [`Highs_getColsByRange`](@ref), except for how the
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColsBySet(highs, num_set_entries, set, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getColsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getColsBySet(highs, num_set_entries, set, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getColsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1874,8 +1924,8 @@ This function is identical to [`Highs_getColsByRange`](@ref), except for how the
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColsByMask(highs, mask, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getColsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getColsByMask(highs, mask, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getColsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1903,8 +1953,8 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRowsByRange(highs, from_row, to_row, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, from_row, to_row, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getRowsByRange(highs, from_row, to_row, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, from_row, to_row, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1920,8 +1970,8 @@ This function is identical to [`Highs_getRowsByRange`](@ref), except for how the
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRowsBySet(highs, num_set_entries, set, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getRowsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getRowsBySet(highs, num_set_entries, set, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getRowsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, num_set_entries, set, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1936,8 +1986,8 @@ This function is identical to [`Highs_getRowsByRange`](@ref), except for how the
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRowsByMask(highs, mask, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
-    ccall((:Highs_getRowsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+@trace function Highs_getRowsByMask(highs, mask, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
+    return ccall((:Highs_getRowsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, mask, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
 end
 
 """
@@ -1951,8 +2001,8 @@ Get the name of a row.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRowName(highs, row, name)
-    ccall((:Highs_getRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
+@trace function Highs_getRowName(highs, row, name)
+    return ccall((:Highs_getRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
 end
 
 """
@@ -1968,8 +2018,8 @@ If multiple rows have the same name, or if no row exists with `name`, this funct
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRowByName(highs, name, row)
-    ccall((:Highs_getRowByName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, name, row)
+@trace function Highs_getRowByName(highs, name, row)
+    return ccall((:Highs_getRowByName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, name, row)
 end
 
 """
@@ -1983,8 +2033,8 @@ Get the name of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColName(highs, col, name)
-    ccall((:Highs_getColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+@trace function Highs_getColName(highs, col, name)
+    return ccall((:Highs_getColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
 end
 
 """
@@ -2000,8 +2050,8 @@ If multiple columns have the same name, or if no column exists with `name`, this
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColByName(highs, name, col)
-    ccall((:Highs_getColByName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, name, col)
+@trace function Highs_getColByName(highs, name, col)
+    return ccall((:Highs_getColByName, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, name, col)
 end
 
 """
@@ -2015,8 +2065,8 @@ Get the integrality of a column.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getColIntegrality(highs, col, integrality)
-    ccall((:Highs_getColIntegrality, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, col, integrality)
+@trace function Highs_getColIntegrality(highs, col, integrality)
+    return ccall((:Highs_getColIntegrality, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, col, integrality)
 end
 
 """
@@ -2031,8 +2081,8 @@ Delete multiple adjacent columns.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteColsByRange(highs, from_col, to_col)
-    ccall((:Highs_deleteColsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt), highs, from_col, to_col)
+@trace function Highs_deleteColsByRange(highs, from_col, to_col)
+    return ccall((:Highs_deleteColsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt), highs, from_col, to_col)
 end
 
 """
@@ -2047,8 +2097,8 @@ Delete multiple columns given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteColsBySet(highs, num_set_entries, set)
-    ccall((:Highs_deleteColsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, num_set_entries, set)
+@trace function Highs_deleteColsBySet(highs, num_set_entries, set)
+    return ccall((:Highs_deleteColsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, num_set_entries, set)
 end
 
 """
@@ -2062,8 +2112,8 @@ Delete multiple columns given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteColsByMask(highs, mask)
-    ccall((:Highs_deleteColsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, mask)
+@trace function Highs_deleteColsByMask(highs, mask)
+    return ccall((:Highs_deleteColsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, mask)
 end
 
 """
@@ -2078,8 +2128,8 @@ Delete multiple adjacent rows.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteRowsByRange(highs, from_row, to_row)
-    ccall((:Highs_deleteRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, Cint, HighsInt), highs, from_row, to_row)
+@trace function Highs_deleteRowsByRange(highs, from_row, to_row)
+    return ccall((:Highs_deleteRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, Cint, HighsInt), highs, from_row, to_row)
 end
 
 """
@@ -2094,8 +2144,8 @@ Delete multiple rows given by an array of indices.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteRowsBySet(highs, num_set_entries, set)
-    ccall((:Highs_deleteRowsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, num_set_entries, set)
+@trace function Highs_deleteRowsBySet(highs, num_set_entries, set)
+    return ccall((:Highs_deleteRowsBySet, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}), highs, num_set_entries, set)
 end
 
 """
@@ -2109,8 +2159,8 @@ Delete multiple rows given by a mask.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_deleteRowsByMask(highs, mask)
-    ccall((:Highs_deleteRowsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, mask)
+@trace function Highs_deleteRowsByMask(highs, mask)
+    return ccall((:Highs_deleteRowsByMask, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}), highs, mask)
 end
 
 """
@@ -2127,8 +2177,8 @@ Scaling a column modifies the elements in the constraint matrix, the variable bo
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_scaleCol(highs, col, scaleval)
-    ccall((:Highs_scaleCol, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, col, scaleval)
+@trace function Highs_scaleCol(highs, col, scaleval)
+    return ccall((:Highs_scaleCol, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, col, scaleval)
 end
 
 """
@@ -2143,8 +2193,8 @@ Scale a row by a constant.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_scaleRow(highs, row, scaleval)
-    ccall((:Highs_scaleRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, row, scaleval)
+@trace function Highs_scaleRow(highs, row, scaleval)
+    return ccall((:Highs_scaleRow, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Cdouble), highs, row, scaleval)
 end
 
 """
@@ -2157,8 +2207,8 @@ Return the value of infinity used by HiGHS.
 ### Returns
 The value of infinity used by HiGHS.
 """
-function Highs_getInfinity(highs)
-    ccall((:Highs_getInfinity, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+@trace function Highs_getInfinity(highs)
+    return ccall((:Highs_getInfinity, libhighs), Cdouble, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2171,8 +2221,8 @@ Return the size of integers used by HiGHS.
 ### Returns
 The size of integers used by HiGHS.
 """
-function Highs_getSizeofHighsInt(highs)
-    ccall((:Highs_getSizeofHighsInt, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getSizeofHighsInt(highs)
+    return ccall((:Highs_getSizeofHighsInt, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2185,8 +2235,8 @@ Return the number of columns in the model.
 ### Returns
 The number of columns in the model.
 """
-function Highs_getNumCol(highs)
-    ccall((:Highs_getNumCol, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumCol(highs)
+    return ccall((:Highs_getNumCol, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2199,8 +2249,8 @@ Return the number of rows in the model.
 ### Returns
 The number of rows in the model.
 """
-function Highs_getNumRow(highs)
-    ccall((:Highs_getNumRow, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumRow(highs)
+    return ccall((:Highs_getNumRow, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2213,8 +2263,8 @@ Return the number of nonzeros in the constraint matrix of the model.
 ### Returns
 The number of nonzeros in the constraint matrix of the model.
 """
-function Highs_getNumNz(highs)
-    ccall((:Highs_getNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumNz(highs)
+    return ccall((:Highs_getNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2227,8 +2277,8 @@ Return the number of nonzeroes in the Hessian matrix of the model.
 ### Returns
 The number of nonzeroes in the Hessian matrix of the model.
 """
-function Highs_getHessianNumNz(highs)
-    ccall((:Highs_getHessianNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getHessianNumNz(highs)
+    return ccall((:Highs_getHessianNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2241,8 +2291,8 @@ Return the number of columns in the presolved model.
 ### Returns
 The number of columns in the presolved model.
 """
-function Highs_getPresolvedNumCol(highs)
-    ccall((:Highs_getPresolvedNumCol, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getPresolvedNumCol(highs)
+    return ccall((:Highs_getPresolvedNumCol, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2255,8 +2305,8 @@ Return the number of rows in the presolved model.
 ### Returns
 The number of rows in the presolved model.
 """
-function Highs_getPresolvedNumRow(highs)
-    ccall((:Highs_getPresolvedNumRow, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getPresolvedNumRow(highs)
+    return ccall((:Highs_getPresolvedNumRow, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2269,8 +2319,8 @@ Return the number of nonzeros in the constraint matrix of the presolved model.
 ### Returns
 The number of nonzeros in the constraint matrix of the presolved model.
 """
-function Highs_getPresolvedNumNz(highs)
-    ccall((:Highs_getPresolvedNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getPresolvedNumNz(highs)
+    return ccall((:Highs_getPresolvedNumNz, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -2285,8 +2335,8 @@ Note that all arrays must be pre-allocated to the correct size before calling [`
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
-    ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
+@trace function Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
+    return ccall((:Highs_getModel, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
 end
 
 """
@@ -2301,8 +2351,8 @@ Note that all arrays must be pre-allocated to the correct size before calling [`
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
-    ccall((:Highs_getLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+@trace function Highs_getLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    return ccall((:Highs_getLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
 end
 
 """
@@ -2317,8 +2367,8 @@ Note that all arrays must be pre-allocated to the correct size before calling [`
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
-    ccall((:Highs_getPresolvedLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+@trace function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    return ccall((:Highs_getPresolvedLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
 end
 
 """
@@ -2336,8 +2386,8 @@ Set a primal (and possibly dual) solution as a starting point, then run crossove
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
-    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
+@trace function Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
+    return ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
 end
 
 """
@@ -2376,8 +2426,8 @@ For any values that are not required, pass NULL.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_getRanging(highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
-    ccall((:Highs_getRanging, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
+@trace function Highs_getRanging(highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
+    return ccall((:Highs_getRanging, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
 end
 
 """
@@ -2398,8 +2448,8 @@ If local penalties are not defined, pass NULL, and the global penalty will be us
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
-function Highs_feasibilityRelaxation(highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
-    ccall((:Highs_feasibilityRelaxation, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+@trace function Highs_feasibilityRelaxation(highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+    return ccall((:Highs_feasibilityRelaxation, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
 end
 
 """
@@ -2418,8 +2468,8 @@ After this function has returned, the option value for the number of threads may
 ### Returns
 No status is returned since the function call cannot fail. Calling this function while any Highs instance is in use on any thread is undefined behavior and may cause crashes, but cannot be detected and hence is fully in the callers responsibility.
 """
-function Highs_resetGlobalScheduler(blocking)
-    ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
+@trace function Highs_resetGlobalScheduler(blocking)
+    return ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
 end
 
 """
@@ -2433,8 +2483,8 @@ Get a void* pointer to a callback data item
 ### Returns
 A void* pointer to the callback data item, or NULL if item\\_name not valid
 """
-function Highs_getCallbackDataOutItem(data_out, item_name)
-    ccall((:Highs_getCallbackDataOutItem, libhighs), Ptr{Cvoid}, (Ptr{HighsCallbackDataOut}, Ptr{Cchar}), data_out, item_name)
+@trace function Highs_getCallbackDataOutItem(data_out, item_name)
+    return ccall((:Highs_getCallbackDataOutItem, libhighs), Ptr{Cvoid}, (Ptr{HighsCallbackDataOut}, Ptr{Cchar}), data_out, item_name)
 end
 
 """
@@ -2445,108 +2495,108 @@ Return the HiGHS compilation date.
 ### Returns
 Thse HiGHS compilation date.
 """
-function Highs_compilationDate()
-    ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
+@trace function Highs_compilationDate()
+    return ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
 end
 
-function Highs_call(num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
-    ccall((:Highs_call, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+@trace function Highs_call(num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
+    return ccall((:Highs_call, libhighs), HighsInt, (HighsInt, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), num_col, num_row, num_nz, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
 end
 
-function Highs_runQuiet(highs)
-    ccall((:Highs_runQuiet, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_runQuiet(highs)
+    return ccall((:Highs_runQuiet, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_setHighsLogfile(highs, logfile)
-    ccall((:Highs_setHighsLogfile, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cvoid}), highs, logfile)
+@trace function Highs_setHighsLogfile(highs, logfile)
+    return ccall((:Highs_setHighsLogfile, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cvoid}), highs, logfile)
 end
 
-function Highs_setHighsOutput(highs, outputfile)
-    ccall((:Highs_setHighsOutput, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cvoid}), highs, outputfile)
+@trace function Highs_setHighsOutput(highs, outputfile)
+    return ccall((:Highs_setHighsOutput, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cvoid}), highs, outputfile)
 end
 
-function Highs_getIterationCount(highs)
-    ccall((:Highs_getIterationCount, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getIterationCount(highs)
+    return ccall((:Highs_getIterationCount, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getSimplexIterationCount(highs)
-    ccall((:Highs_getSimplexIterationCount, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getSimplexIterationCount(highs)
+    return ccall((:Highs_getSimplexIterationCount, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_setHighsBoolOptionValue(highs, option, value)
-    ccall((:Highs_setHighsBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
+@trace function Highs_setHighsBoolOptionValue(highs, option, value)
+    return ccall((:Highs_setHighsBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
 end
 
-function Highs_setHighsIntOptionValue(highs, option, value)
-    ccall((:Highs_setHighsIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
+@trace function Highs_setHighsIntOptionValue(highs, option, value)
+    return ccall((:Highs_setHighsIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, HighsInt), highs, option, value)
 end
 
-function Highs_setHighsDoubleOptionValue(highs, option, value)
-    ccall((:Highs_setHighsDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Cdouble), highs, option, value)
+@trace function Highs_setHighsDoubleOptionValue(highs, option, value)
+    return ccall((:Highs_setHighsDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Cdouble), highs, option, value)
 end
 
-function Highs_setHighsStringOptionValue(highs, option, value)
-    ccall((:Highs_setHighsStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_setHighsStringOptionValue(highs, option, value)
+    return ccall((:Highs_setHighsStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
-function Highs_setHighsOptionValue(highs, option, value)
-    ccall((:Highs_setHighsOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_setHighsOptionValue(highs, option, value)
+    return ccall((:Highs_setHighsOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
-function Highs_getHighsBoolOptionValue(highs, option, value)
-    ccall((:Highs_getHighsBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
+@trace function Highs_getHighsBoolOptionValue(highs, option, value)
+    return ccall((:Highs_getHighsBoolOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
 end
 
-function Highs_getHighsIntOptionValue(highs, option, value)
-    ccall((:Highs_getHighsIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
+@trace function Highs_getHighsIntOptionValue(highs, option, value)
+    return ccall((:Highs_getHighsIntOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, value)
 end
 
-function Highs_getHighsDoubleOptionValue(highs, option, value)
-    ccall((:Highs_getHighsDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, option, value)
+@trace function Highs_getHighsDoubleOptionValue(highs, option, value)
+    return ccall((:Highs_getHighsDoubleOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, option, value)
 end
 
-function Highs_getHighsStringOptionValue(highs, option, value)
-    ccall((:Highs_getHighsStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_getHighsStringOptionValue(highs, option, value)
+    return ccall((:Highs_getHighsStringOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
-function Highs_getHighsOptionType(highs, option, type)
-    ccall((:Highs_getHighsOptionType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, type)
+@trace function Highs_getHighsOptionType(highs, option, type)
+    return ccall((:Highs_getHighsOptionType, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, option, type)
 end
 
-function Highs_resetHighsOptions(highs)
-    ccall((:Highs_resetHighsOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_resetHighsOptions(highs)
+    return ccall((:Highs_resetHighsOptions, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getHighsIntInfoValue(highs, info, value)
-    ccall((:Highs_getHighsIntInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, value)
+@trace function Highs_getHighsIntInfoValue(highs, info, value)
+    return ccall((:Highs_getHighsIntInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{HighsInt}), highs, info, value)
 end
 
-function Highs_getHighsDoubleInfoValue(highs, info, value)
-    ccall((:Highs_getHighsDoubleInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, info, value)
+@trace function Highs_getHighsDoubleInfoValue(highs, info, value)
+    return ccall((:Highs_getHighsDoubleInfoValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cdouble}), highs, info, value)
 end
 
-function Highs_getNumCols(highs)
-    ccall((:Highs_getNumCols, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumCols(highs)
+    return ccall((:Highs_getNumCols, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getNumRows(highs)
-    ccall((:Highs_getNumRows, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getNumRows(highs)
+    return ccall((:Highs_getNumRows, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getHighsInfinity(highs)
-    ccall((:Highs_getHighsInfinity, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+@trace function Highs_getHighsInfinity(highs)
+    return ccall((:Highs_getHighsInfinity, libhighs), Cdouble, (Ptr{Cvoid},), highs)
 end
 
-function Highs_getHighsRunTime(highs)
-    ccall((:Highs_getHighsRunTime, libhighs), Cdouble, (Ptr{Cvoid},), highs)
+@trace function Highs_getHighsRunTime(highs)
+    return ccall((:Highs_getHighsRunTime, libhighs), Cdouble, (Ptr{Cvoid},), highs)
 end
 
-function Highs_setOptionValue(highs, option, value)
-    ccall((:Highs_setOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
+@trace function Highs_setOptionValue(highs, option, value)
+    return ccall((:Highs_setOptionValue, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cchar}, Ptr{Cchar}), highs, option, value)
 end
 
-function Highs_getScaledModelStatus(highs)
-    ccall((:Highs_getScaledModelStatus, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+@trace function Highs_getScaledModelStatus(highs)
+    return ccall((:Highs_getScaledModelStatus, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 const HighsUInt = Cuint
