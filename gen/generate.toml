@@ -3,3 +3,4 @@ library_name = "libhighs"
 output_file_path = "src/gen/libhighs.jl"
 print_using_CEnum = false
 extract_c_comment_style = "doxygen"
+prologue_file_path = "gen/prologue.jl"
