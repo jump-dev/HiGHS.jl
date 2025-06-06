@@ -3209,7 +3209,7 @@ end
 
 # HiGHS v1.10 and HiGHS v1.11 introduced additional fields. We maintain this for
 # backwards compatibility.
-function HighsCallbackDataIn(terminate::Cint)
+function HighsCallbackDataIn(terminate)
     return HighsCallbackDataIn(terminate, C_NULL, C_NULL, 0, zero(HighsInt))
 end
 
