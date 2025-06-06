@@ -1,6 +1,6 @@
 name = "HiGHS"
 uuid = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
-version = "1.17.0"
+version = "1.18.0"
 
 [deps]
 HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
