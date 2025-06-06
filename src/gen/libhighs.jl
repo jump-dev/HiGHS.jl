@@ -14,6 +14,7 @@ const HighsInt = Cint
 Struct to handle callback output data
 """
 struct HighsCallbackDataOut
+    cbdata::Ptr{Cvoid}
     log_type::Cint
     running_time::Cdouble
     simplex_iteration_count::HighsInt
@@ -26,6 +27,7 @@ struct HighsCallbackDataOut
     mip_dual_bound::Cdouble
     mip_gap::Cdouble
     mip_solution::Ptr{Cdouble}
+    mip_solution_size::HighsInt
     cutpool_num_col::HighsInt
     cutpool_num_cut::HighsInt
     cutpool_num_nz::HighsInt
@@ -40,6 +42,9 @@ end
 struct HighsCallbackDataIn
     user_interrupt::Cint
     user_solution::Ptr{Cdouble}
+    cbdata::Ptr{Cvoid}
+    user_has_solution::Cint
+    user_solution_size::HighsInt
 end
 
 # typedef void ( * HighsCCallbackType ) ( int , const char * , const HighsCallbackDataOut * , HighsCallbackDataIn * , void * )
@@ -707,7 +712,7 @@ Get the type expected by an option.
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
-* `type`: An int in which the corresponding `kHighsOptionType` constant should be placed.
+* `type`: A [`HighsInt`](@ref) in which the corresponding `kHighsOptionType` constant should be placed.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -808,7 +813,7 @@ end
 """
     Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
 
-Get the current and default values of an int option
+Get the current and default values of a [`HighsInt`](@ref) option
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
@@ -913,7 +918,7 @@ Get the type expected by an info item.
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 * `info`: The name of the info item.
-* `type`: An int in which the corresponding `kHighsOptionType` constant is stored.
+* `type`: A [`HighsInt`](@ref) in which the corresponding `kHighsOptionType` constant is stored.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -976,7 +981,7 @@ Indicates whether a dual ray that is a certificate of primal infeasibility curre
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
-* `has_dual_ray`: A pointer to an int to store 1 if a dual ray currently exists.
+* `has_dual_ray`: A pointer to a [`HighsInt`](@ref) to store 1 if a dual ray currently exists.
 * `dual_ray_value`: An array of length [num\\_row] filled with the unbounded ray.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
@@ -992,7 +997,7 @@ Indicates whether a dual unboundedness direction (corresponding to a certificate
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
-* `has_dual_unboundedness_direction`: A pointer to an int to store 1 if the dual unboundedness direction exists.
+* `has_dual_unboundedness_direction`: A pointer to a [`HighsInt`](@ref) to store 1 if the dual unboundedness direction exists.
 * `dual_unboundedness_direction_value`: An array of length [num\\_col] filled with the unboundedness direction.
 """
 function Highs_getDualUnboundednessDirection(highs, has_dual_unboundedness_direction, dual_unboundedness_direction_value)
@@ -1006,7 +1011,7 @@ Indicates whether a primal ray that is a certificate of primal unboundedness cur
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
-* `has_primal_ray`: A pointer to an int to store 1 if the primal ray exists.
+* `has_primal_ray`: A pointer to a [`HighsInt`](@ref) to store 1 if the primal ray exists.
 * `primal_ray_value`: An array of length [num\\_col] filled with the unbounded ray.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
@@ -1145,14 +1150,14 @@ Compute a row of ``B^{-1}A``.
 
 See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
-The arrays `row_vector` and `row_index` must have an allocated length of [num\\_row]. However, check `row_num_nz` to see how many non-zero elements are actually stored.
+The arrays `row_vector` and `row_index` must have an allocated length of [num\\_col]. However, check `row_num_nz` to see how many non-zero elements are actually stored.
 
 ### Parameters
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row to compute.
-* `row_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
+* `row_vector`: An array of length [num\\_col] in which to store the values of the non-zero elements.
 * `row_num_nz`: The number of non-zeros in the row.
-* `row_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
+* `row_index`: An array of length [num\\_col] in which to store the indices of the non-zero elements.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -1277,7 +1282,7 @@ Start callback of given type
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_startCallback(highs, callback_type)
-    ccall((:Highs_startCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
+    ccall((:Highs_startCallback, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt), highs, callback_type)
 end
 
 """
@@ -1292,7 +1297,7 @@ Stop callback of given type
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_stopCallback(highs, callback_type)
-    ccall((:Highs_stopCallback, libhighs), HighsInt, (Ptr{Cvoid}, Cint), highs, callback_type)
+    ccall((:Highs_stopCallback, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt), highs, callback_type)
 end
 
 """
@@ -1734,6 +1739,24 @@ function Highs_changeRowBounds(highs, row, lower, upper)
 end
 
 """
+    Highs_changeRowsBoundsByRange(highs, from_row, to_row, lower, upper)
+
+Change the variable bounds of multiple adjacent rows.
+
+### Parameters
+* `highs`: A pointer to the Highs instance.
+* `from_row`: The index of the first row whose bound changes.
+* `to_row`: The index of the last row whose bound changes.
+* `lower`: An array of length [to\\_row - from\\_row + 1] with the new lower bounds.
+* `upper`: An array of length [to\\_row - from\\_row + 1] with the new upper bounds.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_changeRowsBoundsByRange(highs, from_row, to_row, lower, upper)
+    ccall((:Highs_changeRowsBoundsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}), highs, from_row, to_row, lower, upper)
+end
+
+"""
     Highs_changeRowsBoundsBySet(highs, num_set_entries, set, lower, upper)
 
 Change the bounds of multiple rows given by an array of indices.
@@ -1830,11 +1853,11 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The first column for which to query data for.
 * `to_col`: The last column (inclusive) for which to query data for.
-* `num_col`: An integer populated with the number of columns got from the model (this should equal `to\\_col - from\\_col + 1`).
+* `num_col`: A [`HighsInt`](@ref) populated with the number of columns got from the model (this should equal `to\\_col - from\\_col + 1`).
 * `costs`: An array of size [to\\_col - from\\_col + 1] for the column cost coefficients.
 * `lower`: An array of size [to\\_col - from\\_col + 1] for the column lower bounds.
 * `upper`: An array of size [to\\_col - from\\_col + 1] for the column upper bounds.
-* `num_nz`: An integer to be populated with the number of non-zero elements in the constraint matrix.
+* `num_nz`: A [`HighsInt`](@ref) to be populated with the number of non-zero elements in the constraint matrix.
 * `matrix_start`: An array of size [to\\_col - from\\_col + 1] with the start indices of each column in `matrix_index` and `matrix_value`.
 * `matrix_index`: An array of size [num\\_nz] with the row indices of each element in the constraint matrix.
 * `matrix_value`: An array of size [num\\_nz] with the non-zero elements of the constraint matrix.
@@ -1893,10 +1916,10 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 * `highs`: A pointer to the Highs instance.
 * `from_row`: The first row for which to query data for.
 * `to_row`: The last row (inclusive) for which to query data for.
-* `num_row`: An integer to be populated with the number of rows got from the model.
+* `num_row`: A [`HighsInt`](@ref) to be populated with the number of rows got from the model.
 * `lower`: An array of size [to\\_row - from\\_row + 1] for the row lower bounds.
 * `upper`: An array of size [to\\_row - from\\_row + 1] for the row upper bounds.
-* `num_nz`: An integer to be populated with the number of non-zero elements in the constraint matrix.
+* `num_nz`: A [`HighsInt`](@ref) to be populated with the number of non-zero elements in the constraint matrix.
 * `matrix_start`: An array of size [to\\_row - from\\_row + 1] with the start indices of each row in `matrix_index` and `matrix_value`.
 * `matrix_index`: An array of size [num\\_nz] with the column indices of each element in the constraint matrix.
 * `matrix_value`: An array of size [num\\_nz] with the non-zero elements of the constraint matrix.
@@ -2011,7 +2034,7 @@ Get the integrality of a column.
 
 ### Parameters
 * `col`: The index of the column to query.
-* `integrality`: An integer in which the integrality of the column should be placed. The integer is one of the `kHighsVarTypeXXX` constants.
+* `integrality`: A [`HighsInt`](@ref) in which the integrality of the column should be placed. The integer is one of the `kHighsVarTypeXXX` constants.
 ### Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
@@ -2079,7 +2102,7 @@ Delete multiple adjacent rows.
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteRowsByRange(highs, from_row, to_row)
-    ccall((:Highs_deleteRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, Cint, HighsInt), highs, from_row, to_row)
+    ccall((:Highs_deleteRowsByRange, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt), highs, from_row, to_row)
 end
 
 """
@@ -2337,7 +2360,7 @@ Set a primal (and possibly dual) solution as a starting point, then run crossove
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
-    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid}, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
+    ccall((:Highs_crossover, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, num_col, num_row, col_value, col_dual, row_dual)
 end
 
 """
@@ -2435,6 +2458,55 @@ A void* pointer to the callback data item, or NULL if item\\_name not valid
 """
 function Highs_getCallbackDataOutItem(data_out, item_name)
     ccall((:Highs_getCallbackDataOutItem, libhighs), Ptr{Cvoid}, (Ptr{HighsCallbackDataOut}, Ptr{Cchar}), data_out, item_name)
+end
+
+"""
+    Highs_setCallbackSolution(data_in, num_entries, value)
+
+Set a solution within a callback by passing a subset of the values.
+
+For any values that are unavailable/unknown, pass kHighsUndefined.
+
+### Parameters
+* `data_in`: A pointer to the callback input data instance.
+* `num_entries`: Number of variables in the set
+* `value`: An array of length [num\\_entries <= num\\_col] with column solution values.
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_setCallbackSolution(data_in, num_entries, value)
+    ccall((:Highs_setCallbackSolution, libhighs), HighsInt, (Ptr{HighsCallbackDataIn}, HighsInt, Ptr{Cdouble}), data_in, num_entries, value)
+end
+
+"""
+    Highs_setCallbackSparseSolution(data_in, num_entries, index, value)
+
+Set a partial primal solution by passing values for a set of variables, within a valid callback.
+
+### Parameters
+* `data_in`: A pointer to the callback input data instance.
+* `num_entries`: Number of variables in the set
+* `index`: Indices of variables in the set
+* `value`: Values of variables in the set
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_setCallbackSparseSolution(data_in, num_entries, index, value)
+    ccall((:Highs_setCallbackSparseSolution, libhighs), HighsInt, (Ptr{HighsCallbackDataIn}, HighsInt, Ptr{HighsInt}, Ptr{Cdouble}), data_in, num_entries, index, value)
+end
+
+"""
+    Highs_repairCallbackSolution(data_in)
+
+Finds a feasible solution for a given (partial) primal user solution, within a valid callback.
+
+On success, the user solution is updated within the callback input data instance.
+
+### Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_repairCallbackSolution(data_in)
+    ccall((:Highs_repairCallbackSolution, libhighs), HighsInt, (Ptr{HighsCallbackDataIn},), data_in)
 end
 
 """
@@ -2553,17 +2625,13 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const CMAKE_INSTALL_PREFIX = "/workspace/destdir"
-
-const HIGHS_GITHASH = "fd8665394e"
+const HIGHS_GITHASH = "6eca8325a4"
 
 const HIGHS_VERSION_MAJOR = 1
 
 const HIGHS_VERSION_MINOR = 10
 
 const HIGHS_VERSION_PATCH = 0
-
-const HIGHS_DIR = "/workspace/srcdir/HiGHS"
 
 const HIGHSINT_FORMAT = "d"
 
@@ -2635,3 +2703,4 @@ const kHighsCallbackMipLogging = HighsInt(5)
 const kHighsCallbackMipInterrupt = HighsInt(6)
 const kHighsCallbackMipGetCutPool = HighsInt(7)
 const kHighsCallbackMipDefineLazyConstraints = HighsInt(8)
+const kHighsCallbackCallbackMipUserSolution = HighsInt(9)
