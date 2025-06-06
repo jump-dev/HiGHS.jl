@@ -3207,9 +3207,11 @@ function CallbackFunction()
     ])
 end
 
-# HiGHS v1.10 introduced the user_solution field. For backwards compatibility,
-# we default it to C_NULL.
-HighsCallbackDataIn(terminate) = HighsCallbackDataIn(terminate, C_NULL)
+# HiGHS v1.10 and HiGHS v1.11 introduced additional fields. We maintain this for
+# backwards compatibility.
+function HighsCallbackDataIn(terminate)
+    return HighsCallbackDataIn(terminate, C_NULL, C_NULL, 0, zero(HighsInt))
+end
 
 function _cfn_user_callback(
     callback_type::Cint,
