@@ -2626,11 +2626,11 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const HIGHS_GITHASH = "6eca8325a4"
+const HIGHS_GITHASH = "364c83a51e"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 10
+const HIGHS_VERSION_MINOR = 11
 
 const HIGHS_VERSION_PATCH = 0
 
