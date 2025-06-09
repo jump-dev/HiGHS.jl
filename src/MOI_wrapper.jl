@@ -299,7 +299,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     compute_infeasibility_certificates::Bool
 
-    conflict_solver::Union{Nothing, MOCS.Optimizer}
+    conflict_solver::Union{Nothing,MOCS.Optimizer}
 
     function Optimizer()
         model = new(
