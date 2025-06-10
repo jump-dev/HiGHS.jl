@@ -29,6 +29,14 @@ If you have a reproducible example of a bug, please [open a GitHub issue](https:
 The underlying solver, [ERGO-Code/HiGHS](https://github.com/ERGO-Code/HiGHS), is
 licensed under the [MIT license](https://github.com/ERGO-Code/HiGHS/blob/master/LICENSE).
 
+## Citation
+
+If you use HiGHS in an academic context, please cite the following article:
+
+Huangfu, Q., & Hall, J.A.J. (2018). Parallelizing the dual revised simplex
+method. _Mathematical Programming Computation_, 10(1), 119-142.
+DOI: [10.1007/s12532-017-0130-5](https://doi.org/10.1007/s12532-017-0130-5)
+
 ## Installation
 
 Install HiGHS as follows:
