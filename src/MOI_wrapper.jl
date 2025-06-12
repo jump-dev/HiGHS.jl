@@ -2099,11 +2099,15 @@ function _store_solution(model::Optimizer, ret::HighsInt)
         x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
         if x.has_dual_ray
             _compute_farkas_variable_dual(model, x.coldual)
+            x.dual_solution_status = kHighsSolutionStatusNone
         end
     elseif x.model_status == kHighsModelStatusUnbounded
         ret = Highs_getPrimalRay(model, statusP, x.colvalue)
         # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
         x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
+        if x.has_primal_ray
+            x.primal_solution_status = kHighsSolutionStatusNone
+        end
     end
     return
 end
