@@ -2077,22 +2077,6 @@ function _store_solution(model::Optimizer, ret::HighsInt)
     resize!(x.rowdual, numRows)
     x.model_status = Highs_getModelStatus(model)
     statusP = Ref{HighsInt}()
-    certificates = MOI.get(model, ComputeInfeasibilityCertificate())
-    if certificates && x.model_status == kHighsModelStatusInfeasible
-        ret = Highs_getDualRay(model, statusP, x.rowdual)
-        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
-        if x.has_dual_ray
-            _compute_farkas_variable_dual(model, x.coldual)
-        end
-    elseif certificates && x.model_status == kHighsModelStatusUnbounded
-        ret = Highs_getPrimalRay(model, statusP, x.colvalue)
-        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
-        x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
-    end
-    if x.has_dual_ray || x.has_primal_ray
-        return  # If a ray is present, we don't query the solution
-    end
     Highs_getIntInfoValue(model, "primal_solution_status", statusP)
     x.primal_solution_status = statusP[]
     Highs_getIntInfoValue(model, "dual_solution_status", statusP)
@@ -2104,6 +2088,25 @@ function _store_solution(model::Optimizer, ret::HighsInt)
             resize!(x.colstatus, numCols)
             resize!(x.rowstatus, numRows)
             Highs_getBasis(model, x.colstatus, x.rowstatus)
+        end
+    end
+    if !MOI.get(model, ComputeInfeasibilityCertificate())
+        return
+    end
+    if x.model_status == kHighsModelStatusInfeasible
+        ret = Highs_getDualRay(model, statusP, x.rowdual)
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_dual_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
+        if x.has_dual_ray
+            _compute_farkas_variable_dual(model, x.coldual)
+            x.dual_solution_status = kHighsSolutionStatusNone
+        end
+    elseif x.model_status == kHighsModelStatusUnbounded
+        ret = Highs_getPrimalRay(model, statusP, x.colvalue)
+        # Don't `_check_ret(ret)` here, just bail is there isn't a dual ray.
+        x.has_primal_ray = (ret == kHighsStatusOk) && (statusP[] == 1)
+        if x.has_primal_ray
+            x.primal_solution_status = kHighsSolutionStatusNone
         end
     end
     return

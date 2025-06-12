@@ -870,11 +870,8 @@ function test_infeasible_point()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT
-    dual_stat = MOI.get(model, MOI.DualStatus())
-    @test dual_stat in (MOI.INFEASIBLE_POINT, MOI.NO_SOLUTION)
     @test MOI.get(model, MOI.ResultCount()) == 1
     @test MOI.get(model, MOI.VariablePrimal(), x) isa Vector{Float64}
-    @test MOI.get(model, MOI.ConstraintDual(), ci) isa Float64
     return
 end
 
@@ -1175,6 +1172,16 @@ function test_ConstraintName()
             @test unsafe_string(pointer(name)) == "R0"
         end
     end
+    return
+end
+
+function test_issue_287()
+    model = HiGHS.Optimizer()
+    x, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
+    MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(0.5))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
     return
 end
 
