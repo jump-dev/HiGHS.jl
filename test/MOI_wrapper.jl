@@ -1178,6 +1178,16 @@ function test_ConstraintName()
     return
 end
 
+function test_issue_287()
+    model = HiGHS.Optimizer()
+    x, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
+    MOI.add_constraint(model, 1.0 * x, MOI.EqualTo(0.5))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
