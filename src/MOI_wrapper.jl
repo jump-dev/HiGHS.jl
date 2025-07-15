@@ -2212,7 +2212,14 @@ function MOI.optimize!(model::Optimizer)
         # Julia introduces an interruptible ccall --- which it likely won't
         # https://github.com/JuliaLang/julia/issues/2622 --- set a null
         # callback.
-        MOI.set(model, CallbackFunction(), (args...) -> Cint(0))
+        cb_types = [
+            # See Issue 291. The SimplexInterrupt callback in HiGHS@1.11 is very
+            # slow.
+            # kHighsCallbackSimplexInterrupt,
+            kHighsCallbackIpmInterrupt,
+            kHighsCallbackMipInterrupt,
+        ]
+        MOI.set(model, CallbackFunction(cb_types), (args...) -> Cint(0))
     end
     # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
     GC.@preserve model begin
