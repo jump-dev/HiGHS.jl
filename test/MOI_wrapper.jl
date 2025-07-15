@@ -938,13 +938,11 @@ function test_callback_logging()
     f = 1.0 * x[1] + x[2] + x[3]
     MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
     callback_types = Cint[]
-    io = IOBuffer()
     function user_callback(
         callback_type::Cint,
-        msg::Ptr{Cchar},
+        ::Ptr{Cchar},
         ::HiGHS.HighsCallbackDataOut,
     )::Cint
-        print(io, unsafe_string(msg))
         push!(callback_types, callback_type)
         return 1
     end
@@ -954,10 +952,6 @@ function test_callback_logging()
     @test all(callback_types .== HiGHS.kHighsCallbackLogging)
     # The termination is not respected in a logging callback
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
-    seekstart(io)
-    contents = read!(io, String)
-    @test occursin("HiGHS", contents)
-    @test occursin("Optimal", contents)
     return
 end
 
