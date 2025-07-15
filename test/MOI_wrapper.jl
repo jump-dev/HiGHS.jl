@@ -928,6 +928,39 @@ function test_callback_interrupt()
     return
 end
 
+function test_callback_logging()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    callback_types = Cint[]
+    io = IOBuffer()
+    function user_callback(
+        callback_type::Cint,
+        msg::Ptr{Cchar},
+        ::HiGHS.HighsCallbackDataOut,
+    )::Cint
+        print(io, unsafe_string(msg))
+        push!(callback_types, callback_type)
+        return 1
+    end
+    cb = HiGHS.CallbackFunction([HiGHS.kHighsCallbackLogging])
+    MOI.set(model, cb, user_callback)
+    MOI.optimize!(model)
+    @test all(callback_types .== HiGHS.kHighsCallbackLogging)
+    # The termination is not respected in a logging callback
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    seekstart(io)
+    contents = read!(io, String)
+    @test occursin("HiGHS", contents)
+    @test occursin("Optimal", contents)
+    return
+end
+
 function test_active_bound()
     for ((l, x, u, d), result) in [
         # Primal exists. Pick closest bound lower
