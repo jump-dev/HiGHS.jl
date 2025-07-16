@@ -928,6 +928,34 @@ function test_callback_interrupt()
     return
 end
 
+function test_callback_non_interrupt()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 3)
+    MOI.add_constraint.(model, x, MOI.Integer())
+    c = MOI.add_constraint.(model, 1.0 .* x, MOI.EqualTo.(1.0:3.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x[1] + x[2] + x[3]
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    callback_types = Cint[]
+    function user_callback(
+        callback_type::Cint,
+        ::Ptr{Cchar},
+        ::HiGHS.HighsCallbackDataOut,
+    )::Cint
+        push!(callback_types, callback_type)
+        return 1
+    end
+    cb = HiGHS.CallbackFunction([HiGHS.kHighsCallbackMipSolution])
+    MOI.set(model, cb, user_callback)
+    MOI.optimize!(model)
+    @test !isempty(callback_types)
+    @test all(callback_types .== HiGHS.kHighsCallbackMipSolution)
+    # The termination is not respected in a non-interrupt callback
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
 function test_active_bound()
     for ((l, x, u, d), result) in [
         # Primal exists. Pick closest bound lower
