@@ -7,7 +7,7 @@ module HiGHS
 
 import HiGHS_jll: libhighs
 import MathOptInterface as MOI
-import MathOptConflictSolver as MOCS
+import MathOptIIS
 import SparseArrays
 
 include("gen/libhighs.jl")

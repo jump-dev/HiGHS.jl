@@ -299,7 +299,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     compute_infeasibility_certificates::Bool
 
-    conflict_solver::Union{Nothing,MOCS.Optimizer}
+    conflict_solver::Union{Nothing,MathOptIIS.Optimizer}
 
     function Optimizer()
         model = new(
@@ -3322,9 +3322,9 @@ end
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 function MOI.compute_conflict!(model::Optimizer)
-    solver = MOCS.Optimizer()
-    MOI.set(solver, MOCS.InfeasibleModel(), model)
-    MOI.set(solver, MOCS.InnerOptimizer(), Optimizer)
+    solver = MathOptIIS.Optimizer()
+    MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
+    MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
     MOI.compute_conflict!(solver)
     model.conflict_solver = solver
     return
