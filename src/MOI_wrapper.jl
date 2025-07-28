@@ -299,6 +299,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     compute_infeasibility_certificates::Bool
 
+    conflict_solver::Union{Nothing,MathOptIIS.Optimizer}
+
     function Optimizer()
         model = new(
             C_NULL,
@@ -317,6 +319,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             _Solution(),
             nothing,
             true,
+            nothing,
         )
         MOI.empty!(model)
         if Sys.iswindows()
@@ -382,6 +385,7 @@ function MOI.empty!(model::Optimizer)
     ret = Highs_changeObjectiveOffset(model, 0.0)
     _check_ret(ret)
     model.callback_data = nothing
+    model.conflict_solver = nothing
     return
 end
 
@@ -402,7 +406,8 @@ function MOI.is_empty(model::Optimizer)
            model.name_to_constraint_index === nothing &&
            isempty(model.solution) &&
            iszero(offset[]) &&
-           model.callback_data === nothing
+           model.callback_data === nothing &&
+           model.conflict_solver === nothing
 end
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
@@ -2189,6 +2194,7 @@ function _set_variable_primal_start(model::Optimizer)
 end
 
 function MOI.optimize!(model::Optimizer)
+    model.conflict_solver = nothing
     for info in model.binaries
         Highs_changeColBounds(
             model,
@@ -3324,3 +3330,27 @@ end
 @enum(HighsObjSense, kMinimize = 1, kMaximize = -1)
 @enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
+
+function MOI.compute_conflict!(model::Optimizer)
+    solver = MathOptIIS.Optimizer()
+    MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
+    MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
+    MOI.compute_conflict!(solver)
+    model.conflict_solver = solver
+    return
+end
+
+function MOI.get(optimizer::Optimizer, attr::MOI.ConflictStatus)
+    if optimizer.conflict_solver === nothing
+        return MOI.COMPUTE_CONFLICT_NOT_CALLED
+    end
+    return MOI.get(optimizer.conflict_solver, attr)
+end
+
+function MOI.get(
+    optimizer::Optimizer,
+    attr::MOI.ConstraintConflictStatus,
+    con::MOI.ConstraintIndex,
+)
+    return MOI.get(optimizer.conflict_solver, attr, con)
+end
