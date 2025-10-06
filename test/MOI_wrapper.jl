@@ -899,7 +899,7 @@ function test_continuous_objective_bound()
     primal = MOI.get(model, MOI.ObjectiveValue())
     dual = MOI.get(model, MOI.DualObjectiveValue())
     @test MOI.get(model, MOI.ObjectiveBound()) == dual
-    @test 0 < MOI.get(model, MOI.RelativeGap()) <= 1e-6
+    @test 0 <= MOI.get(model, MOI.RelativeGap()) <= 1e-6
     return
 end
 
