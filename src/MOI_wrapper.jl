@@ -2178,18 +2178,17 @@ function _compute_farkas_variable_dual(model::Optimizer, dual::Vector{Cdouble})
 end
 
 function _set_variable_primal_start(model::Optimizer)
-    if all(info -> info.start === nothing, values(model.variable_info))
-        return
-    end
-    start = zeros(Cdouble, length(model.variable_info))
+    index, value = Cint[], Cdouble[]
     for (x, info) in model.variable_info
-        # For the default start, pick the lower bound if it exists, otherwise
-        # the minimum of the upper bound and zero.
-        default = isfinite(info.lower) ? info.lower : min(info.upper, 0.0)
-        start[info.column+1] = something(info.start, default)
+        if info.start !== nothing
+            push!(index, info.column)
+            push!(value, info.start)
+        end
     end
-    ret = Highs_setSolution(model, start, C_NULL, C_NULL, C_NULL)
-    _check_ret(ret)
+    if !isempty(index)
+        ret = Highs_setSparseSolution(model, length(index), index, value)
+        _check_ret(ret)
+    end
     return
 end
 
