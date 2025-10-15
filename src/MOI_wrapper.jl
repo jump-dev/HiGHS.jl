@@ -2180,9 +2180,11 @@ end
 function _set_variable_primal_start(model::Optimizer)
     index, value = Cint[], Cdouble[]
     for (x, info) in model.variable_info
-        if info.start !== nothing
+        if info.start !== nothing && info.lower <= info.upper
             push!(index, info.column)
-            push!(value, info.start)
+            # HiGHS will error if we attempt to set a start value outside the
+            # variable bounds.
+            push!(value, clamp(info.start, info.lower, info.upper))
         end
     end
     if !isempty(index)

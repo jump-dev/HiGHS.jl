@@ -1213,6 +1213,24 @@ function test_issue_287()
     return
 end
 
+function test_primal_start_outside_bounds()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    MOI.set(model, MOI.VariablePrimalStart(), x, -1.0)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    c = MOI.add_constraint(model, x, MOI.LessThan(1.0))
+    MOI.set(model, MOI.VariablePrimalStart(), x, 2.0)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    MOI.set(model, MOI.ConstraintSet(), c, MOI.LessThan(-1.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
