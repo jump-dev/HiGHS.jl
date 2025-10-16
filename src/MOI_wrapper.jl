@@ -2184,7 +2184,11 @@ function _set_variable_primal_start(model::Optimizer)
             push!(index, info.column)
             # HiGHS will error if we attempt to set a start value outside the
             # variable bounds.
-            push!(value, clamp(info.start, info.lower, info.upper))
+            start = clamp(info.start, info.lower, info.upper)
+            if info.type == _TYPE_BINARY
+                start = clamp(start, 0.0, 1.0)
+            end
+            push!(value, start)
         end
     end
     if !isempty(index)

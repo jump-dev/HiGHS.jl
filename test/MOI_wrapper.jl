@@ -1231,6 +1231,25 @@ function test_primal_start_outside_bounds()
     return
 end
 
+function test_primal_start_outside_bounds_binary()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.ZeroOne())
+    for start in [-1.0, 0.0, 0.5, 1.0, 2.0]
+        MOI.set(model, MOI.VariablePrimalStart(), x, start)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    end
+    MOI.add_constraint(model, x, MOI.GreaterThan(0.5))
+    for start in [-1.0, 0.0, 0.5, 1.0, 2.0]
+        MOI.set(model, MOI.VariablePrimalStart(), x, start)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    end
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
