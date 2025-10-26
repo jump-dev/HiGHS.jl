@@ -37,7 +37,7 @@ struct HighsCallbackDataOut
     cutpool_value::Ptr{Cdouble}
     cutpool_lower::Ptr{Cdouble}
     cutpool_upper::Ptr{Cdouble}
-    user_solution_callback_origin::HighsInt
+    external_solution_query_origin::HighsInt
 end
 
 struct HighsCallbackDataIn
@@ -56,7 +56,7 @@ const HighsCCallbackType = Ptr{Cvoid}
 
 Formulate and solve a linear program using HiGHS.
 
-### Parameters
+# Arguments
 * `num_col`: The number of columns.
 * `num_row`: The number of rows.
 * `num_nz`: The number of nonzeros in the constraint matrix.
@@ -78,7 +78,7 @@ Formulate and solve a linear program using HiGHS.
 * `col_basis_status`: An array of length [num\\_col], to be filled with the basis status of the columns in the form of a `kHighsBasisStatus` constant.
 * `row_basis_status`: An array of length [num\\_row], to be filled with the basis status of the rows in the form of a `kHighsBasisStatus` constant.
 * `model_status`: The location in which to place the termination status of the model after the solve in the form of a `kHighsModelStatus` constant.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_lpCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -92,9 +92,9 @@ Formulate and solve a mixed-integer linear program using HiGHS.
 
 The signature of this method is identical to [`Highs_lpCall`](@ref), except that it has an additional `integrality` argument, and that it is missing the `col_dual`, `row_dual`, `col_basis_status` and `row_basis_status` arguments.
 
-### Parameters
+# Arguments
 * `integrality`: An array of length [num\\_col], containing a `kHighsVarType` constant for each column.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_mipCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality, col_value, row_value, model_status)
@@ -108,13 +108,13 @@ Formulate and solve a quadratic program using HiGHS.
 
 The signature of this method is identical to [`Highs_lpCall`](@ref), except that it has additional arguments for specifying the Hessian matrix.
 
-### Parameters
+# Arguments
 * `q_num_nz`: The number of nonzeros in the Hessian matrix.
 * `q_format`: The format of the Hessian matrix in the form of a `kHighsHessianStatus` constant. If q\\_num\\_nz > 0, this must be `kHighsHessianFormatTriangular`.
 * `q_start`: The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form (or, equivalently, as the upper triangular component in compressed sparse row form). The sparse matrix consists of three arrays, `q_start`, `q_index`, and `q_value`. `q_start` is an array of length [num\\_col].
 * `q_index`: An array of length [q\\_num\\_nz] with indices of matrix entries.
 * `q_value`: An array of length [q\\_num\\_nz] with values of matrix entries.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_qpCall(num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -128,7 +128,7 @@ Create a Highs instance and return the reference.
 
 Call [`Highs_destroy`](@ref) on the returned reference to clean up allocated memory.
 
-### Returns
+# Returns
 A pointer to the Highs instance.
 """
 function Highs_create()
@@ -142,7 +142,7 @@ Destroy the model `highs` created by [`Highs_create`](@ref) and free all corresp
 
 To empty a model without invalidating `highs`, see [`Highs_clearModel`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 """
 function Highs_destroy(highs)
@@ -154,7 +154,7 @@ end
 
 Return the HiGHS version number as a string of the form "vX.Y.Z".
 
-### Returns
+# Returns
 The HiGHS version as a `char*`.
 """
 function Highs_version()
@@ -166,7 +166,7 @@ end
 
 Return the HiGHS major version number.
 
-### Returns
+# Returns
 The HiGHS major version number.
 """
 function Highs_versionMajor()
@@ -178,7 +178,7 @@ end
 
 Return the HiGHS minor version number.
 
-### Returns
+# Returns
 The HiGHS minor version number.
 """
 function Highs_versionMinor()
@@ -190,7 +190,7 @@ end
 
 Return the HiGHS patch version number.
 
-### Returns
+# Returns
 The HiGHS patch version number.
 """
 function Highs_versionPatch()
@@ -202,7 +202,7 @@ end
 
 Return the HiGHS githash.
 
-### Returns
+# Returns
 The HiGHS githash.
 """
 function Highs_githash()
@@ -214,10 +214,10 @@ end
 
 Read a model from `filename` into `highs`.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename to read.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_readModel(highs, filename)
@@ -229,10 +229,10 @@ end
 
 Write the model in `highs` to `filename`.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename to write.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeModel(highs, filename)
@@ -244,10 +244,10 @@ end
 
 Write the presolved model in `highs` to `filename`.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename to write.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writePresolvedModel(highs, filename)
@@ -261,9 +261,9 @@ Reset the options and then call `clearModel`.
 
 See [`Highs_destroy`](@ref) to free all associated memory.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_clear(highs)
@@ -275,9 +275,9 @@ end
 
 Remove all variables and constraints from the model `highs`, but do not invalidate the pointer `highs`. Future calls (for example, adding new variables and constraints) are allowed.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_clearModel(highs)
@@ -291,9 +291,9 @@ Clear all solution data associated with the model.
 
 See [`Highs_destroy`](@ref) to clear the model and free all associated memory.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_clearSolver(highs)
@@ -305,9 +305,9 @@ end
 
 Presolve a model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_presolve(highs)
@@ -319,9 +319,9 @@ end
 
 Optimize a model. The algorithm used by HiGHS depends on the options that have been set.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_run(highs)
@@ -331,14 +331,14 @@ end
 """
     Highs_postsolve(highs, col_value, col_dual, row_dual)
 
-Postsolve a model using a primal (and possibly dual) solution.
+Postsolve a model using a primal (and possibly dual) solution. The postsolved solution can be retrieved later by calling [`Highs_getSolution`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_value`: An array of length [num\\_col] with the column solution values.
 * `col_dual`: An array of length [num\\_col] with the column dual values, or a null pointer if not known.
 * `row_dual`: An array of length [num\\_row] with the row dual values, or a null pointer if not known.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_postsolve(highs, col_value, col_dual, row_dual)
@@ -352,10 +352,10 @@ Write the solution information (including dual and basis status, if available) t
 
 See also: [`Highs_writeSolutionPretty`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The name of the file to write the results to.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeSolution(highs, filename)
@@ -369,10 +369,10 @@ Write the solution information (including dual and basis status, if available) t
 
 The method identical to [`Highs_writeSolution`](@ref), except that the printout is in a human-readable format.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The name of the file to write the results to.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeSolutionPretty(highs, filename)
@@ -386,7 +386,7 @@ Pass a linear program (LP) to HiGHS in a single function call.
 
 The signature of this function is identical to [`Highs_passModel`](@ref), without the arguments for passing the Hessian matrix of a quadratic program and the integrality vector.
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passLp(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
@@ -400,7 +400,7 @@ Pass a mixed-integer linear program (MILP) to HiGHS in a single function call.
 
 The signature of function is identical to [`Highs_passModel`](@ref), without the arguments for passing the Hessian matrix of a quadratic program.
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passMip(highs, num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
@@ -412,7 +412,7 @@ end
 
 Pass a model to HiGHS in a single function call. This is faster than constructing the model using [`Highs_addRow`](@ref) and [`Highs_addCol`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_col`: The number of columns.
 * `num_row`: The number of rows.
@@ -434,7 +434,7 @@ Pass a model to HiGHS in a single function call. This is faster than constructin
 * `q_index`: An array of length [q\\_num\\_nz] with indices of matrix entries. If the model is linear, pass NULL.
 * `q_value`: An array of length [q\\_num\\_nz] with values of matrix entries. If the model is linear, pass NULL.
 * `integrality`: An array of length [num\\_col] containing a `kHighsVarType` constant for each column.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passModel(highs, num_col, num_row, num_nz, q_num_nz, a_format, q_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
@@ -446,7 +446,7 @@ end
 
 Set the Hessian matrix for a quadratic objective.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `dim`: The dimension of the Hessian matrix. Should be [num\\_col].
 * `num_nz`: The number of non-zero elements in the Hessian matrix.
@@ -454,7 +454,7 @@ Set the Hessian matrix for a quadratic objective.
 * `start`: The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form (or, equivalently, as the upper triangular component in compressed sparse row form), using `q_start`, `q_index`, and `q_value`.The Hessian matrix is provided to HiGHS as the lower triangular component in compressed sparse column form. The sparse matrix consists of three arrays, `start`, `index`, and `value`. `start` is an array of length [num\\_col] containing the starting index of each column in `index`.
 * `index`: An array of length [num\\_nz] with indices of matrix entries.
 * `value`: An array of length [num\\_nz] with values of matrix entries.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
@@ -466,7 +466,7 @@ end
 
 Passes multiple linear objective data to HiGHS, clearing any such data already in HiGHS
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `weight`: A pointer to the weights of the linear objective, with its positive/negative sign determining whether it is minimized or maximized during lexicographic optimization
 * `offset`: A pointer to the objective offsets
@@ -474,7 +474,7 @@ Passes multiple linear objective data to HiGHS, clearing any such data already i
 * `abs_tolerance`: A pointer to the absolute tolerances used when constructing objective constraints during lexicographic optimization
 * `rel_tolerance`: A pointer to the relative tolerances used when constructing objective constraints during lexicographic optimization
 * `priority`: A pointer to the priorities of the objectives during lexicographic optimization
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passLinearObjectives(highs, num_linear_objective, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
@@ -486,7 +486,7 @@ end
 
 Adds linear objective data to HiGHS
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `weight`: The weight of the linear objective, with its positive/negative sign determining whether it is minimized or maximized during lexicographic optimization
 * `offset`: The objective offset
@@ -494,7 +494,7 @@ Adds linear objective data to HiGHS
 * `abs_tolerance`: The absolute tolerance used when constructing an objective constraint during lexicographic optimization
 * `rel_tolerance`: The relative tolerance used when constructing an objective constraint during lexicographic optimization
 * `priority`: The priority of this objective during lexicographic optimization
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addLinearObjective(highs, weight, offset, coefficients, abs_tolerance, rel_tolerance, priority)
@@ -506,9 +506,9 @@ end
 
 Clears any multiple linear objective data in HiGHS
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_clearLinearObjectives(highs)
@@ -520,11 +520,11 @@ end
 
 Pass the name of a row.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The row for which the name is supplied.
 * `name`: The name of the row.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passRowName(highs, row, name)
@@ -536,11 +536,11 @@ end
 
 Pass the name of a column.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The column for which the name is supplied.
 * `name`: The name of the column.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passColName(highs, col, name)
@@ -552,10 +552,10 @@ end
 
 Pass the name of the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `name`: The name of the model.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passModelName(highs, name)
@@ -567,10 +567,10 @@ end
 
 Read the option values from file.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename from which to read the option values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_readOptions(highs, filename)
@@ -582,11 +582,11 @@ end
 
 Set a boolean-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The new value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setBoolOptionValue(highs, option, value)
@@ -598,11 +598,11 @@ end
 
 Set an int-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The new value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setIntOptionValue(highs, option, value)
@@ -614,11 +614,11 @@ end
 
 Set a double-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The new value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setDoubleOptionValue(highs, option, value)
@@ -630,11 +630,11 @@ end
 
 Set a string-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The new value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setStringOptionValue(highs, option, value)
@@ -646,11 +646,11 @@ end
 
 Get a boolean-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The location in which the current value of the option should be placed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBoolOptionValue(highs, option, value)
@@ -662,11 +662,11 @@ end
 
 Get an int-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The location in which the current value of the option should be placed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getIntOptionValue(highs, option, value)
@@ -678,11 +678,11 @@ end
 
 Get a double-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: The location in which the current value of the option should be placed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getDoubleOptionValue(highs, option, value)
@@ -694,11 +694,11 @@ end
 
 Get a string-valued option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `value`: A pointer to allocated memory (of at least `kMaximumStringLength`) to store the current value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getStringOptionValue(highs, option, value)
@@ -710,11 +710,11 @@ end
 
 Get the type expected by an option.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `option`: The name of the option.
 * `type`: A [`HighsInt`](@ref) in which the corresponding `kHighsOptionType` constant should be placed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getOptionType(highs, option, type)
@@ -726,9 +726,9 @@ end
 
 Reset all options to their default value.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_resetOptions(highs)
@@ -740,10 +740,10 @@ end
 
 Write the current options to file.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename to write the options to.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeOptions(highs, filename)
@@ -757,10 +757,10 @@ Write the value of non-default options to file.
 
 This is similar to [`Highs_writeOptions`](@ref), except only options with non-default value are written to `filename`.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `filename`: The filename to write the options to.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_writeOptionsDeviations(highs, filename)
@@ -772,7 +772,7 @@ end
 
 Return the number of options
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 """
 function Highs_getNumOptions(highs)
@@ -784,11 +784,11 @@ end
 
 Get the name of an option identified by index
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `index`: The index of the option.
 * `name`: The name of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getOptionName(highs, index, name)
@@ -800,11 +800,11 @@ end
 
 Get the current and default values of a bool option
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `current_value`: A pointer to the current value of the option.
 * `default_value`: A pointer to the default value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBoolOptionValues(highs, option, current_value, default_value)
@@ -816,13 +816,13 @@ end
 
 Get the current and default values of a [`HighsInt`](@ref) option
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `current_value`: A pointer to the current value of the option.
 * `min_value`: A pointer to the minimum value of the option.
 * `max_value`: A pointer to the maximum value of the option.
 * `default_value`: A pointer to the default value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getIntOptionValues(highs, option, current_value, min_value, max_value, default_value)
@@ -834,13 +834,13 @@ end
 
 Get the current and default values of a double option
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `current_value`: A pointer to the current value of the option.
 * `min_value`: A pointer to the minimum value of the option.
 * `max_value`: A pointer to the maximum value of the option.
 * `default_value`: A pointer to the default value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getDoubleOptionValues(highs, option, current_value, min_value, max_value, default_value)
@@ -852,11 +852,11 @@ end
 
 Get the current and default values of a string option
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `current_value`: A pointer to the current value of the option.
 * `default_value`: A pointer to the default value of the option.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getStringOptionValues(highs, option, current_value, default_value)
@@ -868,11 +868,11 @@ end
 
 Get an int-valued info value.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `info`: The name of the info item.
 * `value`: A reference to an integer that the result will be stored in.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getIntInfoValue(highs, info, value)
@@ -884,11 +884,11 @@ end
 
 Get a double-valued info value.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `info`: The name of the info item.
 * `value`: A reference to a double that the result will be stored in.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getDoubleInfoValue(highs, info, value)
@@ -900,11 +900,11 @@ end
 
 Get an int64-valued info value.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `info`: The name of the info item.
 * `value`: A reference to an int64 that the result will be stored in.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getInt64InfoValue(highs, info, value)
@@ -916,11 +916,11 @@ end
 
 Get the type expected by an info item.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `info`: The name of the info item.
 * `type`: A [`HighsInt`](@ref) in which the corresponding `kHighsOptionType` constant is stored.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getInfoType(highs, info, type)
@@ -932,13 +932,13 @@ end
 
 Get the primal and dual solution from an optimized model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_value`: An array of length [num\\_col], to be filled with primal column values.
 * `col_dual`: An array of length [num\\_col], to be filled with dual column values.
 * `row_value`: An array of length [num\\_row], to be filled with primal row values.
 * `row_dual`: An array of length [num\\_row], to be filled with dual row values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getSolution(highs, col_value, col_dual, row_value, row_dual)
@@ -950,11 +950,11 @@ end
 
 Given a linear program with a basic feasible solution, get the column and row basis statuses.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_status`: An array of length [num\\_col], to be filled with the column basis statuses in the form of a `kHighsBasisStatus` constant.
 * `row_status`: An array of length [num\\_row], to be filled with the row basis statuses in the form of a `kHighsBasisStatus` constant.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasis(highs, col_status, row_status)
@@ -966,9 +966,9 @@ end
 
 Return the optimization status of the model in the form of a `kHighsModelStatus` constant.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 An integer corresponding to the `kHighsModelStatus` constant
 """
 function Highs_getModelStatus(highs)
@@ -980,11 +980,11 @@ end
 
 Indicates whether a dual ray that is a certificate of primal infeasibility currently exists, and (at the expense of solving an LP) gets it if it does not and dual\\_ray\\_value is not nullptr.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `has_dual_ray`: A pointer to a [`HighsInt`](@ref) to store 1 if a dual ray currently exists.
 * `dual_ray_value`: An array of length [num\\_row] filled with the unbounded ray.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getDualRay(highs, has_dual_ray, dual_ray_value)
@@ -996,7 +996,7 @@ end
 
 Indicates whether a dual unboundedness direction (corresponding to a certificate of primal infeasibility) exists, and (at the expense of solving an LP) gets it if it does not and dual\\_unboundedness\\_direction is not nullptr
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `has_dual_unboundedness_direction`: A pointer to a [`HighsInt`](@ref) to store 1 if the dual unboundedness direction exists.
 * `dual_unboundedness_direction_value`: An array of length [num\\_col] filled with the unboundedness direction.
@@ -1010,11 +1010,11 @@ end
 
 Indicates whether a primal ray that is a certificate of primal unboundedness currently exists, and (at the expense of solving an LP) gets it if it does not and primal\\_ray\\_value is not nullptr.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `has_primal_ray`: A pointer to a [`HighsInt`](@ref) to store 1 if the primal ray exists.
 * `primal_ray_value`: An array of length [num\\_col] filled with the unbounded ray.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getPrimalRay(highs, has_primal_ray, primal_ray_value)
@@ -1026,9 +1026,9 @@ end
 
 Get the primal objective function value.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The primal objective function value
 """
 function Highs_getObjectiveValue(highs)
@@ -1046,10 +1046,10 @@ The order of these rows and columns is important for calls to the functions:
 
 - [`Highs_getBasisInverseRow`](@ref) - [`Highs_getBasisInverseCol`](@ref) - [`Highs_getBasisSolve`](@ref) - [`Highs_getBasisTransposeSolve`](@ref) - [`Highs_getReducedRow`](@ref) - [`Highs_getReducedColumn`](@ref)
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `basic_variables`: An array of size [num\\_rows], filled with the indices of the basic variables.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasicVariables(highs, basic_variables)
@@ -1065,13 +1065,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `row_vector` and `row_index` must have an allocated length of [num\\_row]. However, check `row_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row to compute.
 * `row_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `row_num_nz`: The number of non-zeros in the row.
 * `row_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasisInverseRow(highs, row, row_vector, row_num_nz, row_index)
@@ -1087,13 +1087,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `col_vector` and `col_index` must have an allocated length of [num\\_row]. However, check `col_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The index of the column to compute.
 * `col_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `col_num_nz`: The number of non-zeros in the column.
 * `col_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasisInverseCol(highs, col, col_vector, col_num_nz, col_index)
@@ -1109,13 +1109,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `solution_vector` and `solution_index` must have an allocated length of [num\\_row]. However, check `solution_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `rhs`: The right-hand side vector ``b``.
 * `solution_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `solution_num_nz`: The number of non-zeros in the solution.
 * `solution_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasisSolve(highs, rhs, solution_vector, solution_num_nz, solution_index)
@@ -1131,13 +1131,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `solution_vector` and `solution_index` must have an allocated length of [num\\_row]. However, check `solution_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `rhs`: The right-hand side vector ``b``
 * `solution_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `solution_num_nz`: The number of non-zeros in the solution.
 * `solution_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getBasisTransposeSolve(highs, rhs, solution_vector, solution_nz, solution_index)
@@ -1153,13 +1153,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `row_vector` and `row_index` must have an allocated length of [num\\_col]. However, check `row_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row to compute.
 * `row_vector`: An array of length [num\\_col] in which to store the values of the non-zero elements.
 * `row_num_nz`: The number of non-zeros in the row.
 * `row_index`: An array of length [num\\_col] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getReducedRow(highs, row, row_vector, row_num_nz, row_index)
@@ -1175,13 +1175,13 @@ See [`Highs_getBasicVariables`](@ref) for a description of the ``B`` matrix.
 
 The arrays `col_vector` and `col_index` must have an allocated length of [num\\_row]. However, check `col_num_nz` to see how many non-zero elements are actually stored.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The index of the column to compute.
 * `col_vector`: An array of length [num\\_row] in which to store the values of the non-zero elements.
 * `col_num_nz`: The number of non-zeros in the column.
 * `col_index`: An array of length [num\\_row] in which to store the indices of the non-zero elements.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getReducedColumn(highs, col, col_vector, col_num_nz, col_index)
@@ -1193,11 +1193,11 @@ end
 
 Set a basic feasible solution by passing the column and row basis statuses to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_status`: an array of length [num\\_col] with the column basis status in the form of `kHighsBasisStatus` constants
 * `row_status`: an array of length [num\\_row] with the row basis status in the form of `kHighsBasisStatus` constants
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setBasis(highs, col_status, row_status)
@@ -1209,9 +1209,9 @@ end
 
 Set a logical basis in the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setLogicalBasis(highs)
@@ -1225,13 +1225,13 @@ Set a solution by passing the column and row primal and dual solution values.
 
 For any values that are unavailable, pass NULL.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_value`: An array of length [num\\_col] with the column solution values.
 * `row_value`: An array of length [num\\_row] with the row solution values.
 * `col_dual`: An array of length [num\\_col] with the column dual values.
 * `row_dual`: An array of length [num\\_row] with the row dual values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setSolution(highs, col_value, row_value, col_dual, row_dual)
@@ -1243,12 +1243,12 @@ end
 
 Set a partial primal solution by passing values for a set of variables
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_entries`: Number of variables in the set
 * `index`: Indices of variables in the set
 * `value`: Values of variables in the set
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setSparseSolution(highs, num_entries, index, value)
@@ -1260,11 +1260,11 @@ end
 
 Set the callback method to use for HiGHS
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `user_callback`: A pointer to the user callback
 * `user_callback_data`: A pointer to the user callback data
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setCallback(highs, user_callback, user_callback_data)
@@ -1276,10 +1276,10 @@ end
 
 Start callback of given type
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `callback_type`: The type of callback to be started
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_startCallback(highs, callback_type)
@@ -1291,10 +1291,10 @@ end
 
 Stop callback of given type
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `callback_type`: The type of callback to be stopped
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_stopCallback(highs, callback_type)
@@ -1306,9 +1306,9 @@ end
 
 Return the cumulative wall-clock time spent in [`Highs_run`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The cumulative wall-clock time spent in [`Highs_run`](@ref)
 """
 function Highs_getRunTime(highs)
@@ -1324,9 +1324,9 @@ Each `highs` model contains a single instance of clock that records how much tim
 
 As a work-around, call [`Highs_zeroAllClocks`](@ref) before each call to [`Highs_run`](@ref).
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_zeroAllClocks(highs)
@@ -1338,7 +1338,7 @@ end
 
 Add a new column (variable) to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `cost`: The objective coefficient of the column.
 * `lower`: The lower bound of the column.
@@ -1346,7 +1346,7 @@ Add a new column (variable) to the model.
 * `num_new_nz`: The number of non-zeros in the column.
 * `index`: An array of size [num\\_new\\_nz] with the row indices.
 * `value`: An array of size [num\\_new\\_nz] with row values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addCol(highs, cost, lower, upper, num_new_nz, index, value)
@@ -1358,7 +1358,7 @@ end
 
 Add multiple columns (variables) to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_new_col`: The number of new columns to add.
 * `costs`: An array of size [num\\_new\\_col] with objective coefficients.
@@ -1368,7 +1368,7 @@ Add multiple columns (variables) to the model.
 * `starts`: The constraint coefficients are given as a matrix in compressed sparse column form by the arrays `starts`, `index`, and `value`. `starts` is an array of size [num\\_new\\_cols] with the start index of each row in indices and values.
 * `index`: An array of size [num\\_new\\_nz] with row indices.
 * `value`: An array of size [num\\_new\\_nz] with row values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addCols(highs, num_new_col, costs, lower, upper, num_new_nz, starts, index, value)
@@ -1380,11 +1380,11 @@ end
 
 Add a new variable to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `lower`: The lower bound of the column.
 * `upper`: The upper bound of the column.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addVar(highs, lower, upper)
@@ -1396,12 +1396,12 @@ end
 
 Add multiple variables to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_new_var`: The number of new variables to add.
 * `lower`: An array of size [num\\_new\\_var] with lower bounds.
 * `upper`: An array of size [num\\_new\\_var] with upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addVars(highs, num_new_var, lower, upper)
@@ -1413,14 +1413,14 @@ end
 
 Add a new row (a linear constraint) to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `lower`: The lower bound of the row.
 * `upper`: The upper bound of the row.
 * `num_new_nz`: The number of non-zeros in the row
 * `index`: An array of size [num\\_new\\_nz] with column indices.
 * `value`: An array of size [num\\_new\\_nz] with column values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addRow(highs, lower, upper, num_new_nz, index, value)
@@ -1432,7 +1432,7 @@ end
 
 Add multiple rows (linear constraints) to the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_new_row`: The number of new rows to add
 * `lower`: An array of size [num\\_new\\_row] with the lower bounds of the rows.
@@ -1441,7 +1441,7 @@ Add multiple rows (linear constraints) to the model.
 * `starts`: The constraint coefficients are given as a matrix in compressed sparse row form by the arrays `starts`, `index`, and `value`. `starts` is an array of size [num\\_new\\_rows] with the start index of each row in indices and values.
 * `index`: An array of size [num\\_new\\_nz] with column indices.
 * `value`: An array of size [num\\_new\\_nz] with column values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_addRows(highs, num_new_row, lower, upper, num_new_nz, starts, index, value)
@@ -1453,9 +1453,9 @@ end
 
 Ensure that the constraint matrix of the incumbent model is stored column-wise.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_ensureColwise(highs)
@@ -1467,9 +1467,9 @@ end
 
 Ensure that the constraint matrix of the incumbent model is stored row-wise.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_ensureRowwise(highs)
@@ -1481,10 +1481,10 @@ end
 
 Change the objective sense of the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `sense`: The new optimization sense in the form of a `kHighsObjSense` constant.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeObjectiveSense(highs, sense)
@@ -1496,10 +1496,10 @@ end
 
 Change the objective offset of the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `offset`: The new objective offset.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeObjectiveOffset(highs, offset)
@@ -1511,11 +1511,11 @@ end
 
 Change the integrality of a column.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The column index to change.
 * `integrality`: The new integrality of the column in the form of a `kHighsVarType` constant.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColIntegrality(highs, col, integrality)
@@ -1527,12 +1527,12 @@ end
 
 Change the integrality of multiple adjacent columns.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The index of the first column whose integrality changes.
 * `to_col`: The index of the last column whose integrality changes.
 * `integrality`: An array of length [to\\_col - from\\_col + 1] with the new integralities of the columns in the form of `kHighsVarType` constants.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsIntegralityByRange(highs, from_col, to_col, integrality)
@@ -1544,12 +1544,12 @@ end
 
 Change the integrality of multiple columns given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of columns to change.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the columns to change.
 * `integrality`: An array of length [num\\_set\\_entries] with the new integralities of the columns in the form of `kHighsVarType` constants.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsIntegralityBySet(highs, num_set_entries, set, integrality)
@@ -1561,11 +1561,11 @@ end
 
 Change the integrality of multiple columns given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_col] with 1 if the column integrality should be changed and 0 otherwise.
 * `integrality`: An array of length [num\\_col] with the new integralities of the columns in the form of `kHighsVarType` constants.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsIntegralityByMask(highs, mask, integrality)
@@ -1577,9 +1577,9 @@ end
 
 Clear the integrality of all columns
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_clearIntegrality(highs)
@@ -1591,11 +1591,11 @@ end
 
 Change the objective coefficient of a column.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The index of the column fo change.
 * `cost`: The new objective coefficient.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColCost(highs, col, cost)
@@ -1607,12 +1607,12 @@ end
 
 Change the cost coefficients of multiple adjacent columns.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The index of the first column whose cost changes.
 * `to_col`: The index of the last column whose cost changes.
 * `cost`: An array of length [to\\_col - from\\_col + 1] with the new objective coefficients.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsCostByRange(highs, from_col, to_col, cost)
@@ -1624,12 +1624,12 @@ end
 
 Change the cost of multiple columns given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of columns to change.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the columns to change.
 * `cost`: An array of length [num\\_set\\_entries] with the new costs of the columns.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsCostBySet(highs, num_set_entries, set, cost)
@@ -1641,11 +1641,11 @@ end
 
 Change the cost of multiple columns given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_col] with 1 if the column cost should be changed and 0 otherwise.
 * `cost`: An array of length [num\\_col] with the new costs.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsCostByMask(highs, mask, cost)
@@ -1657,12 +1657,12 @@ end
 
 Change the variable bounds of a column.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The index of the column whose bounds are to change.
 * `lower`: The new lower bound.
 * `upper`: The new upper bound.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColBounds(highs, col, lower, upper)
@@ -1674,13 +1674,13 @@ end
 
 Change the variable bounds of multiple adjacent columns.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The index of the first column whose bound changes.
 * `to_col`: The index of the last column whose bound changes.
 * `lower`: An array of length [to\\_col - from\\_col + 1] with the new lower bounds.
 * `upper`: An array of length [to\\_col - from\\_col + 1] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsBoundsByRange(highs, from_col, to_col, lower, upper)
@@ -1692,13 +1692,13 @@ end
 
 Change the bounds of multiple columns given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of columns to change.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the columns to change.
 * `lower`: An array of length [num\\_set\\_entries] with the new lower bounds.
 * `upper`: An array of length [num\\_set\\_entries] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsBoundsBySet(highs, num_set_entries, set, lower, upper)
@@ -1710,12 +1710,12 @@ end
 
 Change the variable bounds of multiple columns given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_col] with 1 if the column bounds should be changed and 0 otherwise.
 * `lower`: An array of length [num\\_col] with the new lower bounds.
 * `upper`: An array of length [num\\_col] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeColsBoundsByMask(highs, mask, lower, upper)
@@ -1727,12 +1727,12 @@ end
 
 Change the bounds of a row.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row whose bounds are to change.
 * `lower`: The new lower bound.
 * `upper`: The new upper bound.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeRowBounds(highs, row, lower, upper)
@@ -1744,13 +1744,13 @@ end
 
 Change the variable bounds of multiple adjacent rows.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_row`: The index of the first row whose bound changes.
 * `to_row`: The index of the last row whose bound changes.
 * `lower`: An array of length [to\\_row - from\\_row + 1] with the new lower bounds.
 * `upper`: An array of length [to\\_row - from\\_row + 1] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeRowsBoundsByRange(highs, from_row, to_row, lower, upper)
@@ -1762,13 +1762,13 @@ end
 
 Change the bounds of multiple rows given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of rows to change.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the rows to change.
 * `lower`: An array of length [num\\_set\\_entries] with the new lower bounds.
 * `upper`: An array of length [num\\_set\\_entries] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeRowsBoundsBySet(highs, num_set_entries, set, lower, upper)
@@ -1780,12 +1780,12 @@ end
 
 Change the bounds of multiple rows given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_row] with 1 if the row bounds should be changed and 0 otherwise.
 * `lower`: An array of length [num\\_row] with the new lower bounds.
 * `upper`: An array of length [num\\_row] with the new upper bounds.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeRowsBoundsByMask(highs, mask, lower, upper)
@@ -1797,12 +1797,12 @@ end
 
 Change a coefficient in the constraint matrix.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row to change.
 * `col`: The index of the column to change.
 * `value`: The new constraint coefficient.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_changeCoeff(highs, row, col, value)
@@ -1814,10 +1814,10 @@ end
 
 Get the objective sense.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `sense`: The location in which the current objective sense should be placed. The sense is a `kHighsObjSense` constant.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getObjectiveSense(highs, sense)
@@ -1829,10 +1829,10 @@ end
 
 Get the objective offset.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `offset`: The location in which the current objective offset should be placed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getObjectiveOffset(highs, offset)
@@ -1850,7 +1850,7 @@ First, call this function with `matrix_start`, `matrix_index`, and `matrix_value
 
 Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz` and call this function again to populate the new arrays with their contents.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The first column for which to query data for.
 * `to_col`: The last column (inclusive) for which to query data for.
@@ -1862,7 +1862,7 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 * `matrix_start`: An array of size [to\\_col - from\\_col + 1] with the start indices of each column in `matrix_index` and `matrix_value`.
 * `matrix_index`: An array of size [num\\_nz] with the row indices of each element in the constraint matrix.
 * `matrix_value`: An array of size [num\\_nz] with the non-zero elements of the constraint matrix.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColsByRange(highs, from_col, to_col, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1876,10 +1876,10 @@ Get data associated with multiple columns given by an array.
 
 This function is identical to [`Highs_getColsByRange`](@ref), except for how the columns are specified.
 
-### Parameters
+# Arguments
 * `num_set_indices`: The number of indices in `set`.
 * `set`: An array of size [num\\_set\\_entries] with the column indices to get.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColsBySet(highs, num_set_entries, set, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1893,9 +1893,9 @@ Get data associated with multiple columns given by a mask.
 
 This function is identical to [`Highs_getColsByRange`](@ref), except for how the columns are specified.
 
-### Parameters
+# Arguments
 * `mask`: An array of length [num\\_col] containing a `1` to get the column and `0` otherwise.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColsByMask(highs, mask, num_col, costs, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1913,7 +1913,7 @@ First, call this function with `matrix_start`, `matrix_index`, and `matrix_value
 
 Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz` and call this function again to populate the new arrays with their contents.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_row`: The first row for which to query data for.
 * `to_row`: The last row (inclusive) for which to query data for.
@@ -1924,7 +1924,7 @@ Second, allocate new `matrix_index` and `matrix_value` arrays of length `num_nz`
 * `matrix_start`: An array of size [to\\_row - from\\_row + 1] with the start indices of each row in `matrix_index` and `matrix_value`.
 * `matrix_index`: An array of size [num\\_nz] with the column indices of each element in the constraint matrix.
 * `matrix_value`: An array of size [num\\_nz] with the non-zero elements of the constraint matrix.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRowsByRange(highs, from_row, to_row, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1938,10 +1938,10 @@ Get data associated with multiple rows given by an array.
 
 This function is identical to [`Highs_getRowsByRange`](@ref), except for how the rows are specified.
 
-### Parameters
+# Arguments
 * `num_set_indices`: The number of indices in `set`.
 * `set`: An array of size [num\\_set\\_entries] containing the row indices to get.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRowsBySet(highs, num_set_entries, set, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1955,9 +1955,9 @@ Get data associated with multiple rows given by a mask.
 
 This function is identical to [`Highs_getRowsByRange`](@ref), except for how the rows are specified.
 
-### Parameters
+# Arguments
 * `mask`: An array of length [num\\_row] containing a `1` to get the row and `0` otherwise.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRowsByMask(highs, mask, num_row, lower, upper, num_nz, matrix_start, matrix_index, matrix_value)
@@ -1969,10 +1969,10 @@ end
 
 Get the name of a row.
 
-### Parameters
+# Arguments
 * `row`: The index of the row to query.
 * `name`: A pointer in which to store the name of the row. This must have length `kHighsMaximumStringLength`.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRowName(highs, row, name)
@@ -1986,10 +1986,10 @@ Get the index of a row from its name.
 
 If multiple rows have the same name, or if no row exists with `name`, this function returns `kHighsStatusError`.
 
-### Parameters
+# Arguments
 * `name`: A pointer of the name of the row to query.
 * `row`: A pointer in which to store the index of the row
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRowByName(highs, name, row)
@@ -2001,10 +2001,10 @@ end
 
 Get the name of a column.
 
-### Parameters
+# Arguments
 * `col`: The index of the column to query.
 * `name`: A pointer in which to store the name of the column. This must have length `kHighsMaximumStringLength`.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColName(highs, col, name)
@@ -2018,10 +2018,10 @@ Get the index of a column from its name.
 
 If multiple columns have the same name, or if no column exists with `name`, this function returns `kHighsStatusError`.
 
-### Parameters
+# Arguments
 * `name`: A pointer of the name of the column to query.
 * `col`: A pointer in which to store the index of the column
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColByName(highs, name, col)
@@ -2033,10 +2033,10 @@ end
 
 Get the integrality of a column.
 
-### Parameters
+# Arguments
 * `col`: The index of the column to query.
 * `integrality`: A [`HighsInt`](@ref) in which the integrality of the column should be placed. The integer is one of the `kHighsVarTypeXXX` constants.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getColIntegrality(highs, col, integrality)
@@ -2048,11 +2048,11 @@ end
 
 Delete multiple adjacent columns.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_col`: The index of the first column to delete.
 * `to_col`: The index of the last column to delete.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteColsByRange(highs, from_col, to_col)
@@ -2064,11 +2064,11 @@ end
 
 Delete multiple columns given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of columns to delete.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the columns to delete.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteColsBySet(highs, num_set_entries, set)
@@ -2080,10 +2080,10 @@ end
 
 Delete multiple columns given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_col] with 1 if the column should be deleted and 0 otherwise.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteColsByMask(highs, mask)
@@ -2095,11 +2095,11 @@ end
 
 Delete multiple adjacent rows.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `from_row`: The index of the first row to delete.
 * `to_row`: The index of the last row to delete.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteRowsByRange(highs, from_row, to_row)
@@ -2111,11 +2111,11 @@ end
 
 Delete multiple rows given by an array of indices.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_set_entries`: The number of rows to delete.
 * `set`: An array of size [num\\_set\\_entries] with the indices of the rows to delete.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteRowsBySet(highs, num_set_entries, set)
@@ -2127,10 +2127,10 @@ end
 
 Delete multiple rows given by a mask.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `mask`: An array of length [num\\_row] with `1` if the row should be deleted and `0` otherwise. The new index of any column not deleted is stored in place of the value `0`.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_deleteRowsByMask(highs, mask)
@@ -2144,11 +2144,11 @@ Scale a column by a constant.
 
 Scaling a column modifies the elements in the constraint matrix, the variable bounds, and the objective coefficient.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col`: The index of the column to scale.
 * `scaleval`: The value by which to scale the column. If `scaleval < 0`, the variable bounds flipped.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_scaleCol(highs, col, scaleval)
@@ -2160,11 +2160,11 @@ end
 
 Scale a row by a constant.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `row`: The index of the row to scale.
 * `scaleval`: The value by which to scale the row. If `scaleval < 0`, the row bounds are flipped.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_scaleRow(highs, row, scaleval)
@@ -2176,9 +2176,9 @@ end
 
 Return the value of infinity used by HiGHS.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The value of infinity used by HiGHS.
 """
 function Highs_getInfinity(highs)
@@ -2190,9 +2190,9 @@ end
 
 Return the size of integers used by HiGHS.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The size of integers used by HiGHS.
 """
 function Highs_getSizeofHighsInt(highs)
@@ -2204,9 +2204,9 @@ end
 
 Return the number of columns in the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of columns in the model.
 """
 function Highs_getNumCol(highs)
@@ -2218,9 +2218,9 @@ end
 
 Return the number of rows in the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of rows in the model.
 """
 function Highs_getNumRow(highs)
@@ -2232,9 +2232,9 @@ end
 
 Return the number of nonzeros in the constraint matrix of the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of nonzeros in the constraint matrix of the model.
 """
 function Highs_getNumNz(highs)
@@ -2246,9 +2246,9 @@ end
 
 Return the number of nonzeroes in the Hessian matrix of the model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of nonzeroes in the Hessian matrix of the model.
 """
 function Highs_getHessianNumNz(highs)
@@ -2260,9 +2260,9 @@ end
 
 Return the number of columns in the presolved model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of columns in the presolved model.
 """
 function Highs_getPresolvedNumCol(highs)
@@ -2274,9 +2274,9 @@ end
 
 Return the number of rows in the presolved model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of rows in the presolved model.
 """
 function Highs_getPresolvedNumRow(highs)
@@ -2288,9 +2288,9 @@ end
 
 Return the number of nonzeros in the constraint matrix of the presolved model.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
-### Returns
+# Returns
 The number of nonzeros in the constraint matrix of the presolved model.
 """
 function Highs_getPresolvedNumNz(highs)
@@ -2306,7 +2306,7 @@ The input arguments have the same meaning (in a different order) to those used i
 
 Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getNumCol`](@ref) - [`Highs_getNumRow`](@ref) - [`Highs_getNumNz`](@ref) - [`Highs_getHessianNumNz`](@ref)
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getModel(highs, a_format, q_format, num_col, num_row, num_nz, hessian_num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, q_start, q_index, q_value, integrality)
@@ -2322,7 +2322,7 @@ The input arguments have the same meaning (in a different order) to those used i
 
 Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getNumCol`](@ref) - [`Highs_getNumRow`](@ref) - [`Highs_getNumNz`](@ref)
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
@@ -2338,7 +2338,7 @@ The input arguments have the same meaning (in a different order) to those used i
 
 Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getPresolvedNumCol`](@ref) - [`Highs_getPresolvedNumRow`](@ref) - [`Highs_getPresolvedNumNz`](@ref)
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
@@ -2346,18 +2346,50 @@ function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, 
 end
 
 """
+    Highs_getIisLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+
+Get the data from a HiGHS IIS LP.
+
+The input arguments have the same meaning (in a different order) to those used in [`Highs_passModel`](@ref).
+
+Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getPresolvedNumCol`](@ref) - [`Highs_getPresolvedNumRow`](@ref) - [`Highs_getPresolvedNumNz`](@ref)
+
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getIisLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+    ccall((:Highs_getIisLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{HighsInt}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
+end
+
+"""
+    Highs_getFixedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
+
+Get the LP corresponding to a MIP with non-continuous variables fixed at a MIP solution
+
+The input arguments have the same meaning (in a different order) to those used in [`Highs_passModel`](@ref).
+
+Note that all arrays must be pre-allocated to the correct size before calling [`Highs_getModel`](@ref). Use the following query methods to check the appropriate size: - [`Highs_getNumCol`](@ref) - [`Highs_getNumRow`](@ref) - [`Highs_getNumNz`](@ref)
+
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getFixedLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
+    ccall((:Highs_getFixedLp, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value)
+end
+
+"""
     Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
 
 Set a primal (and possibly dual) solution as a starting point, then run crossover to compute a basic feasible solution.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `num_col`: The number of variables.
 * `num_row`: The number of rows.
 * `col_value`: An array of length [num\\_col] with optimal primal solution for each column.
 * `col_dual`: An array of length [num\\_col] with optimal dual solution for each column. May be `NULL`, in which case no dual solution is passed.
 * `row_dual`: An array of length [num\\_row] with optimal dual solution for each row. . May be `NULL`, in which case no dual solution is passed.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_crossover(highs, num_col, num_row, col_value, col_dual, row_dual)
@@ -2371,7 +2403,7 @@ Compute the ranging information for all costs and bounds. For nonbasic variables
 
 For any values that are not required, pass NULL.
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `col_cost_up_value`: The upper range of the cost value
 * `col_cost_up_objective`: The objective at the upper cost range
@@ -2397,7 +2429,7 @@ For any values that are not required, pass NULL.
 * `row_bound_dn_objective`: The objective at the lower row bound range
 * `row_bound_dn_in_var`: The variable entering the basis at the lower row bound range
 * `row_bound_dn_ou_var`: The variable leaving the basis at the lower row bound range
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_getRanging(highs, col_cost_up_value, col_cost_up_objective, col_cost_up_in_var, col_cost_up_ou_var, col_cost_dn_value, col_cost_dn_objective, col_cost_dn_in_var, col_cost_dn_ou_var, col_bound_up_value, col_bound_up_objective, col_bound_up_in_var, col_bound_up_ou_var, col_bound_dn_value, col_bound_dn_objective, col_bound_dn_in_var, col_bound_dn_ou_var, row_bound_up_value, row_bound_up_objective, row_bound_up_in_var, row_bound_up_ou_var, row_bound_dn_value, row_bound_dn_objective, row_bound_dn_in_var, row_bound_dn_ou_var)
@@ -2411,7 +2443,7 @@ Compute the solution corresponding to a (possibly weighted) sum of (allowable) i
 
 If local penalties are not defined, pass NULL, and the global penalty will be used. Negative penalty values imply that the bound or RHS value cannot be violated
 
-### Parameters
+# Arguments
 * `highs`: A pointer to the Highs instance.
 * `const`: double global\\_lower\\_penalty The penalty for violating lower bounds on variables
 * `const`: double global\\_upper\\_penalty The penalty for violating upper bounds on variables
@@ -2419,11 +2451,33 @@ If local penalties are not defined, pass NULL, and the global penalty will be us
 * `const`: double* local\\_lower\\_penalty The penalties for violating specific lower bounds on variables
 * `const`: double* local\\_upper\\_penalty The penalties for violating specific upper bounds on variables
 * `const`: double* local\\_rhs\\_penalty The penalties for violating specific constraint RHS values
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_feasibilityRelaxation(highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
     ccall((:Highs_feasibilityRelaxation, libhighs), HighsInt, (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, global_lower_penalty, global_upper_penalty, global_rhs_penalty, local_lower_penalty, local_upper_penalty, local_rhs_penalty)
+end
+
+"""
+    Highs_getIis(highs, iis_num_col, iis_num_row, col_index, row_index, col_bound, row_bound, col_status, row_status)
+
+Attempt to compute an irreducible infeasibility subsystem (IIS) for an LP, QP, or the relaxation of a MIP. If no IIS is found, then the number of IIS columns and rows will be zero.
+
+# Arguments
+* `highs`: A pointer to the Highs instance.
+* `const`: [`HighsInt`](@ref) iis\\_num\\_col Number of columns in the IIS.
+* `const`: [`HighsInt`](@ref) iis\\_num\\_row Number of rows in the IIS.
+* `const`: [`HighsInt`](@ref)* col\\_index An array of length [iis\\_num\\_col], to be filled with the indices of original variables in the IIS.
+* `const`: [`HighsInt`](@ref)* row\\_index An array of length [iis\\_num\\_col], to be filled with the indices of original constraints in the IIS.
+* `const`: [`HighsInt`](@ref)* col\\_bound An array of length [iis\\_num\\_col], to be filled with the bound status of variables in the IIS.
+* `const`: [`HighsInt`](@ref)* row\\_bound An array of length [iis\\_num\\_col], to be filled with the bound status of constraints in the IIS.
+* `const`: [`HighsInt`](@ref)* col\\_status An array of length [num\\_col], to be filled with the IIS status of all original variables.
+* `const`: [`HighsInt`](@ref)* row\\_status n array of length [num\\_col], to be filled with the IIS status of all original constraints.
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getIis(highs, iis_num_col, iis_num_row, col_index, row_index, col_bound, row_bound, col_status, row_status)
+    ccall((:Highs_getIis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{HighsInt}), highs, iis_num_col, iis_num_row, col_index, row_index, col_bound, row_bound, col_status, row_status)
 end
 
 """
@@ -2437,9 +2491,9 @@ After this function has terminated, it is guaranteed that eventually all previou
 
 After this function has returned, the option value for the number of threads may be altered to a new value before the next call to [`Highs_run`](@ref) or one of the `Highs_XXXcall` methods.
 
-### Parameters
+# Arguments
 * `blocking`: If the `blocking` parameter has a nonzero value, then this function will not return until all memory is freed, which might be desirable when debugging heap memory, but it requires the calling thread to wait for all scheduler threads to wake-up which is usually not necessary.
-### Returns
+# Returns
 No status is returned since the function call cannot fail. Calling this function while any Highs instance is in use on any thread is undefined behavior and may cause crashes, but cannot be detected and hence is fully in the callers responsibility.
 """
 function Highs_resetGlobalScheduler(blocking)
@@ -2451,10 +2505,10 @@ end
 
 Get a void* pointer to a callback data item
 
-### Parameters
+# Arguments
 * `data_out`: A pointer to the [`HighsCallbackDataOut`](@ref) instance.
 * `item_name`: The name of the item.
-### Returns
+# Returns
 A void* pointer to the callback data item, or NULL if item\\_name not valid
 """
 function Highs_getCallbackDataOutItem(data_out, item_name)
@@ -2468,11 +2522,11 @@ Set a solution within a callback by passing a subset of the values.
 
 For any values that are unavailable/unknown, pass kHighsUndefined.
 
-### Parameters
+# Arguments
 * `data_in`: A pointer to the callback input data instance.
 * `num_entries`: Number of variables in the set
 * `value`: An array of length [num\\_entries <= num\\_col] with column solution values.
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setCallbackSolution(data_in, num_entries, value)
@@ -2484,12 +2538,12 @@ end
 
 Set a partial primal solution by passing values for a set of variables, within a valid callback.
 
-### Parameters
+# Arguments
 * `data_in`: A pointer to the callback input data instance.
 * `num_entries`: Number of variables in the set
 * `index`: Indices of variables in the set
 * `value`: Values of variables in the set
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_setCallbackSparseSolution(data_in, num_entries, index, value)
@@ -2503,7 +2557,7 @@ Finds a feasible solution for a given (partial) primal user solution, within a v
 
 On success, the user solution is updated within the callback input data instance.
 
-### Returns
+# Returns
 A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_repairCallbackSolution(data_in)
@@ -2515,7 +2569,7 @@ end
 
 Return the HiGHS compilation date.
 
-### Returns
+# Returns
 Thse HiGHS compilation date.
 """
 function Highs_compilationDate()
@@ -2626,11 +2680,13 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const HIGHS_GITHASH = "364c83a51e"
+const BLAS_LIBRARIES = "/workspace/destdir/lib/libopenblas.dylib"
+
+const HIGHS_GITHASH = "755a8e027"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 11
+const HIGHS_VERSION_MINOR = 12
 
 const HIGHS_VERSION_PATCH = 0
 
@@ -2705,3 +2761,13 @@ const kHighsCallbackMipInterrupt = HighsInt(6)
 const kHighsCallbackMipGetCutPool = HighsInt(7)
 const kHighsCallbackMipDefineLazyConstraints = HighsInt(8)
 const kHighsCallbackCallbackMipUserSolution = HighsInt(9)
+const kHighsIisStrategyLight = HighsInt(0)
+const kHighsIisStrategyFromLpRowPriority = HighsInt(1)
+const kHighsIisStrategyFromLpColPriority = HighsInt(2)
+const kHighsIisBoundFree = HighsInt(1)
+const kHighsIisBoundLower = HighsInt(2)
+const kHighsIisBoundUpper = HighsInt(3)
+const kHighsIisBoundBoxed = HighsInt(4)
+const kHighsIisStatusInConflict = HighsInt(0)
+const kHighsIisStatusNotInConflict = HighsInt(1)
+const kHighsIisStatusMaybeInConflict = HighsInt(2)
