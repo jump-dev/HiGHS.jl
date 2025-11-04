@@ -1250,6 +1250,22 @@ function test_primal_start_outside_bounds_binary()
     return
 end
 
+function test_get_function_rowwise()
+    N = 30_000
+    model = HiGHS.Optimizer()
+    x = MOI.add_variables(model, N)
+    c = map(2:N) do i
+        f = 1.0 * x[i] - 1.0 * x[i-1]
+        return MOI.add_constraint(model, f, MOI.EqualTo(0.0))
+    end
+    MOI.optimize!(model)
+    t = @elapsed [MOI.get(model, MOI.ConstraintFunction(), ci) for ci in c]
+    # It's hard to put an upper bound on this, but it should be less than 1
+    # second.
+    @test t <= 1.0
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
