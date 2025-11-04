@@ -301,6 +301,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     conflict_solver::Union{Nothing,MathOptIIS.Optimizer}
 
+    row_function_cache::Union{Nothing,Vector{MOI.ScalarAffineFunction{Float64}}}
+
     function Optimizer()
         model = new(
             C_NULL,
@@ -319,6 +321,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             _Solution(),
             nothing,
             true,
+            nothing,
             nothing,
         )
         MOI.empty!(model)
@@ -386,6 +389,7 @@ function MOI.empty!(model::Optimizer)
     _check_ret(ret)
     model.callback_data = nothing
     model.conflict_solver = nothing
+    model.row_function_cache = nothing
     return
 end
 
@@ -1872,12 +1876,7 @@ function MOI.set(
     return
 end
 
-function MOI.get(
-    model::Optimizer,
-    ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
-) where {S<:_SCALAR_SETS}
-    r = row(model, c)
+function _get_row_function(model::Optimizer, r::HighsInt)
     num_row = Ref{HighsInt}(0)
     num_nz = Ref{HighsInt}(0)
     matrix_start = Ref{HighsInt}(0)
@@ -1918,6 +1917,59 @@ function MOI.get(
         ],
         0.0,
     )
+end
+
+function _rebuild_row_function_cache(model::Optimizer)
+    num_col = Highs_getNumCol(model)
+    num_row = Highs_getNumRow(model)
+    num_nz = Highs_getNumNz(model)
+    costs, lower, upper = C_NULL, C_NULL, C_NULL
+    matrix_start = zeros(Cint, num_col)
+    matrix_index = zeros(Cint, num_nz)
+    matrix_value = zeros(Cdouble, num_nz)
+    ret = Highs_getColsByRange(
+        model,
+        0,
+        num_col - 1,
+        Ref{Cint}(num_col),
+        costs,
+        lower,
+        upper,
+        Ref{Cint}(num_nz),
+        matrix_start,
+        matrix_index,
+        matrix_value,
+    )
+    _check_ret(ret)
+    model.row_function_cache = [
+        zero(MOI.ScalarAffineFunction{Float64}) for _ in 1:num_row
+    ]
+    push!(matrix_start, num_nz)
+    for i in 1:num_col
+        for k in (matrix_start[i]+1):matrix_start[i+1]
+            row = matrix_index[k]+1
+            push!(
+                model.row_function_cache[row].terms,
+                MOI.ScalarAffineTerm(
+                    matrix_value[k],
+                    model.variable_info[CleverDicts.LinearIndex(i)].index,
+                ),
+            )
+        end
+    end
+    return
+end
+
+function MOI.get(
+    model::Optimizer,
+    ::MOI.ConstraintFunction,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
+) where {S<:_SCALAR_SETS}
+    r = row(model, c)
+    if model.row_function_cache !== nothing
+        return model.row_function_cache[r+1]
+    end
+    return _get_row_function(model, r)
 end
 
 function MOI.supports(
@@ -3337,11 +3389,14 @@ end
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 function MOI.compute_conflict!(model::Optimizer)
+    _rebuild_row_function_cache(model)
     solver = MathOptIIS.Optimizer()
     MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
     MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
+    MOI.set(solver, MOI.Silent(), false)
     MOI.compute_conflict!(solver)
     model.conflict_solver = solver
+    model.row_function_cache = nothing
     return
 end
 
