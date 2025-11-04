@@ -3337,9 +3337,14 @@ end
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 function MOI.compute_conflict!(model::Optimizer)
+    # MathOptIIS has a pass that queries every constraint function. To ensure
+    # that this is O(1), we need the matrix inside HiGHS to be stored rowwise.
+    ret = Highs_ensureRowwise(model)
+    _check_ret(ret)
     solver = MathOptIIS.Optimizer()
     MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
     MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
+    MOI.set(solver, MOI.Silent(), MOI.get(model, MOI.Silent()))
     MOI.compute_conflict!(solver)
     model.conflict_solver = solver
     return
