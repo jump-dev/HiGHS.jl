@@ -1877,6 +1877,23 @@ function MOI.get(
     ::MOI.ConstraintFunction,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S<:_SCALAR_SETS}
+    # To ensure that this is O(1), we need the matrix inside HiGHS to be stored
+    # rowwise.
+    #
+    # If the matrix is Colwise and we call this function, then querying the
+    # constraint function is O(N) in the non-zeros. Moreover, most common
+    # reasons for quering a MOI.ConstraintFunction typically mean that the user
+    # is querying many functions (because they are iterating over the rows of
+    # the matrix), so their upper level function is something like O(N^2)
+    # instead of O(N) in the number of rows.
+    #
+    # The matrix should be rowwise while we're buliding the model, but it gets
+    # converted to colwise during Highs_run, so this may result in an internal
+    # transpose of the constraint matrix. The worst-case scenario would be
+    # solve->query single row->solve, but I don't know a good reason why someone
+    # would write code like that.
+    ret = Highs_ensureRowwise(model)
+    _check_ret(ret)
     r = row(model, c)
     num_row = Ref{HighsInt}(0)
     num_nz = Ref{HighsInt}(0)
@@ -3337,10 +3354,6 @@ end
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
 
 function MOI.compute_conflict!(model::Optimizer)
-    # MathOptIIS has a pass that queries every constraint function. To ensure
-    # that this is O(1), we need the matrix inside HiGHS to be stored rowwise.
-    ret = Highs_ensureRowwise(model)
-    _check_ret(ret)
     solver = MathOptIIS.Optimizer()
     MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
     MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
