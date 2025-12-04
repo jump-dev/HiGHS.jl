@@ -300,6 +300,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     compute_infeasibility_certificates::Bool
 
     conflict_solver::Union{Nothing,MathOptIIS.Optimizer}
+    concurrent_mip_solver::Bool
 
     function Optimizer()
         model = new(
@@ -320,6 +321,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing,
             true,
             nothing,
+            false,
         )
         MOI.empty!(model)
         if Sys.iswindows()
@@ -2255,7 +2257,7 @@ function MOI.optimize!(model::Optimizer)
         gc_state = ccall(:jl_gc_safe_enter, Int8, ())
         # We disable sigint here so that it can be called only when we are in a
         # try-catch of our CallbackFunction.
-        ret = disable_sigint(() -> Highs_run(model))
+        ret = disable_sigint(() -> _Highs_run(model))
         # leave GC-safe region, waiting for GC to complete if it's running
         ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
     end
@@ -3376,4 +3378,235 @@ function MOI.get(
     con::MOI.ConstraintIndex,
 )
     return MOI.get(optimizer.conflict_solver, attr, con)
+end
+
+###
+### Experimental code for the concurrent MIP solver
+###
+
+struct ConcurrentMIPSolver <: MOI.AbstractOptimizerAttribute end
+
+MOI.supports(::Optimizer, ::ConcurrentMIPSolver) = true
+
+function MOI.set(model::Optimizer, ::ConcurrentMIPSolver, flag::Bool)
+    model.concurrent_mip_solver = flag
+    return
+end
+
+MOI.get(model::Optimizer, ::ConcurrentMIPSolver) = model.concurrent_mip_solver
+
+function _Highs_run(model::Optimizer)
+    if MOI.get(model, ConcurrentMIPSolver())
+        return _Highs_run_threaded(model)
+    end
+    return Highs_run(model)
+end
+
+struct _HighsData
+    num_col::Cint
+    num_row::Cint
+    num_nz::Cint
+    q_num_nz::Cint
+    a_format::Cint
+    q_format::Cint
+    sense::Cint
+    offset::Cdouble
+    col_cost::Vector{Cdouble}
+    col_lower::Vector{Cdouble}
+    col_upper::Vector{Cdouble}
+    row_lower::Vector{Cdouble}
+    row_upper::Vector{Cdouble}
+    a_start::Vector{Cint}
+    a_index::Vector{Cint}
+    a_value::Vector{Cdouble}
+    q_start::Vector{Cint}
+    q_index::Vector{Cint}
+    q_value::Vector{Cdouble}
+    integrality::Vector{Cint}
+end
+
+function _HighsData(model::Optimizer)
+    num_col = Highs_getNumCol(model)
+    num_row = Highs_getNumRow(model)
+    num_nz = Highs_getNumNz(model)
+    q_num_nz = Highs_getHessianNumNz(model)
+    p_num_col = Ref{Cint}(0)
+    p_num_row = Ref{Cint}(0)
+    p_num_nz = Ref{Cint}(0)
+    p_hessian_num_nz = Ref{Cint}(0)
+    p_sense = Ref{Cint}(0)
+    p_offset = Ref{Cdouble}(0.0)
+    col_cost = zeros(Cdouble, num_col)
+    col_lower = zeros(Cdouble, num_col)
+    col_upper = zeros(Cdouble, num_col)
+    row_lower = zeros(Cdouble, num_row)
+    row_upper = zeros(Cdouble, num_row)
+    a_start = zeros(Cint, num_col)
+    a_index = zeros(Cint, num_nz)
+    a_value = zeros(Cdouble, num_nz)
+    q_start = zeros(Cint, num_col)
+    q_index = zeros(Cint, q_num_nz)
+    q_value = zeros(Cdouble, q_num_nz)
+    integrality = zeros(Cint, num_col)
+    ret = Highs_getModel(
+        model,
+        kHighsMatrixFormatColwise,
+        kHighsHessianFormatTriangular,
+        p_num_col,
+        p_num_row,
+        p_num_nz,
+        p_hessian_num_nz,
+        p_sense,
+        p_offset,
+        col_cost,
+        col_lower,
+        col_upper,
+        row_lower,
+        row_upper,
+        a_start,
+        a_index,
+        a_value,
+        q_start,
+        q_index,
+        q_value,
+        integrality,
+    )
+    _check_ret(ret)
+    return _HighsData(
+        p_num_col[],
+        p_num_row[],
+        p_num_nz[],
+        p_hessian_num_nz[],
+        kHighsMatrixFormatColwise,
+        kHighsHessianFormatTriangular,
+        p_sense[],
+        p_offset[],
+        col_cost,
+        col_lower,
+        col_upper,
+        row_lower,
+        row_upper,
+        a_start,
+        a_index,
+        a_value,
+        q_start,
+        q_index,
+        q_value,
+        integrality,
+    )
+end
+
+function _create_model(data::_HighsData)
+    highs = Highs_create()
+    Highs_setBoolOptionValue(highs, "output_flag", false)
+    ret = Highs_passModel(
+        highs,
+        data.num_col,       # HighsInt
+        data.num_row,       # HighsInt
+        data.num_nz,        # HighsInt
+        data.q_num_nz,      # HighsInt
+        data.a_format,      # HighsInt
+        data.q_format,      # HighsInt
+        data.sense,         # HighsInt
+        data.offset,        # Cdouble
+        data.col_cost,      # Ptr{Cdouble}
+        data.col_lower,     # Ptr{Cdouble}
+        data.col_upper,     # Ptr{Cdouble}
+        data.row_lower,     # Ptr{Cdouble}
+        data.row_upper,     # Ptr{Cdouble}
+        data.a_start,       # Ptr{HighsInt}
+        data.a_index,       # Ptr{HighsInt}
+        data.a_value,       # Ptr{Cdouble}
+        data.q_start,       # Ptr{HighsInt}
+        data.q_index,       # Ptr{HighsInt}
+        data.q_value,       # Ptr{Cdouble}
+        data.integrality,   # Ptr{HighsInt}
+    )
+    _check_ret(ret)
+    return highs
+end
+
+mutable struct _ThreadedCallbackData
+    lock::ReentrantLock
+    thread::Int
+    terminate::Threads.Atomic{Cint}
+end
+
+function Base.unsafe_convert(::Type{Ptr{Cvoid}}, d::_ThreadedCallbackData)
+    return pointer_from_objref(d)
+end
+
+function _threaded_cfn_user_callback(
+    callback_type::Cint,
+    message::Ptr{Cchar},
+    p_data_out::Ptr{HighsCallbackDataOut},
+    p_data_in::Ptr{HighsCallbackDataIn},
+    p_user_data::Ptr{Cvoid},
+)
+    user_data = unsafe_pointer_to_objref(p_user_data)::_ThreadedCallbackData
+    data_out = unsafe_load(p_data_out)::HighsCallbackDataOut
+    if callback_type == kHighsCallbackMipInterrupt
+        @assert p_data_in !== C_NULL
+        lock(user_data.lock) do
+            ret = user_data.terminate[]
+            unsafe_store!(p_data_in, HighsCallbackDataIn(ret))
+            return
+        end
+    end
+    return
+end
+
+function _Highs_run_threaded(model::Optimizer)
+    data = _HighsData(model)
+    models = [_create_model(data) for _ in 1:Threads.nthreads()]
+    p_seed = Ref{Cint}(0)
+    Highs_getIntOptionValue(model, "random_seed", p_seed)
+    callback_cfn = @cfunction(
+        _threaded_cfn_user_callback,
+        Cvoid,
+        (
+            Cint,
+            Ptr{Cchar},
+            Ptr{HighsCallbackDataOut},
+            Ptr{HighsCallbackDataIn},
+            Ptr{Cvoid},
+        ),
+    )
+    cb_lock = ReentrantLock()
+    atomic_int = Threads.Atomic{Cint}(0)
+    Highs_run_ret = zeros(Cint, length(models))
+    println("Running concurrent MIP solver with $(Threads.nthreads()) threads")
+    println("Showing solution log from thread 1")
+    GC.@preserve cb_lock atomic_int begin
+        @sync for (i, highs) in enumerate(models)
+            Threads.@spawn begin
+                user_data = _ThreadedCallbackData(cb_lock, i, atomic_int)
+                Highs_setIntOptionValue(highs, "random_seed", p_seed[] + i)
+                if i == 1
+                    Highs_setBoolOptionValue(highs, "output_flag", true)
+                end
+                ret = Highs_setCallback(highs, callback_cfn, user_data)
+                _check_ret(ret)
+                ret = Highs_startCallback(highs, kHighsCallbackMipInterrupt)
+                _check_ret(ret)
+                Highs_run_ret[i] = Highs_run(highs)
+                lock(user_data.lock) do
+                    user_data.terminate[] = Cint(1)
+                    return
+                end
+            end
+        end
+    end
+    solved_by_thread = 0
+    for (i, m) in enumerate(models)
+        if Highs_getModelStatus(m) == kHighsModelStatusInterrupt
+            Highs_destroy(m)
+        else
+            solved_by_thread = i
+            Highs_destroy(model.inner)
+            model.inner = m
+        end
+    end
+    println("Solved from thread $solved_by_thread.")
+    return Highs_run_ret[solved_by_thread]
 end
