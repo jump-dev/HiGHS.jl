@@ -1266,6 +1266,17 @@ function test_get_function_rowwise()
     return
 end
 
+function test_concurrent_mip_solver()
+    model = _knapsack_model(; mip = true, solver = "choose")
+    @test MOI.supports(model, HiGHS.ConcurrentMIPSolver())
+    @test !MOI.set(model, HiGHS.ConcurrentMIPSolver())
+    MOI.set(model, HiGHS.ConcurrentMIPSolver(), true)
+    @test MOI.set(model, HiGHS.ConcurrentMIPSolver())
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
