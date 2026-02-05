@@ -6,9 +6,19 @@
 module HiGHS
 
 import HiGHS_jll: libhighs
+import LinearAlgebra
 import MathOptInterface as MOI
 import MathOptIIS
+import OpenBLAS32_jll
 import SparseArrays
+
+function __init__()
+    config = LinearAlgebra.BLAS.lbt_get_config()
+    if !any(lib -> lib.interface == :lp64, config.loaded_libs)
+        LinearAlgebra.BLAS.lbt_forward(OpenBLAS32_jll.libopenblas_path)
+    end
+    return
+end
 
 include("gen/libhighs.jl")
 include("MOI_wrapper.jl")
