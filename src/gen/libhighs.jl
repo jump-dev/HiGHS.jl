@@ -2346,6 +2346,36 @@ function Highs_getPresolvedLp(highs, a_format, num_col, num_row, num_nz, sense, 
 end
 
 """
+    Highs_getPresolvedColName(highs, col, name)
+
+Get the name of a column of the presolved LP.
+
+# Arguments
+* `col`: The index of the column to query.
+* `name`: A pointer in which to store the name of the column. This must have length `kHighsMaximumStringLength`.
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getPresolvedColName(highs, col, name)
+    ccall((:Highs_getPresolvedColName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, col, name)
+end
+
+"""
+    Highs_getPresolvedRowName(highs, row, name)
+
+Get the name of a row of the presolved LP.
+
+# Arguments
+* `row`: The index of the row to query.
+* `name`: A pointer in which to store the name of the row. This must have length `kHighsMaximumStringLength`.
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_getPresolvedRowName(highs, row, name)
+    ccall((:Highs_getPresolvedRowName, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, Ptr{Cchar}), highs, row, name)
+end
+
+"""
     Highs_getIisLp(highs, a_format, num_col, num_row, num_nz, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, integrality)
 
 Get the data from a HiGHS IIS LP.
@@ -2570,7 +2600,7 @@ end
 Return the HiGHS compilation date.
 
 # Returns
-Thse HiGHS compilation date.
+The HiGHS compilation date.
 """
 function Highs_compilationDate()
     ccall((:Highs_compilationDate, libhighs), Ptr{Cchar}, ())
@@ -2680,13 +2710,13 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const BLAS_LIBRARIES = "/workspace/destdir/lib/libopenblas.dylib"
+const BLAS_LIBRARIES = "blastrampoline"
 
-const HIGHS_GITHASH = "755a8e027"
+const HIGHS_GITHASH = "1bce6d5c8"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 12
+const HIGHS_VERSION_MINOR = 13
 
 const HIGHS_VERSION_PATCH = 0
 
@@ -2762,12 +2792,12 @@ const kHighsCallbackMipGetCutPool = HighsInt(7)
 const kHighsCallbackMipDefineLazyConstraints = HighsInt(8)
 const kHighsCallbackCallbackMipUserSolution = HighsInt(9)
 const kHighsIisStrategyLight = HighsInt(0)
-const kHighsIisStrategyFromLpRowPriority = HighsInt(1)
-const kHighsIisStrategyFromLpColPriority = HighsInt(2)
+const kHighsIisStrategyFromLpRowPriority = HighsInt(6)
+const kHighsIisStrategyFromLpColPriority = HighsInt(14)
 const kHighsIisBoundFree = HighsInt(1)
 const kHighsIisBoundLower = HighsInt(2)
 const kHighsIisBoundUpper = HighsInt(3)
 const kHighsIisBoundBoxed = HighsInt(4)
-const kHighsIisStatusInConflict = HighsInt(0)
-const kHighsIisStatusNotInConflict = HighsInt(1)
-const kHighsIisStatusMaybeInConflict = HighsInt(2)
+const kHighsIisStatusNotInConflict = HighsInt(-1)
+const kHighsIisStatusMaybeInConflict = HighsInt(0)
+const kHighsIisStatusInConflict = HighsInt(1)

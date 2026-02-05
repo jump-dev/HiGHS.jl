@@ -134,3 +134,40 @@ set_attribute(model, MOI.NumberOfThreads(), 1)
 If modifying the number of HiGHS threads across different Julia threads, be sure
 to read the docstring of `Highs_resetGlobalScheduler`. In particular, resetting
 the scheduler is not thread-safe.
+
+## HiPO
+
+HiGHS v1.13 and later are compiled with [`libblastrampoline`](https://github.com/JuliaLinearAlgebra/libblastrampoline)
+(LBT), a library that can change between BLAS backends at runtime.
+
+The default BLAS backend is [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS),
+and we rely on the Julia artifact `OpenBLAS32_jll.jl` if no backend is loaded
+before `using HiGHS`.
+
+Using LBT, we can also switch dynamically to other BLAS backends such as Intel
+MKL and Apple Accelerate. Because HiPO heavily relies on BLAS routines, using an
+optimized backend for a particular platform can improve the performance.
+
+### MKL
+
+If you have [MKL.jl](https://github.com/JuliaLinearAlgebra/MKL.jl) installed,
+switch to MKL by adding `using MKL` to your code:
+
+```julia
+using MKL
+using JuMP, HiGHS
+model = Model(HiGHS.Optimizer)
+set_attribute(model, "solver", "hipo")
+```
+
+### AppleAccelerate
+
+If you are using macOS, and you have [AppleAccelerate.jl](https://github.com/JuliaLinearAlgebra/AppleAccelerate.jl)
+installed, switch to accelerate by adding `using AppleAccelerate` to your code:
+
+```julia
+using AppleAccelerate
+using JuMP, HiGHS
+model = Model(HiGHS.Optimizer)
+set_attribute(model, "solver", "hipo")
+```
