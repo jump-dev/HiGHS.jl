@@ -2215,6 +2215,16 @@ function _set_variable_primal_start(model::Optimizer)
     return
 end
 
+"""
+    _Highs_run_workaround_issue_316(model::Optimizer)
+
+This function works around a bug in HiGHS: https://github.com/ERGO-Code/HiGHS/issues/2759
+It can be removed once upstream is fixed.
+
+The only downside to this function is that a user expecting `kHighsStatusError`
+ends up with a double solve. But if we can fix it the second time, then is that
+really a problem?
+"""
 function _Highs_run_workaround_issue_316(model::Optimizer)
     if (ret = Highs_run(model)) != kHighsStatusError
         return ret
