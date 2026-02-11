@@ -2215,6 +2215,24 @@ function _set_variable_primal_start(model::Optimizer)
     return
 end
 
+"""
+    _Highs_run_workaround_issue_316(model::Optimizer)
+
+This function works around a bug in HiGHS: https://github.com/ERGO-Code/HiGHS/issues/2759
+It can be removed once upstream is fixed.
+
+The only downside to this function is that a user expecting `kHighsStatusError`
+ends up with a double solve. But if we can fix it the second time, then is that
+really a problem?
+"""
+function _Highs_run_workaround_issue_316(model::Optimizer)
+    if (ret = Highs_run(model)) != kHighsStatusError
+        return ret
+    end
+    Highs_clearSolver(model)
+    return Highs_run(model)
+end
+
 function MOI.optimize!(model::Optimizer)
     model.conflict_solver = nothing
     for info in model.binaries
@@ -2255,7 +2273,7 @@ function MOI.optimize!(model::Optimizer)
         gc_state = ccall(:jl_gc_safe_enter, Int8, ())
         # We disable sigint here so that it can be called only when we are in a
         # try-catch of our CallbackFunction.
-        ret = disable_sigint(() -> Highs_run(model))
+        ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
         # leave GC-safe region, waiting for GC to complete if it's running
         ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
     end
