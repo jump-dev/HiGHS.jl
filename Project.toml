@@ -1,6 +1,6 @@
 name = "HiGHS"
 uuid = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
-version = "1.21.0"
+version = "1.21.1"
 
 [deps]
 HiGHS_jll = "8fd58aa0-07eb-5a78-9b36-339c94fd15ea"
@@ -12,7 +12,7 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-HiGHS_jll = "=1.13.0"
+HiGHS_jll = "=1.13.1"
 LinearAlgebra = "1"
 MathOptIIS = "0.1.0"
 MathOptInterface = "1.34"
