@@ -657,6 +657,29 @@ function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
 end
 
 ###
+### MOI.SolutionLimit
+###
+
+MOI.supports(::Optimizer, ::MOI.SolutionLimit) = true
+
+function MOI.set(model::Optimizer, ::MOI.SolutionLimit, ::Nothing)
+    attr = MOI.RawOptimizerAttribute("mip_max_improving_sols")
+    MOI.set(model, attr, typemax(Cint))
+    return
+end
+
+function MOI.set(model::Optimizer, ::MOI.SolutionLimit, limit::Real)
+    attr = MOI.RawOptimizerAttribute("mip_max_improving_sols")
+    MOI.set(model, attr, Int(limit))
+    return
+end
+
+function MOI.get(model::Optimizer, ::MOI.SolutionLimit)
+    value = MOI.get(model, MOI.RawOptimizerAttribute("mip_max_improving_sols"))
+    return value == typemax(Cint) ? nothing : Int(value)
+end
+
+###
 ### MOI.NodeLimit
 ###
 
