@@ -3133,46 +3133,50 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     integrality = fill(kHighsVarTypeContinuous, numcol)
     has_integrality = false
     for ci in _constraints(src, MOI.VariableIndex, MOI.ZeroOne)
-        info = _info(dest, ci)
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        new_ci = typeof(ci)(new_x.value)
+        mapping[ci] = new_ci
+        info = _info(dest, new_ci)
         info.type = _TYPE_BINARY
         integrality[info.column+1] = kHighsVarTypeInteger
-        new_x = mapping[MOI.VariableIndex(ci.value)]
-        mapping[ci] = typeof(ci)(new_x.value)
-        push!(dest.binaries, _info(dest, mapping[ci]))
+        push!(dest.binaries, info)
         has_integrality = true
     end
     for ci in _constraints(src, MOI.VariableIndex, MOI.Integer)
-        info = _info(dest, ci)
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        new_ci = typeof(ci)(new_x.value)
+        mapping[ci] = new_ci
+        info = _info(dest, new_ci)
         info.type = _TYPE_INTEGER
         integrality[info.column+1] = kHighsVarTypeInteger
-        new_x = mapping[MOI.VariableIndex(ci.value)]
-        mapping[ci] = typeof(ci)(new_x.value)
         has_integrality = true
     end
     # Semicontinuous sets
     for ci in _constraints(src, MOI.VariableIndex, MOI.Semicontinuous{Float64})
-        x = MOI.VariableIndex(ci.value)
-        info = _info(dest, x)
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        new_ci = typeof(ci)(new_x.value)
+        mapping[ci] = new_ci
+        info = _info(dest, new_ci)
         column = info.column + 1
         set = MOI.get(src, MOI.ConstraintSet(), ci)
         collower[column], colupper[column] = set.lower, set.upper
         info.bound, info.type = _BOUND_SEMI_CONTINUOUS, _TYPE_SEMI_CONTINUOUS
         info.lower, info.upper = set.lower, set.upper
         integrality[column] = kHighsVarTypeSemiContinuous
-        mapping[ci] = typeof(ci)(mapping[x].value)
         has_integrality = true
     end
     # Semiinteger sets
     for ci in _constraints(src, MOI.VariableIndex, MOI.Semiinteger{Float64})
-        x = MOI.VariableIndex(ci.value)
-        info = _info(dest, x)
+        new_x = mapping[MOI.VariableIndex(ci.value)]
+        new_ci = typeof(ci)(new_x.value)
+        mapping[ci] = new_ci
+        info = _info(dest, new_ci)
         column = info.column + 1
         set = MOI.get(src, MOI.ConstraintSet(), ci)
         collower[column], colupper[column] = set.lower, set.upper
         info.bound, info.type = _BOUND_SEMI_INTEGER, _TYPE_SEMI_INTEGER
         info.lower, info.upper = set.lower, set.upper
         integrality[column] = kHighsVarTypeSemiInteger
-        mapping[ci] = typeof(ci)(mapping[x].value)
         has_integrality = true
     end
     # Build the model
