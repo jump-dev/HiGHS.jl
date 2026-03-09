@@ -7,6 +7,8 @@ import HiGHS
 import ParallelTestRunner
 import Test
 
+push!(ARGS, "--jobs=4")
+
 is_test_file(f) = startswith(f, "test_") && endswith(f, ".jl")
 
 testsuite = Dict{String,Expr}()
