@@ -17,13 +17,15 @@ LinearAlgebra = "1"
 MathOptIIS = "0.1.0"
 MathOptInterface = "1.34"
 OpenBLAS32_jll = "0.3.24"
+ParallelTestRunner = "2.4.2"
 PrecompileTools = "1"
 SparseArrays = "1"
 Test = "1"
 julia = "1.10"
 
 [extras]
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["ParallelTestRunner", "Test"]
