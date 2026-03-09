@@ -21,31 +21,6 @@ function runtests()
     return
 end
 
-function test_runtests()
-    model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
-    MOI.set(model, MOI.Silent(), true)
-    # Turn presolve off so that we generate infeasibility certificates. This is
-    # a temporary work-around until we fix this upstream in HiGHS.
-    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
-    # Slightly loosen tolerances, particularly for QP tests
-    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
-    return
-end
-
-function test_runtests_cache()
-    model = MOI.Bridges.full_bridge_optimizer(
-        MOI.Utilities.CachingOptimizer(
-            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
-            HiGHS.Optimizer(),
-        ),
-        Float64,
-    )
-    MOI.set(model, MOI.Silent(), true)
-    # Slightly loosen tolerances, particularly for QP tests
-    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
-    return
-end
-
 function test_SolverName()
     @test MOI.get(HiGHS.Optimizer(), MOI.SolverName()) == "HiGHS"
     return

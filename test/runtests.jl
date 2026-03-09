@@ -3,11 +3,19 @@
 # Use of this source code is governed by an MIT-style license that can be found
 # in the LICENSE.md file or at https://opensource.org/licenses/MIT.
 
-using Test
+import HiGHS
+import ParallelTestRunner
+import Test
 
-@testset "$(file)" for file in readdir(@__DIR__)
-    if file == "runtests.jl" || !endswith(file, ".jl")
-        continue
+push!(ARGS, "--jobs=4")
+
+is_test_file(f) = startswith(f, "test_") && endswith(f, ".jl")
+
+testsuite = Dict{String,Expr}()
+for (root, dirs, files) in walkdir(@__DIR__)
+    for file in joinpath.(root, filter(is_test_file, files))
+        testsuite[file] = :(include($file))
     end
-    include(file)
 end
+
+ParallelTestRunner.runtests(HiGHS, ARGS; testsuite)
