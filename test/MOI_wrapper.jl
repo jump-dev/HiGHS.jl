@@ -1266,6 +1266,22 @@ function test_get_function_rowwise()
     return
 end
 
+function test_copy_to_variable_sets()
+    for set in (
+        MOI.ZeroOne(),
+        MOI.Integer(),
+        MOI.Semicontinuous(2.0, 3.0),
+        MOI.Semiinteger(2.0, 3.0),
+    )
+        model = MOI.Utilities.MockOptimizer(MOI.Utilities.Model{Float64}())
+        x, c = MOI.add_constrained_variable(model, set)
+        highs = HiGHS.Optimizer()
+        index_map = MOI.copy_to(highs, model)
+        @test MOI.is_valid(highs, index_map[c])
+    end
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
