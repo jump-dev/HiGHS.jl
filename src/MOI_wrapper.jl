@@ -2413,6 +2413,10 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
     if model.solution.has_primal_ray
         return MOI.Utilities.get_fallback(model, attr)
+    elseif model.multi_objective !== nothing
+        return MOI.Utilities.eval_variables(model, model.multi_objective) do xi
+            return MOI.get(model, MOI.VariablePrimal(), xi)
+        end
     end
     return Highs_getObjectiveValue(model)
 end
