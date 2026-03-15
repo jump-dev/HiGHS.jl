@@ -1337,7 +1337,8 @@ function MOI.set(
     obj_coefs = zeros(Float64, O * num_vars)
     for term in f.terms
         col = column(model, term.scalar_term.variable) + 1
-        obj_coefs[O*(term.output_index-1)+col] += term.scalar_term.coefficient
+        obj_coefs[num_vars*(term.output_index-1)+col] +=
+            term.scalar_term.coefficient
     end
     # senseP will be 1 if MIN and -1 if MAX
     senseP = Ref{HighsInt}()
