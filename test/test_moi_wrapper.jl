@@ -1257,6 +1257,27 @@ function test_copy_to_variable_sets()
     return
 end
 
+function test_multi_objective()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variables(model, 3)
+    MOI.add_constraint.(model, x, MOI.ZeroOne())
+    MOI.add_constraint(
+        model,
+        1.0 * x[1] + 1.0 * x[2] + 1.0 * x[3],
+        MOI.LessThan(2.0),
+    )
+    f = MOI.Utilities.vectorize([
+        3.0 * x[1],
+        2.0 * x[1] + 3.0 * x[2] + 4.0 * x[3],
+    ])
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.optimize!(model)
+    @test isapprox(MOI.get(model, MOI.VariablePrimal(), x), [1, 0, 1])
+    @test isapprox(MOI.get(model, MOI.ObjectiveValue()), [3, 6])
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
