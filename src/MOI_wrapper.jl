@@ -1337,7 +1337,8 @@ function MOI.set(
     obj_coefs = zeros(Float64, O * num_vars)
     for term in f.terms
         col = column(model, term.scalar_term.variable) + 1
-        obj_coefs[O*(term.output_index-1)+col] += term.scalar_term.coefficient
+        obj_coefs[num_vars*(term.output_index-1)+col] +=
+            term.scalar_term.coefficient
     end
     # senseP will be 1 if MIN and -1 if MAX
     senseP = Ref{HighsInt}()
@@ -2412,6 +2413,10 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(model, attr)
     if model.solution.has_primal_ray
         return MOI.Utilities.get_fallback(model, attr)
+    elseif model.multi_objective !== nothing
+        return MOI.Utilities.eval_variables(model, model.multi_objective) do xi
+            return MOI.get(model, MOI.VariablePrimal(), xi)
+        end
     end
     return Highs_getObjectiveValue(model)
 end
