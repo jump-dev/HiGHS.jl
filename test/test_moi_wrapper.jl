@@ -1278,7 +1278,6 @@ function test_multi_objective()
     return
 end
 
-
 function _copy_conflict(model::MOI.ModelLike)
     filter_fn(::Any) = true
     function filter_fn(cref::MOI.ConstraintIndex)
@@ -1301,16 +1300,13 @@ function _print_model(model)
     return replace(sprint(print, model), "-0.0" => "0.0")
 end
 
-function _test_compute_conflict(
-    input,
-    output;
-    silent::Bool = true,
-    kwargs...,
-)
+function _test_compute_conflict(input, output; silent::Bool = true, kwargs...)
     model = MOI.instantiate(HiGHS.Optimizer; kwargs...)
     MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.TimeLimitSec(), 60.0)
     MOI.Utilities.loadfromstring!(model, input)
     MOI.optimize!(model)
+    @test MOI.get(model, MOI.ConflictCount()) == 0
     MOI.compute_conflict!(model)
     @test MOI.get(model, MOI.ConflictCount()) > 0
     @test MOI.get(model, MOI.ConflictStatus()) == MOI.CONFLICT_FOUND
