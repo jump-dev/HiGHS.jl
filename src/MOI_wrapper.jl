@@ -3374,6 +3374,41 @@ function MOI.write_to_file(model::Optimizer, filename::String)
     return
 end
 
+function MOI.compute_conflict!(model::Optimizer)
+    solver = MathOptIIS.Optimizer()
+    MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
+    MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
+    MOI.set(solver, MOI.Silent(), MOI.get(model, MOI.Silent()))
+    if (time_limit = MOI.get(model, MOI.TimeLimitSec())) !== nothing
+        MOI.set(solver, MOI.TimeLimitSec(), time_limit)
+    end
+    MOI.compute_conflict!(solver)
+    model.conflict_solver = solver
+    return
+end
+
+function MOI.get(optimizer::Optimizer, attr::MOI.ConflictStatus)
+    if optimizer.conflict_solver === nothing
+        return MOI.COMPUTE_CONFLICT_NOT_CALLED
+    end
+    return MOI.get(optimizer.conflict_solver, attr)
+end
+
+function MOI.get(optimizer::Optimizer, attr::MOI.ConflictCount)
+    if optimizer.conflict_solver === nothing
+        return 0
+    end
+    return MOI.get(optimizer.conflict_solver, attr)
+end
+
+function MOI.get(
+    optimizer::Optimizer,
+    attr::MOI.ConstraintConflictStatus,
+    con::MOI.ConstraintIndex,
+)
+    return MOI.get(optimizer.conflict_solver, attr, con)
+end
+
 # These enums are deprecated. Use the `kHighsXXX` constants defined in
 # libhighs.jl instead.
 
@@ -3402,28 +3437,3 @@ end
 @enum(HighsObjSense, kMinimize = 1, kMaximize = -1)
 @enum(HighsVartype, kContinuous = 0, kInteger = 1, kImplicitInteger = 2)
 @enum(HighsStatus, HighsStatuskError = -1, HighsStatuskOk, HighsStatuskWarning)
-
-function MOI.compute_conflict!(model::Optimizer)
-    solver = MathOptIIS.Optimizer()
-    MOI.set(solver, MathOptIIS.InfeasibleModel(), model)
-    MOI.set(solver, MathOptIIS.InnerOptimizer(), Optimizer)
-    MOI.set(solver, MOI.Silent(), MOI.get(model, MOI.Silent()))
-    MOI.compute_conflict!(solver)
-    model.conflict_solver = solver
-    return
-end
-
-function MOI.get(optimizer::Optimizer, attr::MOI.ConflictStatus)
-    if optimizer.conflict_solver === nothing
-        return MOI.COMPUTE_CONFLICT_NOT_CALLED
-    end
-    return MOI.get(optimizer.conflict_solver, attr)
-end
-
-function MOI.get(
-    optimizer::Optimizer,
-    attr::MOI.ConstraintConflictStatus,
-    con::MOI.ConstraintIndex,
-)
-    return MOI.get(optimizer.conflict_solver, attr, con)
-end
