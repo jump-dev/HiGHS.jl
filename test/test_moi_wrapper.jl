@@ -1278,6 +1278,78 @@ function test_multi_objective()
     return
 end
 
+
+function _copy_conflict(model::MOI.ModelLike)
+    filter_fn(::Any) = true
+    function filter_fn(cref::MOI.ConstraintIndex)
+        for i in 1:MOI.get(model, MOI.ConflictCount())
+            status = MOI.get(model, MOI.ConstraintConflictStatus(i), cref)
+            if status != MOI.NOT_IN_CONFLICT
+                return true
+            end
+        end
+        return false
+    end
+    new_model = MOI.Utilities.Model{Float64}()
+    filtered_src = MOI.Utilities.ModelFilter(filter_fn, model)
+    MOI.copy_to(new_model, filtered_src)
+    MOI.set(new_model, MOI.ObjectiveSense(), MOI.FEASIBILITY_SENSE)
+    return new_model
+end
+
+function _print_model(model)
+    return replace(sprint(print, model), "-0.0" => "0.0")
+end
+
+function _test_compute_conflict(
+    input,
+    output;
+    silent::Bool = true,
+    kwargs...,
+)
+    model = MOI.instantiate(HiGHS.Optimizer; kwargs...)
+    MOI.set(model, MOI.Silent(), true)
+    MOI.Utilities.loadfromstring!(model, input)
+    MOI.optimize!(model)
+    MOI.compute_conflict!(model)
+    @test MOI.get(model, MOI.ConflictCount()) > 0
+    @test MOI.get(model, MOI.ConflictStatus()) == MOI.CONFLICT_FOUND
+    iis = _copy_conflict(model)
+    target = MOI.Utilities.Model{Float64}()
+    MOI.Utilities.loadfromstring!(target, output)
+    A, B = _print_model(iis), _print_model(target)
+    if A != B
+        @info "IIS"
+        print(A)
+        @info "Target"
+        println(B)
+    end
+    @test A == B
+    return
+end
+
+function test_relax_integrality_integer()
+    _test_compute_conflict(
+        """
+        variables: x, y
+        maxobjective: 1.0 * x + y
+        2.0 * y <= 40.0
+        1.0 * x + y >= 35.0
+        x >= 0.0
+        x <= 10.0
+        x in Integer()
+        y >= 0.0
+        """,
+        """
+        variables: x, y
+        2.0 * y <= 40.0
+        1.0 * x + y >= 35.0
+        x <= 10.0
+        """,
+    )
+    return
+end
+
 end  # module
 
 TestMOIHighs.runtests()
