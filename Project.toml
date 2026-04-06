@@ -12,7 +12,7 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-HiGHS_jll = "=1.13.1"
+HiGHS_jll = "=1.14.0"
 LinearAlgebra = "1"
 MathOptIIS = "0.2"
 MathOptInterface = "1.34"
