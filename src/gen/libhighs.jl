@@ -2712,11 +2712,11 @@ const CMAKE_BUILD_TYPE = "Release"
 
 const BLAS_LIBRARIES = "blastrampoline"
 
-const HIGHS_GITHASH = "1bce6d5c8"
+const HIGHS_GITHASH = "7df0786de3"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 13
+const HIGHS_VERSION_MINOR = 14
 
 const HIGHS_VERSION_PATCH = 0
 
