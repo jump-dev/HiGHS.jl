@@ -11,12 +11,9 @@ import HiGHS
 import MathOptInterface as MOI
 
 function runtests()
-    for name in names(@__MODULE__; all = true)
-        if startswith("$name", "test_")
-            @testset "$name" begin
-                getfield(@__MODULE__, name)()
-            end
-        end
+    is_test(name) = startswith("$name", "test_")
+    @testset "$name" for name in filter(is_test, names(@__MODULE__; all = true))
+        getfield(@__MODULE__, name)()
     end
     return
 end
@@ -30,11 +27,12 @@ function test_runtests_cache()
         Float64,
     )
     MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("parallel"), "on")
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
 end
 
-end  # module
+end  # TestRunTestsCache
 
 TestRunTestsCache.runtests()

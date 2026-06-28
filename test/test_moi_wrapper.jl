@@ -11,12 +11,9 @@ import HiGHS
 import MathOptInterface as MOI
 
 function runtests()
-    for name in names(@__MODULE__; all = true)
-        if startswith("$name", "test_")
-            @testset "$name" begin
-                getfield(@__MODULE__, name)()
-            end
-        end
+    is_test(name) = startswith("$name", "test_")
+    @testset "$name" for name in filter(is_test, names(@__MODULE__; all = true))
+        getfield(@__MODULE__, name)()
     end
     return
 end
@@ -50,6 +47,7 @@ function test_MOI_variable_count_and_empty()
     @test MOI.get(model, MOI.NumberOfVariables()) == 2
     MOI.empty!(model)
     @test MOI.get(model, MOI.NumberOfVariables()) == 0
+    return
 end
 
 function test_HiGHS_custom_options()
@@ -221,6 +219,7 @@ function test_SimplexIterations_BarrierIterations()
     # Not == 0 because HiGHS will use Simplex to clean-up occasionally
     @test MOI.get(model, MOI.SimplexIterations()) >= 0
     @test MOI.get(model, MOI.BarrierIterations()) > 0
+    return
 end
 
 function test_NodeCount()
@@ -311,6 +310,7 @@ function test_option_type()
         T = HiGHS._type_for_highs_option(k)
         @test x isa T
     end
+    return
 end
 
 function test_quadratic_sets_objective()
@@ -1346,6 +1346,6 @@ function test_relax_integrality_integer()
     return
 end
 
-end  # module
+end  # TestMOIHighs
 
 TestMOIHighs.runtests()

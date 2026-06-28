@@ -301,6 +301,22 @@ function Highs_clearSolver(highs)
 end
 
 """
+    Highs_releaseMemory(highs)
+
+Release all retained memory back to the allocator.
+
+Clears all solver state and shrinks internal vectors to free unused capacity. Useful in long-running services that reuse a Highs instance across multiple solves to prevent unbounded RSS growth from heap fragmentation.
+
+# Arguments
+* `highs`: A pointer to the Highs instance.
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_releaseMemory(highs)
+    ccall((:Highs_releaseMemory, libhighs), HighsInt, (Ptr{Cvoid},), highs)
+end
+
+"""
     Highs_presolve(highs)
 
 Presolve a model.
@@ -2710,13 +2726,11 @@ const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const BLAS_LIBRARIES = "blastrampoline"
-
-const HIGHS_GITHASH = "7df0786de3"
+const HIGHS_GITHASH = "8396001901"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 14
+const HIGHS_VERSION_MINOR = 15
 
 const HIGHS_VERSION_PATCH = 0
 
