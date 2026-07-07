@@ -2291,16 +2291,8 @@ function MOI.optimize!(model::Optimizer)
         ]
         MOI.set(model, CallbackFunction(cb_types), (args...) -> Cint(0))
     end
-    # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
-    GC.@preserve model begin
-        # allow Julia to GC while this thread is in `Highs_run`
-        gc_state = ccall(:jl_gc_safe_enter, Int8, ())
-        # We disable sigint here so that it can be called only when we are in a
-        # try-catch of our CallbackFunction.
-        ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
-        # leave GC-safe region, waiting for GC to complete if it's running
-        ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
-    end
+    # try-catch of our CallbackFunction.
+    ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
     if has_default_callback
         MOI.set(model, CallbackFunction(), nothing)
     end
