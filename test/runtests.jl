@@ -5,6 +5,7 @@
 
 import HiGHS
 import ParallelTestRunner
+import Test
 
 is_test_file(f) = startswith(f, "test_") && endswith(f, ".jl")
 
@@ -15,4 +16,10 @@ for (root, dirs, files) in walkdir(@__DIR__)
     end
 end
 
-ParallelTestRunner.runtests(HiGHS, ARGS; testsuite)
+if "--parallel=false" in ARGS
+    Test.@testset "$file" for file in keys(testsuite)
+        include(file)
+    end
+else
+    ParallelTestRunner.runtests(HiGHS, ARGS; testsuite)
+end
