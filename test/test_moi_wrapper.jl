@@ -1346,6 +1346,13 @@ function test_relax_integrality_integer()
     return
 end
 
+function test_HiPO()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "hipo")
+    @test MOI.get(model, MOI.RawOptimizerAttribute("solver")) == "hipo"
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
