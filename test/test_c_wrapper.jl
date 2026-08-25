@@ -89,6 +89,23 @@ function test_create()
     return
 end
 
+function test_libblastrampoline()
+    function run()
+        highs = Highs_create()
+        Highs_addCol(highs, 1.0, 0.0, 1.0, 0, C_NULL, C_NULL)
+        return Highs_destroy(highs)
+    end
+    filename = joinpath(mktempdir(), "log.txt")
+    open(io -> redirect_stdout(run, io), filename, "w")
+    contents = read(filename, String)
+    if Sys.isapple()
+        @test_broken occursin("Using BLAS: libblastrampoline", contents)
+    else
+        @test occursin("Using BLAS: libblastrampoline", contents)
+    end
+    return
+end
+
 end  # TestCHighs
 
 TestCHighs.runtests()
