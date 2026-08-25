@@ -99,9 +99,9 @@ function test_libblastrampoline()
     open(io -> redirect_stdout(run, io), filename, "w")
     contents = read(filename, String)
     if Sys.isapple()
-        @test_broken occursin("Using BLAS: libblastrampoline", contents)
+        @test_broken occursin("Using BLAS: blastrampoline", contents)
     else
-        @test occursin("Using BLAS: libblastrampoline", contents)
+        @test occursin("Using BLAS: blastrampoline", contents)
     end
     return
 end
