@@ -1395,18 +1395,18 @@ function test_set_basis_status_is_written_to_highs()
         MOI.add_constraint(model, 1.0 * x[1] + 2.0 * x[2], MOI.LessThan(1.0)),
     ]
     MOI.set(model, MOI.VariableBasisStatus(), x[1], MOI.BASIC)
-    MOI.set(model, MOI.VariableBasisStatus(), x[3], MOI.NONBASIC_AT_UPPER)
+    MOI.set(model, MOI.VariableBasisStatus(), x[3], MOI.BASIC)
     MOI.set(model, MOI.ConstraintBasisStatus(), c[2], MOI.NONBASIC)
     HiGHS._set_basis(model)
     col_status, row_status = zeros(HiGHS.HighsInt, 3), zeros(HiGHS.HighsInt, 2)
     HiGHS.Highs_getBasis(model, col_status, row_status)
     @test col_status == [
         HiGHS.kHighsBasisStatusBasic,
-        HiGHS.kHighsBasisStatusLower,
-        HiGHS.kHighsBasisStatusUpper,
+        HiGHS.kHighsBasisStatusNonbasic,
+        HiGHS.kHighsBasisStatusBasic,
     ]
     @test row_status ==
-          [HiGHS.kHighsBasisStatusBasic, HiGHS.kHighsBasisStatusNonbasic]
+          [HiGHS.kHighsBasisStatusNonbasic, HiGHS.kHighsBasisStatusNonbasic]
     return
 end
 

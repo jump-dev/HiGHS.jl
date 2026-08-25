@@ -2716,6 +2716,16 @@ function MOI.get(
     return _replace_basis_status(_BASIS_STATUS_MAP[stat], S)
 end
 
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
+    bs::MOI.BasisStatusCode,
+) where {S<:_SCALAR_SETS}
+    _info(model, c).basis_status = bs
+    return
+end
+
 function MOI.get(
     model::Optimizer,
     attr::MOI.VariableBasisStatus,
@@ -2731,16 +2741,6 @@ end
 
 function MOI.set(
     model::Optimizer,
-    ::MOI.ConstraintBasisStatus,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
-    bs::MOI.BasisStatusCode,
-) where {S<:_SCALAR_SETS}
-    _info(model, c).basis_status = bs
-    return
-end
-
-function MOI.set(
-    model::Optimizer,
     ::MOI.VariableBasisStatus,
     x::MOI.VariableIndex,
     bs::MOI.BasisStatusCode,
@@ -2750,25 +2750,21 @@ function MOI.set(
 end
 
 function _set_basis(model::Optimizer)
-    has_basis =
-        any(i -> i.basis_status !== nothing, values(model.variable_info)) ||
-        any(
-            i -> i.basis_status !== nothing,
-            values(model.affine_constraint_info),
-        )
-    if !has_basis
+    has_basis(i) = i.basis_status !== nothing
+    if !any(has_basis, values(model.variable_info)) &&
+       !any(has_basis, values(model.affine_constraint_info))
         return
     end
-    col_status =
-        fill(kHighsBasisStatusLower, MOI.get(model, MOI.NumberOfVariables()))
-    row_status =
-        fill(kHighsBasisStatusBasic, length(model.affine_constraint_info))
+    num_vars = MOI.get(model, MOI.NumberOfVariables())
+    col_status = fill(kHighsBasisStatusNonbasic, num_vars)
     for info in values(model.variable_info)
         if info.basis_status !== nothing
             col_status[info.column+1] =
                 _INVERSE_BASIS_STATUS_MAP[info.basis_status]
         end
     end
+    num_rows = length(model.affine_constraint_info)
+    row_status = fill(kHighsBasisStatusNonbasic, num_rows)
     for info in values(model.affine_constraint_info)
         if info.basis_status !== nothing
             row_status[info.row+1] =
