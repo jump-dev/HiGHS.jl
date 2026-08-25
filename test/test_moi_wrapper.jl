@@ -1353,6 +1353,98 @@ function test_HiPO()
     return
 end
 
+function _build_basis_model()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variable(model)
+    y = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    MOI.add_constraint(model, y, MOI.GreaterThan(0.0))
+    c = MOI.add_constraint(model, 1.0 * x + 1.0 * y, MOI.LessThan(1.0))
+    f = -1.0 * x + 0.0 * y
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    return model, x, y, c
+end
+
+function test_set_basis_status_simplex_iterations()
+    model, x, y, c = _build_basis_model()
+    MOI.set(model, MOI.VariableBasisStatus(), x, MOI.BASIC)
+    MOI.set(model, MOI.VariableBasisStatus(), y, MOI.NONBASIC_AT_LOWER)
+    MOI.set(model, MOI.ConstraintBasisStatus(), c, MOI.NONBASIC)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == -1.0
+    @test MOI.get(model, MOI.SimplexIterations()) == 0
+    model, x, y, c = _build_basis_model()
+    MOI.set(model, MOI.VariableBasisStatus(), x, MOI.NONBASIC_AT_LOWER)
+    MOI.set(model, MOI.VariableBasisStatus(), y, MOI.NONBASIC_AT_LOWER)
+    MOI.set(model, MOI.ConstraintBasisStatus(), c, MOI.BASIC)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == -1.0
+    @test MOI.get(model, MOI.SimplexIterations()) == 1
+    return
+end
+
+function test_set_basis_status_is_written_to_highs()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variables(model, 3)
+    c = [
+        MOI.add_constraint(model, sum(1.0 .* x), MOI.LessThan(1.0)),
+        MOI.add_constraint(model, 1.0 * x[1] + 2.0 * x[2], MOI.LessThan(1.0)),
+    ]
+    MOI.set(model, MOI.VariableBasisStatus(), x[1], MOI.BASIC)
+    MOI.set(model, MOI.VariableBasisStatus(), x[3], MOI.NONBASIC_AT_UPPER)
+    MOI.set(model, MOI.ConstraintBasisStatus(), c[2], MOI.NONBASIC)
+    HiGHS._set_basis(model)
+    col_status, row_status = zeros(HiGHS.HighsInt, 3), zeros(HiGHS.HighsInt, 2)
+    HiGHS.Highs_getBasis(model, col_status, row_status)
+    @test col_status == [
+        HiGHS.kHighsBasisStatusBasic,
+        HiGHS.kHighsBasisStatusLower,
+        HiGHS.kHighsBasisStatusUpper,
+    ]
+    @test row_status ==
+          [HiGHS.kHighsBasisStatusBasic, HiGHS.kHighsBasisStatusNonbasic]
+    return
+end
+
+function test_set_basis_status_round_trip()
+    model, x, y, c = _build_basis_model()
+    MOI.optimize!(model)
+    objective = MOI.get(model, MOI.ObjectiveValue())
+    for v in (x, y)
+        MOI.set(
+            model,
+            MOI.VariableBasisStatus(),
+            v,
+            MOI.get(model, MOI.VariableBasisStatus(), v),
+        )
+    end
+    MOI.set(
+        model,
+        MOI.ConstraintBasisStatus(),
+        c,
+        MOI.get(model, MOI.ConstraintBasisStatus(), c),
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ObjectiveValue()) == objective
+    @test MOI.get(model, MOI.SimplexIterations()) == 0
+    return
+end
+
+function test_set_basis_status_partial()
+    model, x, y, _ = _build_basis_model()
+    MOI.set(model, MOI.VariableBasisStatus(), x, MOI.BASIC)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ObjectiveValue()) == -1.0
+    @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.BASIC
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
