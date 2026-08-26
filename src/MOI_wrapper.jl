@@ -2750,26 +2750,47 @@ function MOI.set(
 end
 
 function _set_basis(model::Optimizer)
-    has_basis(i) = i.basis_status !== nothing
-    if !any(has_basis, values(model.variable_info)) &&
-       !any(has_basis, values(model.affine_constraint_info))
+    has_basis = false
+    for (_, info) in model.variable_info
+        if has_basis && info.basis_status === nothing
+            error(
+                """
+                Column $(info.column+1) is missing a value for `MOI.VariableBasisStatus`.
+
+                If one variable has a `MOI.VariableBasisStatus` set, then all \
+                variables must have it set, and all affine constraints must \
+                have `MOI.ConstraintBasisStatus` set.
+                """,
+            )
+        end
+        has_basis |= info.basis_status !== nothing
+    end
+    for (_, info) in model.affine_constraint_info
+        if has_basis && info.basis_status === nothing
+            error(
+                """
+                Row $(info.row+1) is missing a value for `MOI.ConstraintBasisStatus`.
+
+                If one constraint has a `MOI.ConstraintBasisStatus` set, then \
+                all affine constraints must have it set, and all variables \
+                must have `MOI.VariableBasisStatus` set.
+                """,
+            )
+        end
+        has_basis |= info.basis_status !== nothing
+    end
+    if !has_basis
         return
     end
-    num_vars = MOI.get(model, MOI.NumberOfVariables())
-    col_status = fill(kHighsBasisStatusNonbasic, num_vars)
+    col_status = zeros(Cint, length(model.variable_info))
     for info in values(model.variable_info)
-        if info.basis_status !== nothing
-            col_status[info.column+1] =
-                _INVERSE_BASIS_STATUS_MAP[info.basis_status]
-        end
+        status = info.basis_status::MOI.BasisStatusCode
+        col_status[info.column+1] = _INVERSE_BASIS_STATUS_MAP[status]
     end
-    num_rows = length(model.affine_constraint_info)
-    row_status = fill(kHighsBasisStatusNonbasic, num_rows)
+    row_status = zeros(Cint, length(model.affine_constraint_info))
     for info in values(model.affine_constraint_info)
-        if info.basis_status !== nothing
-            row_status[info.row+1] =
-                _INVERSE_BASIS_STATUS_MAP[info.basis_status]
-        end
+        status = info.basis_status::MOI.BasisStatusCode
+        row_status[info.row+1] = _INVERSE_BASIS_STATUS_MAP[status]
     end
     ret = Highs_setBasis(model, col_status, row_status)
     _check_ret(ret)

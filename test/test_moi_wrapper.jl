@@ -1395,7 +1395,9 @@ function test_set_basis_status_is_written_to_highs()
         MOI.add_constraint(model, 1.0 * x[1] + 2.0 * x[2], MOI.LessThan(1.0)),
     ]
     MOI.set(model, MOI.VariableBasisStatus(), x[1], MOI.BASIC)
+    MOI.set(model, MOI.VariableBasisStatus(), x[2], MOI.NONBASIC)
     MOI.set(model, MOI.VariableBasisStatus(), x[3], MOI.BASIC)
+    MOI.set(model, MOI.ConstraintBasisStatus(), c[1], MOI.NONBASIC)
     MOI.set(model, MOI.ConstraintBasisStatus(), c[2], MOI.NONBASIC)
     HiGHS._set_basis(model)
     col_status, row_status = zeros(HiGHS.HighsInt, 3), zeros(HiGHS.HighsInt, 2)
@@ -1436,12 +1438,38 @@ function test_set_basis_status_round_trip()
 end
 
 function test_set_basis_status_partial()
-    model, x, y, _ = _build_basis_model()
+    model, x, y, c = _build_basis_model()
     MOI.set(model, MOI.VariableBasisStatus(), x, MOI.BASIC)
+    @test_throws(
+        ErrorException(
+            """
+                Column 2 is missing a value for `MOI.VariableBasisStatus`.
+
+                If one variable has a `MOI.VariableBasisStatus` set, then all \
+                variables must have it set, and all affine constraints must \
+                have `MOI.ConstraintBasisStatus` set.
+                """,
+        ),
+        MOI.optimize!(model),
+    )
+    MOI.set(model, MOI.VariableBasisStatus(), y, MOI.NONBASIC_AT_LOWER)
+    @test_throws(
+        ErrorException(
+            """
+            Row 1 is missing a value for `MOI.ConstraintBasisStatus`.
+
+            If one constraint has a `MOI.ConstraintBasisStatus` set, then \
+            all affine constraints must have it set, and all variables \
+            must have `MOI.VariableBasisStatus` set.
+            """,
+        ),
+        MOI.optimize!(model),
+    )
+    MOI.set(model, MOI.ConstraintBasisStatus(), c, MOI.NONBASIC)
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
     @test MOI.get(model, MOI.ObjectiveValue()) == -1.0
-    @test MOI.get(model, MOI.VariableBasisStatus(), x) == MOI.BASIC
+    @test MOI.get(model, MOI.SimplexIterations()) == 0
     return
 end
 
