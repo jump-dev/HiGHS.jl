@@ -2242,6 +2242,20 @@ function _set_variable_primal_start(model::Optimizer)
     return
 end
 
+# See issue HiGHS.jl#353
+function _gc_safe_Highs_run(model::Optimizer)
+    GC.@preserve model begin
+        # allow Julia to GC while this thread is in `Highs_run`
+        gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+        try
+            return Highs_run(model)
+        finally
+            # leave GC-safe region, waiting for GC to complete if it's running
+            ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
+        end
+    end
+end
+
 """
     _Highs_run_workaround_issue_316(model::Optimizer)
 
@@ -2253,11 +2267,11 @@ ends up with a double solve. But if we can fix it the second time, then is that
 really a problem?
 """
 function _Highs_run_workaround_issue_316(model::Optimizer)
-    if (ret = Highs_run(model)) != kHighsStatusError
+    if (ret = _gc_safe_Highs_run(model)) != kHighsStatusError
         return ret
     end
     Highs_clearSolver(model)
-    return Highs_run(model)
+    return _gc_safe_Highs_run(model)
 end
 
 function MOI.optimize!(model::Optimizer)
@@ -2295,16 +2309,9 @@ function MOI.optimize!(model::Optimizer)
         ]
         MOI.set(model, CallbackFunction(cb_types), (args...) -> Cint(0))
     end
-    # if `Highs_run` implicitly uses memory or other resources owned by `model`, preserve it
-    GC.@preserve model begin
-        # allow Julia to GC while this thread is in `Highs_run`
-        gc_state = ccall(:jl_gc_safe_enter, Int8, ())
-        # We disable sigint here so that it can be called only when we are in a
-        # try-catch of our CallbackFunction.
-        ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
-        # leave GC-safe region, waiting for GC to complete if it's running
-        ccall(:jl_gc_safe_leave, Cvoid, (Int8,), gc_state)
-    end
+    # We disable sigint here so that it can be called only when we are in a
+    # try-catch of our CallbackFunction.
+    ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
     if has_default_callback
         MOI.set(model, CallbackFunction(), nothing)
     end
