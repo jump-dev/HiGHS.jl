@@ -70,6 +70,7 @@ mutable struct _VariableInfo
     # Track integrality
     type::_TypeEnum
     start::Union{Nothing,Float64}
+    basis_status::Union{Nothing,MOI.BasisStatusCode}
     function _VariableInfo(
         index::MOI.VariableIndex,
         column::HighsInt,
@@ -83,6 +84,7 @@ mutable struct _VariableInfo
             -Inf,
             Inf,
             _TYPE_CONTINUOUS,
+            nothing,
             nothing,
         )
     end
@@ -149,11 +151,12 @@ mutable struct _ConstraintInfo
     set::_RowType
     lower::Float64
     upper::Float64
+    basis_status::Union{Nothing,MOI.BasisStatusCode}
 end
 
 function _ConstraintInfo(set::_SCALAR_SETS)
     lower, upper = _bounds(set)
-    return _ConstraintInfo("", 0, _row_type(set), lower, upper)
+    return _ConstraintInfo("", 0, _row_type(set), lower, upper, nothing)
 end
 
 struct _ConstraintKey
@@ -2268,6 +2271,7 @@ function MOI.optimize!(model::Optimizer)
         )
     end
     _set_variable_primal_start(model)
+    _set_basis(model)
     if Highs_versionMajor() == 1 && Highs_versionMinor() >= 6
         # Not available in earlier versions
         ret = Highs_zeroAllClocks(model)
@@ -2688,6 +2692,8 @@ const _BASIS_STATUS_MAP = Dict(
     kHighsBasisStatusNonbasic => MOI.NONBASIC,
 )
 
+const _INVERSE_BASIS_STATUS_MAP = Dict(v => k for (k, v) in _BASIS_STATUS_MAP)
+
 _replace_basis_status(b::MOI.BasisStatusCode, ::Type{<:MOI.Interval}) = b
 
 function _replace_basis_status(basis::MOI.BasisStatusCode, ::Type{S}) where {S}
@@ -2710,6 +2716,16 @@ function MOI.get(
     return _replace_basis_status(_BASIS_STATUS_MAP[stat], S)
 end
 
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
+    bs::MOI.BasisStatusCode,
+) where {S<:_SCALAR_SETS}
+    _info(model, c).basis_status = bs
+    return
+end
+
 function MOI.get(
     model::Optimizer,
     attr::MOI.VariableBasisStatus,
@@ -2721,6 +2737,64 @@ function MOI.get(
         throw(MOI.GetAttributeNotAllowed(attr, "no basis is present"))
     end
     return _BASIS_STATUS_MAP[stat]
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.VariableBasisStatus,
+    x::MOI.VariableIndex,
+    bs::MOI.BasisStatusCode,
+)
+    _info(model, x).basis_status = bs
+    return
+end
+
+function _set_basis(model::Optimizer)
+    has_basis = false
+    for (_, info) in model.variable_info
+        if has_basis && info.basis_status === nothing
+            error(
+                """
+                Column $(info.column+1) is missing a value for `MOI.VariableBasisStatus`.
+
+                If one variable has a `MOI.VariableBasisStatus` set, then all \
+                variables must have it set, and all affine constraints must \
+                have `MOI.ConstraintBasisStatus` set.
+                """,
+            )
+        end
+        has_basis |= info.basis_status !== nothing
+    end
+    for (_, info) in model.affine_constraint_info
+        if has_basis && info.basis_status === nothing
+            error(
+                """
+                Row $(info.row+1) is missing a value for `MOI.ConstraintBasisStatus`.
+
+                If one constraint has a `MOI.ConstraintBasisStatus` set, then \
+                all affine constraints must have it set, and all variables \
+                must have `MOI.VariableBasisStatus` set.
+                """,
+            )
+        end
+        has_basis |= info.basis_status !== nothing
+    end
+    if !has_basis
+        return
+    end
+    col_status = zeros(Cint, length(model.variable_info))
+    for info in values(model.variable_info)
+        status = info.basis_status::MOI.BasisStatusCode
+        col_status[info.column+1] = _INVERSE_BASIS_STATUS_MAP[status]
+    end
+    row_status = zeros(Cint, length(model.affine_constraint_info))
+    for info in values(model.affine_constraint_info)
+        status = info.basis_status::MOI.BasisStatusCode
+        row_status[info.row+1] = _INVERSE_BASIS_STATUS_MAP[status]
+    end
+    ret = Highs_setBasis(model, col_status, row_status)
+    _check_ret(ret)
+    return
 end
 
 ###
