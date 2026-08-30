@@ -2,8 +2,8 @@ name: CI
 on:
   push:
     branches: [master]
-  pull_request:
-    types: [opened, synchronize, reopened]
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
 # needed to allow julia-actions/cache to delete old caches that it has created
 permissions:
   actions: write

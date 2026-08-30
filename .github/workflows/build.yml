@@ -1,0 +1,55 @@
+name: Build on Linux, Run on Windows
+on:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: "1.12"
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - run: |
+          julia --color=yes -e 'using Pkg; Pkg.add("BinaryBuilder")'
+          julia --color=yes .github/julia/build_tarballs.jl i686-linux-gnu-cxx11 --verbose --deploy=local
+          file=/home/runner/.julia/dev/HiGHS_jll/Artifacts.toml
+          sha1=$(grep '^git-tree-sha1' "$file" | cut -d '"' -f2)
+          echo "ARTIFACT_SHA=${sha1}" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: '/home/runner/.julia/artifacts/${{ env.ARTIFACT_SHA }}'
+  run-linux:
+    runs-on: ubuntu-latest
+    needs: build-linux
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: "1"
+          arch: x86
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifacts
+          path: override
+      - shell: julia --color=yes --project=. {0}
+        run: |
+          import HiGHS_jll
+          artifact_dir = HiGHS_jll.artifact_dir
+          sha = last(splitpath(artifact_dir))
+          dir = escape_string(joinpath(ENV["GITHUB_WORKSPACE"], "override"))
+          content = "$sha = \"$(dir)\"\n"
+          write(replace(artifact_dir, sha => "Overrides.toml"), content)
+      - uses: julia-actions/julia-runtest@v1
+        # with:
+        #   test_args: '--parallel=false'
