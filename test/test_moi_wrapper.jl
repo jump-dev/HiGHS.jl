@@ -1473,6 +1473,16 @@ function test_set_basis_status_partial()
     return
 end
 
+function test_ergo_code_highs_2922()
+    src = MOI.FileFormats.MPS()
+    MOI.read_from_file(src, joinpath(@__DIR__, "ergo-code-highs-2922.mps"))
+    model = HiGHS.Optimizer()
+    MOI.copy_to(model, src)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
