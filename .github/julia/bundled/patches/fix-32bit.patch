@@ -1,0 +1,18 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 06741a5121..ca44a83b86 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -541,7 +541,12 @@ if (UNIX)
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-function-declaration")
+ endif()
+
+-
++if(CMAKE_SIZEOF_VOID_P EQUAL 4)
++  # 32-bit target. See:
++  # https://github.com/ERGO-Code/HiGHS/issues/769#issuecomment-2466938187
++  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffloat-store")
++  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffloat-store")
++endif()
+
+ # If Visual Studio targets are being built.
+ if(MSVC)

@@ -24,20 +24,13 @@ script = raw"""
 cd $WORKSPACE/srcdir/HiGHS
 
 atomic_patch -p1 ${WORKSPACE}/srcdir/patches/fix-cli11.patch
+atomic_patch -p1 ${WORKSPACE}/srcdir/patches/fix-32bit.patch
 
 # Remove system CMake to use the jll version
 apk del cmake
 
 rm -rf build
 mkdir build
-
-# Needed because of
-# https://github.com/ERGO-Code/HiGHS/issues/769#issuecomment-2466938187
-if [[ "${target}" == i686-linux-gnu ]]; then
-    FFLOAT="-ffloat-store"
-else
-    FFLOAT=""
-fi
 
 cmake -S . -B build \
     -DCMAKE_INSTALL_PREFIX=${prefix} \
@@ -46,8 +39,6 @@ cmake -S . -B build \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_TESTING=OFF \
     -DHIPO=ON \
-    -DCMAKE_C_FLAGS="${FFLOAT}" \
-    -DCMAKE_CXX_FLAGS="${FFLOAT}" \
     -DBUILD_SHARED_EXTRAS_LIB=OFF \
     -DBLA_VENDOR=libblastrampoline
 
@@ -63,12 +54,11 @@ fi
 cmake --install build
 
 install_license LICENSE.txt
+install_license THIRD_PARTY_NOTICES.md
 """
 
-products = [
-    LibraryProduct("libhighs", :libhighs),
-    ExecutableProduct("highs", :highs),
-]
+products =
+    [LibraryProduct("libhighs", :libhighs), ExecutableProduct("highs", :highs)]
 
 platforms = expand_cxxstring_abis(platforms)
 
@@ -76,7 +66,7 @@ dependencies = [
     Dependency("CompilerSupportLibraries_jll"),
     Dependency("Zlib_jll"),
     Dependency("libblastrampoline_jll"),
-    HostBuildDependency(PackageSpec(; name="CMake_jll")),
+    HostBuildDependency(PackageSpec(; name = "CMake_jll")),
 ]
 
 build_tarballs(
