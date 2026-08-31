@@ -8,10 +8,10 @@ index 06741a5121..ca44a83b86 100644
 
 -
 +if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-+  # 32-bit target. See:
-+  # https://github.com/ERGO-Code/HiGHS/issues/769#issuecomment-2466938187
-+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffloat-store")
-+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffloat-store")
++  # These flags are needed to work around a quirk of floating point comparisons
++  # on 32-bit. See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=323#c87
++  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fexcess-precision=standard")
++  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexcess-precision=standard")
 +endif()
 
  # If Visual Studio targets are being built.
