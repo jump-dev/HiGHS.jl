@@ -18,15 +18,11 @@ jobs:
         version: ['1.10', '1']
         os: [ubuntu-latest, macOS-latest, windows-latest]
         arch: [default]
-        # HiGHS segfaults on 32-bit.
-        # Upstream is https://github.com/ERGO-Code/HiGHS/issues/769
-        # but we decided investigating was a low priority until it
-        # impacts users.
-        # include:
-        #   # Also test against 32-bit Linux.
-        #   - version: '1'
-        #     os: ubuntu-latest
-        #     arch: x86
+        include:
+          # Also test against 32-bit Linux.
+          - version: '1'
+            os: ubuntu-latest
+            arch: x86
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
