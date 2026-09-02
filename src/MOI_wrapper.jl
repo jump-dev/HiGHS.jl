@@ -2301,9 +2301,7 @@ function MOI.optimize!(model::Optimizer)
         # https://github.com/JuliaLang/julia/issues/2622 --- set a null
         # callback.
         cb_types = [
-            # See Issue 291. The SimplexInterrupt callback in HiGHS@1.11 is very
-            # slow.
-            # kHighsCallbackSimplexInterrupt,
+            kHighsCallbackSimplexInterrupt,
             kHighsCallbackIpmInterrupt,
             kHighsCallbackMipInterrupt,
         ]
