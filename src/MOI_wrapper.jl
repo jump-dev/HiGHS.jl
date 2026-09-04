@@ -2273,7 +2273,7 @@ This function can be removed once upstream is fixed.
 """
 function _Highs_run_workaround_issue_316(model::Optimizer)
     ret = _gc_safe_Highs_run(model)
-    if Highs_getModelStatus(model) = kHighsModelStatusNotset
+    if Highs_getModelStatus(model) == kHighsModelStatusNotset
         Highs_clearSolver(model)
         return _gc_safe_Highs_run(model)
     end
