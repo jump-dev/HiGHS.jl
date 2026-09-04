@@ -2259,19 +2259,25 @@ end
 """
     _Highs_run_workaround_issue_316(model::Optimizer)
 
-This function works around a bug in HiGHS: https://github.com/ERGO-Code/HiGHS/issues/2759
-It can be removed once upstream is fixed.
+This function works around a bug in HiGHS:
+https://github.com/ERGO-Code/HiGHS/issues/1785
 
-The only downside to this function is that a user expecting `kHighsStatusError`
-ends up with a double solve. But if we can fix it the second time, then is that
-really a problem?
+It happens if there is a previous solve in memory, we started to solve this one,
+and we hit a previous basis. HiGHS terminates because it thinks we're cycling,
+even though it's the first time we've hit this new basis in the current model.
+
+We could be cleverer and try and get/set a basis, but it's easier just to clear
+and start again. This is a very rare issue.
+
+This function can be removed once upstream is fixed.
 """
 function _Highs_run_workaround_issue_316(model::Optimizer)
-    if (ret = _gc_safe_Highs_run(model)) != kHighsStatusError
-        return ret
+    ret = _gc_safe_Highs_run(model)
+    if Highs_getModelStatus(model) = kHighsModelStatusNotset
+        Highs_clearSolver(model)
+        return _gc_safe_Highs_run(model)
     end
-    Highs_clearSolver(model)
-    return _gc_safe_Highs_run(model)
+    return ret
 end
 
 function MOI.optimize!(model::Optimizer)
