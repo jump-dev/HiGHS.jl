@@ -1483,6 +1483,17 @@ function test_ergo_code_highs_2922()
     return
 end
 
+function test_constraint_conflict_status_error()
+    model = HiGHS.Optimizer()
+    x, c = MOI.add_constrained_variable(model, MOI.GreaterThan(0.0))
+    msg = "You must first call `MOI.compute_conflict!`"
+    @test_throws(
+        MOI.GetAttributeNotAllowed(MOI.ConstraintConflictStatus(), msg),
+        MOI.get(model, MOI.ConstraintConflictStatus(), c),
+    )
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
