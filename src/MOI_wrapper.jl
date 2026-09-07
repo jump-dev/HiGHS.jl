@@ -3491,6 +3491,10 @@ function MOI.get(
     attr::MOI.ConstraintConflictStatus,
     con::MOI.ConstraintIndex,
 )
+    if optimizer.conflict_solver === nothing
+        msg = "You must first call `MOI.compute_conflict!`"
+        throw(MOI.GetAttributeNotAllowed(attr, msg))
+    end
     return MOI.get(optimizer.conflict_solver, attr, con)
 end
 
