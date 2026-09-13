@@ -2443,7 +2443,7 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
         # Do nothing
     elseif model.solution.dual_solution_status == kHighsSolutionStatusNone
         # For MIPs, we cannot compute a dual objective value
-        return NaN
+        throw(MOI.GetAttributeNotAllowed(attr, "No dual solution is available"))
     else
         offset = Ref{Cdouble}()
         ret = Highs_getObjectiveOffset(model, offset)

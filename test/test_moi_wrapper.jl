@@ -855,7 +855,11 @@ function test_DualObjectiveValue_int()
     MOI.set(model, MOI.Silent(), true)
     x, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
     MOI.optimize!(model)
-    @test isnan(MOI.get(model, MOI.DualObjectiveValue()))
+    attr = MOI.DualObjectiveValue()
+    @test_throws(
+        MOI.GetAttributeNotAllowed(attr, "No dual solution is available"),
+        MOI.get(model, attr),
+    )
     return
 end
 
