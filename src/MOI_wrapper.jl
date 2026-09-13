@@ -2566,14 +2566,18 @@ function MOI.get(model::Optimizer, ::MOI.BarrierIterations)
     p = Ref{HighsInt}(0)
     ret = Highs_getIntInfoValue(model, "ipm_iteration_count", p)
     _check_ret(ret)
-    return Int64(p[])
+    # HiGHS returns -1 if no IPM iterations have taken place. That can be
+    # confusing for the user, so return zero instead.
+    return max(zero(Int64), Int64(p[]))
 end
 
 function MOI.get(model::Optimizer, ::MOI.NodeCount)
     p = Ref{Int64}(0)
     ret = Highs_getInt64InfoValue(model, "mip_node_count", p)
     _check_ret(ret)
-    return p[]
+    # HiGHS returns -1 if no nodes have been searched. That can be confusing for
+    # the user, so return zero instead.
+    return max(zero(Int64), p[])
 end
 
 function MOI.get(

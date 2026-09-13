@@ -184,6 +184,8 @@ function _knapsack_model(; mip::Bool, solver::String)
     x = MOI.add_variables(model, N)
     if mip
         MOI.add_constraints(model, x, MOI.ZeroOne())
+    else
+        MOI.add_constraints.(model, x, MOI.Interval(0.0, 1.0))
     end
     item_weights, item_values = rand(N), rand(N)
     MOI.add_constraint(
@@ -207,26 +209,33 @@ function test_RelativeGap()
     return
 end
 
-function test_SimplexIterations_BarrierIterations()
+function test_SimplexIterations_BarrierIterations_NodeCount()
     model = _knapsack_model(mip = false, solver = "simplex")
     @test MOI.get(model, MOI.SimplexIterations()) == 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
+    @test MOI.get(model, MOI.NodeCount()) == 0
     MOI.optimize!(model)
     @test MOI.get(model, MOI.SimplexIterations()) > 0
     @test MOI.get(model, MOI.BarrierIterations()) == 0
+    @test MOI.get(model, MOI.NodeCount()) == 0
     model = _knapsack_model(mip = false, solver = "ipm")
     MOI.optimize!(model)
     # Not == 0 because HiGHS will use Simplex to clean-up occasionally
     @test MOI.get(model, MOI.SimplexIterations()) >= 0
     @test MOI.get(model, MOI.BarrierIterations()) > 0
+    @test MOI.get(model, MOI.NodeCount()) == 0
     return
 end
 
 function test_NodeCount()
     model = _knapsack_model(mip = true, solver = "choose")
+    @test MOI.get(model, MOI.SimplexIterations()) == 0
+    @test MOI.get(model, MOI.BarrierIterations()) == 0
     @test MOI.get(model, MOI.NodeCount()) == 0
     MOI.optimize!(model)
     @test MOI.get(model, MOI.NodeCount()) >= 0
+    @test MOI.get(model, MOI.SimplexIterations()) >= 0
+    @test MOI.get(model, MOI.BarrierIterations()) == 0
     return
 end
 
