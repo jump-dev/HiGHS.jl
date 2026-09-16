@@ -2136,7 +2136,10 @@ function _store_solution(model::Optimizer, ret::HighsInt)
             # No basis is present in a QP.
             resize!(x.colstatus, numCols)
             resize!(x.rowstatus, numRows)
-            Highs_getBasis(model, x.colstatus, x.rowstatus)
+            if Highs_getBasis(model, x.colstatus, x.rowstatus) != kHighsStatusOk
+                empty!(x.colstatus)
+                empty!(x.rowstatus)
+            end
         end
     end
     if !MOI.get(model, ComputeInfeasibilityCertificate())
@@ -2633,37 +2636,41 @@ _signed_dual(dual::Float64, ::Type{MOI.LessThan{Float64}}) = min(dual, 0.0)
 _signed_dual(dual::Float64, ::Type{MOI.GreaterThan{Float64}}) = max(dual, 0.0)
 _signed_dual(dual::Float64, ::Any) = dual
 
-"""
-    _signed_dual(dual::Float64, ::Type{Set}, status::HighsInt)
-
-Determine whether the dual of an interval constraint applies to the lower or
-upper bound using the basis status reported by HiGHS.
-"""
-function _signed_dual(
-    dual::Float64,
-    ::Type{MOI.LessThan{Float64}},
-    status::HighsInt,
-)
-    return status == kHighsBasisStatusUpper ? dual : 0.0
-end
-
-function _signed_dual(
-    dual::Float64,
-    ::Type{MOI.GreaterThan{Float64}},
-    status::HighsInt,
-)
-    return status == kHighsBasisStatusLower ? dual : 0.0
-end
-
-function _signed_dual(dual::Float64, ::Type{<:MOI.LessThan}, ::Nothing)
-    return min(dual, 0.0)
-end
-
-function _signed_dual(dual::Float64, ::Type{<:MOI.GreaterThan}, ::Nothing)
-    return max(dual, 0.0)
-end
-
-_signed_dual(dual::Float64, ::Any, ::Any) = dual
+# HiGHS v1.15.1 and earlier does not warn or error via the API when the the
+# basis is not valid. Until this is fixed, we can't use the basis information to
+# determine which bound the dual applies to.
+#
+# """
+#     _signed_dual(dual::Float64, ::Type{Set}, status::HighsInt)
+#
+# Determine whether the dual of an interval constraint applies to the lower or
+# upper bound using the basis status reported by HiGHS.
+# """
+# function _signed_dual(
+#     dual::Float64,
+#     ::Type{MOI.LessThan{Float64}},
+#     status::HighsInt,
+# )
+#     return status == kHighsBasisStatusUpper ? dual : 0.0
+# end
+#
+# function _signed_dual(
+#     dual::Float64,
+#     ::Type{MOI.GreaterThan{Float64}},
+#     status::HighsInt,
+# )
+#     return status == kHighsBasisStatusLower ? dual : 0.0
+# end
+#
+# function _signed_dual(dual::Float64, ::Type{<:MOI.LessThan}, ::Nothing)
+#     return min(dual, 0.0)
+# end
+#
+# function _signed_dual(dual::Float64, ::Type{<:MOI.GreaterThan}, ::Nothing)
+#     return max(dual, 0.0)
+# end
+#
+# _signed_dual(dual::Float64, ::Any, ::Any) = dual
 
 function MOI.get(
     model::Optimizer,
@@ -2676,8 +2683,10 @@ function MOI.get(
         return _signed_dual(model.solution.coldual[col+1], S)
     end
     dual = _sense_corrector(model) * model.solution.coldual[col+1]
-    stat = get(model.solution.colstatus, col + 1, nothing)
-    return _signed_dual(dual, S, stat)
+    # See the note about _signed_dual above
+    # stat = get(model.solution.colstatus, col + 1, nothing)
+    # return _signed_dual(dual, S, stat)
+    return _signed_dual(dual, S)
 end
 
 function MOI.get(
@@ -2691,8 +2700,10 @@ function MOI.get(
     if model.solution.has_dual_ray[] == 1
         return _signed_dual(dual, S)
     end
-    stat = get(model.solution.rowstatus, r, nothing)
-    return _signed_dual(_sense_corrector(model) * dual, S, stat)
+    # See the note about _signed_dual above
+    # stat = get(model.solution.rowstatus, r, nothing)
+    # return _signed_dual(_sense_corrector(model) * dual, S, stat)
+    return _signed_dual(_sense_corrector(model) * dual, S)
 end
 
 ###
