@@ -33,6 +33,23 @@ function test_runtests_cache()
     return
 end
 
+function test_runtests_no_crossover()
+    model = MOI.Bridges.full_bridge_optimizer(
+        MOI.Utilities.CachingOptimizer(
+            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+            HiGHS.Optimizer(),
+        ),
+        Float64,
+    )
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("parallel"), "on")
+    MOI.set(model, MOI.RawOptimizerAttribute("run_crossover"), "off")
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    # Slightly loosen tolerances, particularly for QP tests
+    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
+    return
+end
+
 end  # TestRunTestsCache
 
 TestRunTestsCache.runtests()
