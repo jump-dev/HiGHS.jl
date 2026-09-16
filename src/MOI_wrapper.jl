@@ -2627,50 +2627,52 @@ function _sense_corrector(model::Optimizer)
 end
 
 """
-    _signed_dual(dual::Float64, ::Type{Set})
+    _signed_dual(dual::Float64, ::Type{S}, status::Union{Nothing,HighsInt})
 
-A heuristic for determining whether the dual of an interval constraint applies
-to the lower or upper bound. It can be wrong by at most the solver's tolerance.
+Convert ranged row and column duals from HiGHS into the one-sided duals for the
+MOI dual convention.
+
+If `status::HighsInt`, this chooses the active side of the constraint using the
+basis status reported by HiGHS.
+
+If no basis is available, it uses the sign of the dual to determine which side
+is active. It can be wrong by at most the solver's dual feasibility tolerance.
 """
-_signed_dual(dual::Float64, ::Type{MOI.LessThan{Float64}}) = min(dual, 0.0)
-_signed_dual(dual::Float64, ::Type{MOI.GreaterThan{Float64}}) = max(dual, 0.0)
-_signed_dual(dual::Float64, ::Any) = dual
+function _signed_dual(
+    dual::Float64,
+    ::Type{S},
+    ::Union{Nothing,HighsInt},
+) where {S<:Union{MOI.EqualTo{Float64},MOI.Interval{Float64}}}
+    return dual
+end
 
-# HiGHS v1.15.1 and earlier does not warn or error via the API when the the
-# basis is not valid. Until this is fixed, we can't use the basis information to
-# determine which bound the dual applies to.
-#
-# """
-#     _signed_dual(dual::Float64, ::Type{Set}, status::HighsInt)
-#
-# Determine whether the dual of an interval constraint applies to the lower or
-# upper bound using the basis status reported by HiGHS.
-# """
-# function _signed_dual(
-#     dual::Float64,
-#     ::Type{MOI.LessThan{Float64}},
-#     status::HighsInt,
-# )
-#     return status == kHighsBasisStatusUpper ? dual : 0.0
-# end
-#
-# function _signed_dual(
-#     dual::Float64,
-#     ::Type{MOI.GreaterThan{Float64}},
-#     status::HighsInt,
-# )
-#     return status == kHighsBasisStatusLower ? dual : 0.0
-# end
-#
-# function _signed_dual(dual::Float64, ::Type{<:MOI.LessThan}, ::Nothing)
-#     return min(dual, 0.0)
-# end
-#
-# function _signed_dual(dual::Float64, ::Type{<:MOI.GreaterThan}, ::Nothing)
-#     return max(dual, 0.0)
-# end
-#
-# _signed_dual(dual::Float64, ::Any, ::Any) = dual
+function _signed_dual(dual::Float64, ::Type{MOI.LessThan{Float64}}, ::Nothing)
+    return min(dual, 0.0)
+end
+
+function _signed_dual(
+    dual::Float64,
+    ::Type{MOI.LessThan{Float64}},
+    status::HighsInt,
+)
+    return status == kHighsBasisStatusUpper ? dual : 0.0
+end
+
+function _signed_dual(
+    dual::Float64,
+    ::Type{MOI.GreaterThan{Float64}},
+    ::Nothing,
+)
+    return max(dual, 0.0)
+end
+
+function _signed_dual(
+    dual::Float64,
+    ::Type{MOI.GreaterThan{Float64}},
+    status::HighsInt,
+)
+    return status == kHighsBasisStatusLower ? dual : 0.0
+end
 
 function MOI.get(
     model::Optimizer,
@@ -2680,13 +2682,11 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     col = column(model, c)
     if model.solution.has_dual_ray[] == 1
-        return _signed_dual(model.solution.coldual[col+1], S)
+        return _signed_dual(model.solution.coldual[col+1], S, nothing)
     end
     dual = _sense_corrector(model) * model.solution.coldual[col+1]
-    # See the note about _signed_dual above
-    # stat = get(model.solution.colstatus, col + 1, nothing)
-    # return _signed_dual(dual, S, stat)
-    return _signed_dual(dual, S)
+    stat = get(model.solution.colstatus, col + 1, nothing)
+    return _signed_dual(dual, S, stat)
 end
 
 function MOI.get(
@@ -2698,12 +2698,10 @@ function MOI.get(
     r = row(model, c) + 1
     dual = model.solution.rowdual[r]
     if model.solution.has_dual_ray[] == 1
-        return _signed_dual(dual, S)
+        return _signed_dual(dual, S, nothing)
     end
-    # See the note about _signed_dual above
-    # stat = get(model.solution.rowstatus, r, nothing)
-    # return _signed_dual(_sense_corrector(model) * dual, S, stat)
-    return _signed_dual(_sense_corrector(model) * dual, S)
+    stat = get(model.solution.rowstatus, r, nothing)
+    return _signed_dual(_sense_corrector(model) * dual, S, stat)
 end
 
 ###
