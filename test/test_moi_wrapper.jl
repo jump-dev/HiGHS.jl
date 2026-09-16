@@ -1507,6 +1507,23 @@ function test_constraint_conflict_status_error()
     return
 end
 
+function test_dual_no_basis_available()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("run_crossover"), "off")
+    MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 10)
+    MOI.add_constraint.(model, x, MOI.Interval(0.0, 1.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = -rand(10)' * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    c = MOI.add_constraint(model, rand(10)' * x, MOI.LessThan(1.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ConstraintDual(), c) < 0
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
