@@ -34,7 +34,12 @@ end
 
 import PrecompileTools
 
-PrecompileTools.@setup_workload begin
+# With non-incremental build (e.g. JuliaC), the JLL is not loaded yet so we cannot run the workload.
+# For JuliaC, we will compile down to an binary so we don't need precompilation anyway
+# so `if Base.JLOptions().incremental == 1` makes sure to disable it in that case.
+# See more details here:
+# https://docs.julialang.org/en/v1/manual/modules/#Module-initialization-and-precompilation
+PrecompileTools.@setup_workload if Base.JLOptions().incremental == 1
     PrecompileTools.@compile_workload begin
         let
             model = MOI.Utilities.CachingOptimizer(

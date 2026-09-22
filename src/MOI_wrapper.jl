@@ -454,6 +454,10 @@ function MOI.get(model::Optimizer, ::MOI.NumberOfConstraints{F,S}) where {F,S}
     return length(MOI.get(model, MOI.ListOfConstraintIndices{F,S}()))
 end
 
+function _push_affine_constraint_type!(constraints, ::S) where {S}
+    return push!(constraints, (MOI.ScalarAffineFunction{Float64}, S))
+end
+
 function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
     constraints = Set{Tuple{Type,Type}}()
     for info in values(model.variable_info)
@@ -482,10 +486,7 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
         end
     end
     for info in values(model.affine_constraint_info)
-        push!(
-            constraints,
-            (MOI.ScalarAffineFunction{Float64}, typeof(_set(info))),
-        )
+        _push_affine_constraint_type!(constraints, _set(info))
     end
     return collect(constraints)
 end

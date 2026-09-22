@@ -77,9 +77,51 @@ function test_HiGHS_custom_options()
     return
 end
 
+function test_ListOfConstraintTypesPresent_affine_sets()
+    model = HiGHS.Optimizer()
+    x = MOI.add_variable(model)
+    func = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+    sets = (
+        MOI.LessThan(1.0),
+        MOI.GreaterThan(-1.0),
+        MOI.EqualTo(0.0),
+        MOI.Interval(-1.0, 1.0),
+    )
+    for set in sets
+        MOI.add_constraint(model, func, set)
+        MOI.add_constraint(model, func, set)
+    end
+    types = MOI.get(model, MOI.ListOfConstraintTypesPresent())
+    @test types isa Vector{Tuple{Type,Type}}
+    @test length(types) == length(sets)
+    @test Set(types) ==
+          Set((MOI.ScalarAffineFunction{Float64}, typeof(set)) for set in sets)
+    return
+end
+
 function test_show()
     model = HiGHS.Optimizer()
     @test sprint(show, model) == "A HiGHS model with 0 columns and 0 rows."
+    return
+end
+
+function test_options_cache_native_values()
+    model = HiGHS.Optimizer()
+    options = (
+        ("output_flag", false, false),
+        ("simplex_strategy", big(1), HiGHS.HighsInt(1)),
+        ("time_limit", Float32(1.5), Cdouble(1.5)),
+        ("mip_rel_gap", big"0.01", Cdouble(0.01)),
+        ("presolve", "off", "off"),
+    )
+    for (name, value, expected) in options
+        MOI.set(model, MOI.RawOptimizerAttribute(name), value)
+        @test model.options[name] === expected
+    end
+    MOI.empty!(model)
+    for (name, _, expected) in options
+        @test MOI.get(model, MOI.RawOptimizerAttribute(name)) === expected
+    end
     return
 end
 
@@ -895,6 +937,41 @@ function test_continuous_objective_bound()
     dual = MOI.get(model, MOI.DualObjectiveValue())
     @test MOI.get(model, MOI.ObjectiveBound()) == dual
     @test 0 <= MOI.get(model, MOI.RelativeGap()) <= 1e-6
+    return
+end
+
+function test_default_callback()
+    data_in = Ref(HiGHS.HighsCallbackDataIn(Cint(1)))
+    GC.@preserve data_in begin
+        for callback_type in (
+            HiGHS.kHighsCallbackSimplexInterrupt,
+            HiGHS.kHighsCallbackIpmInterrupt,
+            HiGHS.kHighsCallbackMipInterrupt,
+        )
+            Base.disable_sigint() do
+                HiGHS._cfn_default_callback(
+                    callback_type,
+                    Ptr{Cchar}(C_NULL),
+                    Ptr{HiGHS.HighsCallbackDataOut}(C_NULL),
+                    Base.unsafe_convert(
+                        Ptr{HiGHS.HighsCallbackDataIn},
+                        data_in,
+                    ),
+                    C_NULL,
+                )
+            end
+            @test data_in[].user_interrupt == 0
+        end
+    end
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    MOI.add_constrained_variable(model, MOI.GreaterThan(1.0))
+    for _ in 1:2
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+        @test model.callback_data === nothing
+    end
     return
 end
 
