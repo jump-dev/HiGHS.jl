@@ -540,22 +540,22 @@ _highs_option_type(::String) = kHighsOptionTypeString
 _highs_option_type(::Any) = HighsInt(-1)
 
 function _set_option(model::Optimizer, option::String, value::Bool)
-    model.options[param.name] = HighsInt(value)
+    model.options[option] = HighsInt(value)
     return Highs_setBoolOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::Integer)
-    model.options[param.name] = HighsInt(value)
+    model.options[option] = HighsInt(value)
     return Highs_setIntOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::AbstractFloat)
-    model.options[param.name] = Cdouble(value)
+    model.options[option] = Cdouble(value)
     return Highs_setDoubleOptionValue(model, option, Cdouble(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::String)
-    model.options[param.name] = value
+    model.options[option] = value
     return Highs_setStringOptionValue(model, option, value)
 end
 
