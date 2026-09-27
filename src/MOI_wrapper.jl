@@ -253,6 +253,8 @@ function Base.unsafe_convert(::Type{Ptr{Cvoid}}, d::_CallbackData)
     return pointer_from_objref(d)
 end
 
+const _OptionTypes = Union{Bool,HighsInt,Cdouble,String}
+
 """
     Optimizer()
 
@@ -262,7 +264,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
 
-    options::Dict{String,Any}
+    options::Dict{String,_OptionTypes}
 
     # Storage for `MOI.Name`.
     name::String
@@ -307,7 +309,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     function Optimizer()
         model = new(
             C_NULL,
-            Dict{String,Any}(),
+            Dict{String,_OptionTypes}(),
             "",
             true,
             false,
@@ -537,33 +539,43 @@ _highs_option_type(::AbstractFloat) = kHighsOptionTypeDouble
 _highs_option_type(::String) = kHighsOptionTypeString
 _highs_option_type(::Any) = HighsInt(-1)
 
-function _type_for_highs_option(k)
-    if k == kHighsOptionTypeBool
-        return Bool
-    elseif k == kHighsOptionTypeInt
-        return Integer
-    elseif k == kHighsOptionTypeDouble
-        return AbstractFloat
-    else
-        @assert k == 3
-        return String
-    end
-end
-
 function _set_option(model::Optimizer, option::String, value::Bool)
+    model.options[param.name] = HighsInt(value)
     return Highs_setBoolOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::Integer)
+    model.options[param.name] = HighsInt(value)
     return Highs_setIntOptionValue(model, option, HighsInt(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::AbstractFloat)
+    model.options[param.name] = Cdouble(value)
     return Highs_setDoubleOptionValue(model, option, Cdouble(value))
 end
 
 function _set_option(model::Optimizer, option::String, value::String)
+    model.options[param.name] = value
     return Highs_setStringOptionValue(model, option, value)
+end
+
+function _invalid_name_msg(name::String, value::T, type::HighsInt) where {T}
+    expected_type = if type == kHighsOptionTypeBool
+        return "Bool"
+    elseif type == kHighsOptionTypeInt
+        return "Int"
+    elseif type == kHighsOptionTypeDouble
+        return "Cdouble"
+    else
+        @assert type == 3
+        return "String"
+    end
+    value_type = sprint(show, T)
+    return """
+    Invalid value `$value::$value_type` for option \"$name\".
+
+    Expected a value of type `$expected_type`.
+    """
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
@@ -572,16 +584,9 @@ function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
     if ret != 0
         throw(MOI.UnsupportedAttribute(param))
     elseif typeP[] != _highs_option_type(value)
-        throw(
-            MOI.SetAttributeNotAllowed(
-                param,
-                "\n\nInvalid value `$(value)::$(typeof(value))` for option " *
-                "\"$(param.name)\", expected a value of type " *
-                "`$(_type_for_highs_option(typeP[]))`.\n\n",
-            ),
-        )
+        msg = _invalid_name_msg(param.name, value, typeP[])
+        throw(MOI.SetAttributeNotAllowed(param, msg))
     end
-    model.options[param.name] = value
     ret = _set_option(model, param.name, value)
     return _check_option_status(ret)
 end

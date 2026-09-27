@@ -313,15 +313,6 @@ function test_delete_vector()
     return
 end
 
-function test_option_type()
-    for x in ["1", 1.0, 1, true]
-        k = HiGHS._highs_option_type(x)
-        T = HiGHS._type_for_highs_option(k)
-        @test x isa T
-    end
-    return
-end
-
 function test_quadratic_sets_objective()
     model = HiGHS.Optimizer()
     MOI.Utilities.loadfromstring!(
