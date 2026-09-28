@@ -2326,12 +2326,7 @@ function MOI.optimize!(model::Optimizer)
         # Julia introduces an interruptible ccall --- which it likely won't
         # https://github.com/JuliaLang/julia/issues/2622 --- set a null
         # callback.
-        cb_types = [
-            kHighsCallbackSimplexInterrupt,
-            kHighsCallbackIpmInterrupt,
-            kHighsCallbackMipInterrupt,
-        ]
-        MOI.set(model, CallbackFunction(cb_types), (args...) -> Cint(0))
+        _set_default_callback(model)
     end
     # We disable sigint here so that it can be called only when we are in a
     # try-catch of our CallbackFunction.
@@ -3418,6 +3413,59 @@ function HighsCallbackDataIn(terminate)
     return HighsCallbackDataIn(terminate, C_NULL, C_NULL, 0, zero(HighsInt))
 end
 
+# Keep the built-in interrupt handler independent of the type-erased user
+# callback, so solving a model without callbacks can be compiled ahead of time.
+function _cfn_default_callback(
+    ::Cint,
+    ::Ptr{Cchar},
+    ::Ptr{HighsCallbackDataOut},
+    p_data_in::Ptr{HighsCallbackDataIn},
+    ::Ptr{Cvoid},
+)
+    _terminate(Returns(Cint(0)), p_data_in)
+    return
+end
+
+function _set_default_callback(model::Optimizer)
+    callback_cfn = @cfunction(
+        _cfn_default_callback,
+        Cvoid,
+        (
+            Cint,
+            Ptr{Cchar},
+            Ptr{HighsCallbackDataOut},
+            Ptr{HighsCallbackDataIn},
+            Ptr{Cvoid},
+        ),
+    )
+    ret = Highs_setCallback(model, callback_cfn, C_NULL)
+    _check_ret(ret)
+    ret = Highs_startCallback(model, kHighsCallbackSimplexInterrupt)
+    _check_ret(ret)
+    ret = Highs_startCallback(model, kHighsCallbackIpmInterrupt)
+    _check_ret(ret)
+    ret = Highs_startCallback(model, kHighsCallbackMipInterrupt)
+    _check_ret(ret)
+    return
+end
+
+function _terminate(fn::F, p_data_in::Ptr{HighsCallbackDataIn}) where {F}
+    @assert p_data_in !== C_NULL
+    try
+        reenable_sigint() do
+            terminate = fn()
+            unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
+            return
+        end
+    catch err
+        unsafe_store!(p_data_in, HighsCallbackDataIn(Cint(1)))
+        if !(err isa InterruptException)
+            rethrow(err)
+        end
+    end
+    return
+end
+
 function _cfn_user_callback(
     callback_type::Cint,
     message::Ptr{Cchar},
@@ -3425,6 +3473,9 @@ function _cfn_user_callback(
     p_data_in::Ptr{HighsCallbackDataIn},
     p_user_data::Ptr{Cvoid},
 )
+    @assert p_data_out !== C_NULL
+    @assert p_data_in !== C_NULL
+    @assert p_user_data !== C_NULL
     user_data = unsafe_pointer_to_objref(p_user_data)::_CallbackData
     data_out = unsafe_load(p_data_out)::HighsCallbackDataOut
     if callback_type in (
@@ -3432,21 +3483,10 @@ function _cfn_user_callback(
         kHighsCallbackIpmInterrupt,
         kHighsCallbackMipInterrupt,
     )
-        @assert p_data_in !== C_NULL
-        try
-            reenable_sigint() do
-                terminate = user_data.f(callback_type, message, data_out)
-                unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
-                return
-            end
-        catch err
-            unsafe_store!(p_data_in, HighsCallbackDataIn(Cint(1)))
-            if !(err isa InterruptException)
-                rethrow(err)
-            end
+        _terminate(p_data_in) do
+            return user_data.f(callback_type, message, data_out)
         end
     else
-        # Ignore what the user says about terminating
         _ = user_data.f(callback_type, message, data_out)
     end
     return
