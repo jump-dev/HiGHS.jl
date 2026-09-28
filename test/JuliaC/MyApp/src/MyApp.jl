@@ -8,6 +8,11 @@ module MyApp
 import HiGHS
 import MathOptInterface as MOI
 
+# We should fix this upstream in MathOptInterface.jl
+function Base.show(io::IO, x::MOI.VariableIndex)
+    return print(io, "MOI.VariableIndex(", x.value, ")")
+end
+
 function @main(args::Vector{String})::Cint
     capacity = 10.0
     profit = [5.0, 3.0, 2.0, 7.0, 4.0]

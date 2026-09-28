@@ -1531,6 +1531,11 @@ function test_dual_no_basis_available()
     return
 end
 
+function test_show_ConstraintKey()
+    @test sprint(show, HiGHS._ConstraintKey(1)) == "HiGHS._ConstraintKey(1)"
+    return
+end
+
 end  # TestMOIHighs
 
 TestMOIHighs.runtests()
