@@ -533,49 +533,63 @@ function _check_option_status(ret::HighsInt)
     return
 end
 
-_highs_option_type(::Bool) = kHighsOptionTypeBool
-_highs_option_type(::Integer) = kHighsOptionTypeInt
-_highs_option_type(::AbstractFloat) = kHighsOptionTypeDouble
-_highs_option_type(::String) = kHighsOptionTypeString
-_highs_option_type(::Any) = HighsInt(-1)
-
-function _set_option(model::Optimizer, option::String, value::Bool)
-    model.options[option] = value
-    return Highs_setBoolOptionValue(model, option, HighsInt(value))
+function _set_option(model::Optimizer, ::Type{Bool}, name::String, value::Bool)
+    model.options[name] = value
+    ret = Highs_setBoolOptionValue(model, name, HighsInt(value))
+    _check_option_status(ret)
+    return
 end
 
-function _set_option(model::Optimizer, option::String, value::Integer)
-    model.options[option] = HighsInt(value)
-    return Highs_setIntOptionValue(model, option, HighsInt(value))
+function _set_option(
+    model::Optimizer,
+    ::Type{HighsInt},
+    name::String,
+    value::Integer,
+)
+    model.options[name] = HighsInt(value)
+    ret = Highs_setIntOptionValue(model, name, HighsInt(value))
+    _check_option_status(ret)
+    return
 end
 
-function _set_option(model::Optimizer, option::String, value::AbstractFloat)
-    model.options[option] = Cdouble(value)
-    return Highs_setDoubleOptionValue(model, option, Cdouble(value))
+function _set_option(
+    model::Optimizer,
+    ::Type{Cdouble},
+    name::String,
+    value::Real,
+)
+    model.options[name] = Cdouble(value)
+    ret = Highs_setDoubleOptionValue(model, name, Cdouble(value))
+    _check_option_status(ret)
+    return
 end
 
-function _set_option(model::Optimizer, option::String, value::String)
-    model.options[option] = value
-    return Highs_setStringOptionValue(model, option, value)
+function _set_option(
+    model::Optimizer,
+    ::Type{String},
+    name::String,
+    value::String,
+)
+    model.options[name] = value
+    ret = Highs_setStringOptionValue(model, name, value)
+    _check_option_status(ret)
+    return
 end
 
-function _invalid_name_msg(name::String, value::T, type::HighsInt) where {T}
-    expected_type = if type == kHighsOptionTypeBool
-        "Bool"
-    elseif type == kHighsOptionTypeInt
-        "Int"
-    elseif type == kHighsOptionTypeDouble
-        "Cdouble"
-    else
-        @assert type == 3
-        "String"
-    end
-    value_type = sprint(show, T)
-    return """
+function _set_option(
+    ::Optimizer,
+    ::Type{T},
+    name::String,
+    value::Any,
+) where {T}
+    value_type = sprint(show, typeof(value))
+    msg = """
     Invalid value `$value::$value_type` for option \"$name\".
 
-    Expected a value of type `$expected_type`.
+    Expected a value of type `$T`.
     """
+    param = MOI.RawOptimizerAttribute(name)
+    return throw(MOI.SetAttributeNotAllowed(param, msg))
 end
 
 function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
@@ -583,38 +597,43 @@ function MOI.set(model::Optimizer, param::MOI.RawOptimizerAttribute, value)
     ret = Highs_getOptionType(model, param.name, typeP)
     if ret != 0
         throw(MOI.UnsupportedAttribute(param))
-    elseif typeP[] != _highs_option_type(value)
-        msg = _invalid_name_msg(param.name, value, typeP[])
-        throw(MOI.SetAttributeNotAllowed(param, msg))
+    elseif typeP[] == kHighsOptionTypeBool
+        _set_option(model, Bool, param.name, value)
+    elseif typeP[] == kHighsOptionTypeInt
+        _set_option(model, HighsInt, param.name, value)
+    elseif typeP[] == kHighsOptionTypeDouble
+        _set_option(model, Cdouble, param.name, value)
+    else
+        @assert typeP[] == kHighsOptionTypeString
+        _set_option(model, String, param.name, value)
     end
-    ret = _set_option(model, param.name, value)
-    return _check_option_status(ret)
+    return
 end
 
 ### MOI.get
 
-function _get_bool_option(model::Optimizer, option::String)
+function _get_option(model::Optimizer, ::Type{Bool}, option::String)
     value = Ref{HighsInt}(0)
     ret = Highs_getBoolOptionValue(model, option, value)
     _check_option_status(ret)
     return Bool(value[])
 end
 
-function _get_int_option(model::Optimizer, option::String)
+function _get_option(model::Optimizer, ::Type{HighsInt}, option::String)
     value = Ref{HighsInt}(0)
     ret = Highs_getIntOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
 end
 
-function _get_double_option(model::Optimizer, option::String)
+function _get_option(model::Optimizer, ::Type{Cdouble}, option::String)
     value = Ref{Cdouble}()
     ret = Highs_getDoubleOptionValue(model, option, value)
     _check_option_status(ret)
     return value[]
 end
 
-function _get_string_option(model::Optimizer, option::String)
+function _get_option(model::Optimizer, ::Type{String}, option::String)
     buffer = Vector{Cchar}(undef, kHighsMaximumStringLength)
     bufferP = pointer(buffer)
     GC.@preserve buffer begin
@@ -629,15 +648,15 @@ function MOI.get(model::Optimizer, param::MOI.RawOptimizerAttribute)
     ret = Highs_getOptionType(model, param.name, typeP)
     if ret != 0
         throw(MOI.UnsupportedAttribute(param))
-    elseif typeP[] == 0
-        return _get_bool_option(model, param.name)::Bool
-    elseif typeP[] == 1
-        return _get_int_option(model, param.name)::HighsInt
-    elseif typeP[] == 2
-        return _get_double_option(model, param.name)::Cdouble
+    elseif typeP[] == kHighsOptionTypeBool
+        return _get_option(model, Bool, param.name)::Bool
+    elseif typeP[] == kHighsOptionTypeInt
+        return _get_option(model, HighsInt, param.name)::HighsInt
+    elseif typeP[] == kHighsOptionTypeDouble
+        return _get_option(model, Cdouble, param.name)::Cdouble
     else
-        @assert typeP[] == 3
-        return _get_string_option(model, param.name)::String
+        @assert typeP[] == kHighsOptionTypeString
+        return _get_option(model, String, param.name)::String
     end
 end
 

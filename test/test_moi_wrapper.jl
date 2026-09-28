@@ -116,27 +116,43 @@ function test_option_unknown_option()
     param = MOI.RawOptimizerAttribute("write_solution_to_file")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"write_solution_to_file\", expected a value of type `Bool`.\n\n",
+        """
+        Invalid value `1::$Int` for option \"write_solution_to_file\".
+
+        Expected a value of type `Bool`.
+        """,
     )
     @test_throws(err, MOI.set(model, param, 1))
     param = MOI.RawOptimizerAttribute("simplex_strategy")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `on::String` for option \"simplex_strategy\", expected a value of type `Integer`.\n\n",
+        """
+        Invalid value `on::String` for option \"simplex_strategy\".
+
+        Expected a value of type `$(HiGHS.HighsInt)`.
+        """,
     )
     @test_throws(err, MOI.set(model, param, "on"))
     param = MOI.RawOptimizerAttribute("time_limit")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"time_limit\", expected a value of type `AbstractFloat`.\n\n",
+        """
+        Invalid value `1::String` for option \"time_limit\".
+
+        Expected a value of type `Float64`.
+        """,
     )
-    @test_throws err MOI.set(model, param, 1)
+    @test_throws err MOI.set(model, param, "1")
     param = MOI.RawOptimizerAttribute("presolve")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"presolve\", expected a value of type `String`.\n\n",
+        """
+        Invalid value `false::Bool` for option \"presolve\".
+
+        Expected a value of type `String`.
+        """,
     )
-    @test_throws err MOI.set(model, param, 1)
+    @test_throws err MOI.set(model, param, false)
     return
 end
 
