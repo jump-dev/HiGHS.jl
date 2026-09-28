@@ -116,27 +116,43 @@ function test_option_unknown_option()
     param = MOI.RawOptimizerAttribute("write_solution_to_file")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"write_solution_to_file\", expected a value of type `Bool`.\n\n",
+        """
+        Invalid value `1::$Int` for option \"write_solution_to_file\".
+
+        Expected a value of type `Bool`.
+        """,
     )
     @test_throws(err, MOI.set(model, param, 1))
     param = MOI.RawOptimizerAttribute("simplex_strategy")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `on::String` for option \"simplex_strategy\", expected a value of type `Integer`.\n\n",
+        """
+        Invalid value `on::String` for option \"simplex_strategy\".
+
+        Expected a value of type `$(HiGHS.HighsInt)`.
+        """,
     )
     @test_throws(err, MOI.set(model, param, "on"))
     param = MOI.RawOptimizerAttribute("time_limit")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"time_limit\", expected a value of type `AbstractFloat`.\n\n",
+        """
+        Invalid value `1::String` for option \"time_limit\".
+
+        Expected a value of type `Float64`.
+        """,
     )
-    @test_throws err MOI.set(model, param, 1)
+    @test_throws err MOI.set(model, param, "1")
     param = MOI.RawOptimizerAttribute("presolve")
     err = MOI.SetAttributeNotAllowed(
         param,
-        "\n\nInvalid value `1::$Int` for option \"presolve\", expected a value of type `String`.\n\n",
+        """
+        Invalid value `false::Bool` for option \"presolve\".
+
+        Expected a value of type `String`.
+        """,
     )
-    @test_throws err MOI.set(model, param, 1)
+    @test_throws err MOI.set(model, param, false)
     return
 end
 
@@ -310,15 +326,6 @@ function test_delete_vector()
     MOI.set.(model, MOI.ConstraintSet(), c[1:2:5], MOI.GreaterThan(1.0))
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) ≈ 1 + 3 + 5
-    return
-end
-
-function test_option_type()
-    for x in ["1", 1.0, 1, true]
-        k = HiGHS._highs_option_type(x)
-        T = HiGHS._type_for_highs_option(k)
-        @test x isa T
-    end
     return
 end
 
