@@ -57,4 +57,4 @@ jobs:
         run: |
           using Pkg
           Pkg.instantiate()
-          include("test/JuliaC/runtests.jl")
+      - run: julia --color=yes --project=test/JuliaC test/JuliaC/runtests.jl
