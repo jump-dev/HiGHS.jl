@@ -253,8 +253,6 @@ function Base.unsafe_convert(::Type{Ptr{Cvoid}}, d::_CallbackData)
     return pointer_from_objref(d)
 end
 
-const _OptionTypes = Union{Bool,HighsInt,Cdouble,String}
-
 """
     Optimizer()
 
@@ -264,7 +262,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # A pointer to the underlying HiGHS optimizer.
     inner::Ptr{Cvoid}
 
-    options::Dict{String,_OptionTypes}
+    options::Dict{String,Union{Bool,HighsInt,Cdouble,String}}
 
     # Storage for `MOI.Name`.
     name::String
@@ -309,7 +307,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     function Optimizer()
         model = new(
             C_NULL,
-            Dict{String,_OptionTypes}(),
+            Dict{String,Union{Bool,HighsInt,Cdouble,String}}(),
             "",
             true,
             false,
