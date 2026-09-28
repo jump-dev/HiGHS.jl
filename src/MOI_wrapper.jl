@@ -576,12 +576,7 @@ function _set_option(
     return
 end
 
-function _set_option(
-    ::Optimizer,
-    ::Type{T},
-    name::String,
-    value::Any,
-) where {T}
+function _set_option(::Optimizer, ::Type{T}, name::String, value::Any) where {T}
     value_type = sprint(show, typeof(value))
     msg = """
     Invalid value `$value::$value_type` for option \"$name\".
