@@ -163,6 +163,14 @@ struct _ConstraintKey
     value::Int64
 end
 
+# This method is needed for JuliaC. From the stacktrace, it's something to do
+# with an error printed OrderedCollections when the key is wrong. We might try
+# removing this in a future version. It might be fixed in JuliaC or in
+# OrderedCollections.
+function Base.show(io::IO, x::_ConstraintKey)
+    return print(io, "HiGHS._ConstraintKey(", x.value, ")")
+end
+
 function _constraint_info_dict()
     return CleverDicts.CleverDict{_ConstraintKey,_ConstraintInfo}(
         c -> c.value,
