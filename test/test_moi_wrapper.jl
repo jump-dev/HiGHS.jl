@@ -1101,6 +1101,346 @@ function test_callback_error()
     return
 end
 
+function _heuristic_callback_knapsack_model()
+    model = HiGHS.Optimizer()
+    # Keep the log, but don't print it. We use it to check that HiGHS added the
+    # user solution, which it marks with an `X`.
+    MOI.set(model, MOI.RawOptimizerAttribute("log_to_console"), false)
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    x = MOI.add_variables(model, 5)
+    MOI.add_constraint.(model, x, MOI.ZeroOne())
+    weight = [2.0, 8.0, 4.0, 2.0, 5.0]
+    MOI.add_constraint(model, weight' * x, MOI.LessThan(10.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = [5.0, 3.0, 2.0, 7.0, 4.0]' * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    log = String[]
+    cb = HiGHS.CallbackFunction([HiGHS.kHighsCallbackLogging])
+    MOI.set(
+        model,
+        cb,
+        (_, message, _) -> (push!(log, unsafe_string(message)); Cint(0)),
+    )
+    return model, x, log
+end
+
+# A model that HiGHS does not solve before the first check for an interrupt
+# after the heuristic callback.
+function _heuristic_callback_large_knapsack_model()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    N = 30
+    weight = [mod(37 * i, 101) + 10.0 for i in 1:N]
+    profit = weight .+ [mod(17 * i, 13) for i in 1:N]
+    x = MOI.add_variables(model, N)
+    MOI.add_constraint.(model, x, MOI.ZeroOne())
+    MOI.add_constraint(model, weight' * x, MOI.LessThan(sum(weight) / 2 + 0.5))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = profit' * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    return model
+end
+
+function _user_solution_objectives(log::Vector{String})
+    lines = filter(line -> startswith(line, " X "), log)
+    return [parse(Float64, split(line)[7]) for line in lines]
+end
+
+function test_HeuristicCallback_get_set()
+    model = HiGHS.Optimizer()
+    @test MOI.supports(model, MOI.HeuristicCallback())
+    @test MOI.get(model, MOI.HeuristicCallback()) === nothing
+    f = cb_data -> nothing
+    MOI.set(model, MOI.HeuristicCallback(), f)
+    @test MOI.get(model, MOI.HeuristicCallback()) === f
+    @test !MOI.is_empty(model)
+    MOI.set(model, MOI.HeuristicCallback(), nothing)
+    @test MOI.get(model, MOI.HeuristicCallback()) === nothing
+    @test MOI.is_empty(model)
+    MOI.set(model, MOI.HeuristicCallback(), f)
+    MOI.empty!(model)
+    @test MOI.get(model, MOI.HeuristicCallback()) === nothing
+    @test MOI.is_empty(model)
+    return
+end
+
+function test_HeuristicCallback_complete_solution()
+    model, x, log = _heuristic_callback_knapsack_model()
+    status = MOI.HeuristicSolutionStatus[]
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            @test MOI.supports(model, MOI.HeuristicSolution(cb_data))
+            sub = MOI.HeuristicSolution(cb_data)
+            push!(status, MOI.submit(model, sub, x, [1.0, 0.0, 0.0, 0.0, 0.0]))
+        end,
+    )
+    MOI.optimize!(model)
+    @test !isempty(status)
+    @test all(==(MOI.HEURISTIC_SOLUTION_UNKNOWN), status)
+    @test _user_solution_objectives(log) == [5.0]
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ObjectiveValue()) ≈ 16.0
+    return
+end
+
+function test_HeuristicCallback_complete_solution_infeasible()
+    model, x, log = _heuristic_callback_knapsack_model()
+    status = MOI.HeuristicSolutionStatus[]
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            sub = MOI.HeuristicSolution(cb_data)
+            push!(status, MOI.submit(model, sub, x, ones(5)))
+        end,
+    )
+    MOI.optimize!(model)
+    @test !isempty(status)
+    # HiGHS checks the feasibility of a complete solution after the callback
+    @test all(==(MOI.HEURISTIC_SOLUTION_UNKNOWN), status)
+    @test isempty(_user_solution_objectives(log))
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ObjectiveValue()) ≈ 16.0
+    return
+end
+
+function test_HeuristicCallback_partial_solution()
+    model, x, log = _heuristic_callback_knapsack_model()
+    status = MOI.HeuristicSolutionStatus[]
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            sub = MOI.HeuristicSolution(cb_data)
+            push!(status, MOI.submit(model, sub, x[[2, 1]], [1.0, 0.0]))
+        end,
+    )
+    MOI.optimize!(model)
+    @test !isempty(status)
+    @test all(==(MOI.HEURISTIC_SOLUTION_UNKNOWN), status)
+    # The best completion of x[1] = 0, x[2] = 1 is x[4] = 1
+    @test _user_solution_objectives(log) == [10.0]
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.ObjectiveValue()) ≈ 16.0
+    return
+end
+
+function test_HeuristicCallback_partial_solution_rejected()
+    # x[2] + x[5] exceeds the capacity, and x[1] is not integer
+    for (index, value) in ([2, 5] => [1.0, 1.0], [1] => [0.5])
+        model, x, log = _heuristic_callback_knapsack_model()
+        status = MOI.HeuristicSolutionStatus[]
+        MOI.set(
+            model,
+            MOI.HeuristicCallback(),
+            cb_data -> begin
+                sub = MOI.HeuristicSolution(cb_data)
+                push!(status, MOI.submit(model, sub, x[index], value))
+            end,
+        )
+        MOI.optimize!(model)
+        @test !isempty(status)
+        @test all(==(MOI.HEURISTIC_SOLUTION_REJECTED), status)
+        @test isempty(_user_solution_objectives(log))
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+        @test MOI.get(model, MOI.ObjectiveValue()) ≈ 16.0
+    end
+    return
+end
+
+function test_HeuristicCallback_last_submission_is_used()
+    model, x, log = _heuristic_callback_knapsack_model()
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            sub = MOI.HeuristicSolution(cb_data)
+            MOI.submit(model, sub, x, [1.0, 0.0, 0.0, 0.0, 0.0])
+            MOI.submit(model, sub, x, [0.0, 0.0, 0.0, 1.0, 0.0])
+        end,
+    )
+    MOI.optimize!(model)
+    @test _user_solution_objectives(log) == [7.0]
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
+function test_HeuristicCallback_bridged()
+    model = MOI.instantiate(HiGHS.Optimizer; with_cache_type = Float64)
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), "off")
+    # Add a variable that isn't in HiGHS's first column to test the mapping
+    _ = MOI.add_variable(model)
+    x, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
+    y, _ = MOI.add_constrained_variable(model, MOI.ZeroOne())
+    MOI.add_constraint(model, 1.0 * x + 1.0 * y, MOI.LessThan(1.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x + 2.0 * y
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    status = MOI.HeuristicSolutionStatus[]
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            sub = MOI.HeuristicSolution(cb_data)
+            push!(status, MOI.submit(model, sub, [y], [1.0]))
+        end,
+    )
+    MOI.optimize!(model)
+    @test !isempty(status)
+    @test all(==(MOI.HEURISTIC_SOLUTION_UNKNOWN), status)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.VariablePrimal(), [x, y]) ≈ [0.0, 1.0]
+    return
+end
+
+function test_HeuristicCallback_submit_outside_callback()
+    model, x, _ = _heuristic_callback_knapsack_model()
+    cb_data = nothing
+    MOI.set(model, MOI.HeuristicCallback(), data -> (cb_data = data))
+    MOI.optimize!(model)
+    @test cb_data isa HiGHS._CallbackData
+    sub = MOI.HeuristicSolution(cb_data)
+    @test_throws(
+        ErrorException(
+            "`MOI.HeuristicSolution` can be submitted only from inside a " *
+            "`MOI.HeuristicCallback`.",
+        ),
+        MOI.submit(model, sub, x, zeros(5)),
+    )
+    return
+end
+
+function test_HeuristicCallback_submit_errors()
+    model, x, _ = _heuristic_callback_knapsack_model()
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            sub = MOI.HeuristicSolution(cb_data)
+            @test_throws DimensionMismatch MOI.submit(model, sub, x, zeros(4))
+            y = MOI.VariableIndex(-1)
+            @test_throws MOI.InvalidIndex(y) MOI.submit(model, sub, [y], [0.0])
+            @test_throws(
+                MOI.GetAttributeNotAllowed,
+                MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x[1]),
+            )
+        end,
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
+function test_HeuristicCallback_error()
+    model = _heuristic_callback_large_knapsack_model()
+    calls = Ref(0)
+    MOI.set(model, MOI.HeuristicCallback(), cb_data -> begin
+        calls[] += 1
+        error("ABC")
+    end)
+    @test_throws ErrorException("ABC") MOI.optimize!(model)
+    # The callback is not called again after an error
+    @test calls[] == 1
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
+    # The error is not rethrown on the next solve
+    MOI.set(model, MOI.HeuristicCallback(), cb_data -> nothing)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
+function test_HeuristicCallback_interrupt()
+    model = _heuristic_callback_large_knapsack_model()
+    calls = Ref(0)
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            calls[] += 1
+            throw(InterruptException())
+        end,
+    )
+    MOI.optimize!(model)
+    @test calls[] == 1
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
+    return
+end
+
+function test_HeuristicCallback_and_CallbackFunction()
+    model, x, log = _heuristic_callback_knapsack_model()
+    calls = Ref(0)
+    f = cb_data -> (calls[] += 1)
+    MOI.set(model, MOI.HeuristicCallback(), f)
+    # Unsetting CallbackFunction keeps the heuristic callback
+    MOI.set(model, HiGHS.CallbackFunction(), nothing)
+    @test MOI.get(model, MOI.HeuristicCallback()) === f
+    MOI.optimize!(model)
+    @test calls[] > 0
+    @test isempty(log)
+    # Setting CallbackFunction keeps the heuristic callback
+    cb = HiGHS.CallbackFunction([HiGHS.kHighsCallbackLogging])
+    MOI.set(
+        model,
+        cb,
+        (_, message, _) -> (push!(log, unsafe_string(message)); Cint(0)),
+    )
+    @test MOI.get(model, MOI.HeuristicCallback()) === f
+    calls[] = 0
+    MOI.optimize!(model)
+    @test calls[] > 0
+    @test !isempty(log)
+    # Unsetting the heuristic callback keeps CallbackFunction
+    MOI.set(model, MOI.HeuristicCallback(), nothing)
+    @test MOI.get(model, MOI.HeuristicCallback()) === nothing
+    calls[] = 0
+    empty!(log)
+    MOI.optimize!(model)
+    @test calls[] == 0
+    @test !isempty(log)
+    return
+end
+
+function test_HeuristicCallback_and_interrupt_CallbackFunction()
+    model = _heuristic_callback_large_knapsack_model()
+    callback_types = Any[]
+    cb = HiGHS.CallbackFunction([HiGHS.kHighsCallbackMipInterrupt])
+    MOI.set(model, cb, (t, _, _) -> (push!(callback_types, t); Cint(0)))
+    MOI.set(
+        model,
+        MOI.HeuristicCallback(),
+        cb_data -> begin
+            push!(callback_types, :heuristic)
+            error("ABC")
+        end,
+    )
+    @test_throws ErrorException("ABC") MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
+    @test HiGHS.kHighsCallbackMipInterrupt in callback_types
+    # Neither callback is called after the error
+    @test count(==(:heuristic), callback_types) == 1
+    @test callback_types[end] == :heuristic
+    return
+end
+
+function test_HeuristicCallback_lp()
+    model = HiGHS.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.LessThan(1.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    f = 1.0 * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    calls = Ref(0)
+    MOI.set(model, MOI.HeuristicCallback(), cb_data -> (calls[] += 1))
+    MOI.optimize!(model)
+    @test calls[] == 0
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
+end
+
 function test_row_type()
     @test HiGHS._row_type(MOI.GreaterThan(0.0)) == HiGHS._ROW_TYPE_GREATERTHAN
     @test HiGHS._row_type(MOI.LessThan(0.0)) == HiGHS._ROW_TYPE_LESSTHAN

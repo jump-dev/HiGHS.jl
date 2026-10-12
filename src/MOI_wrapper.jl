@@ -254,7 +254,19 @@ end
 Base.isempty(x::_Solution) = x.status == _OPTIMIZE_NOT_CALLED
 
 mutable struct _CallbackData
-    f::Function
+    # The function set by `CallbackFunction`, and the callback types for which
+    # it is called.
+    f::Union{Nothing,Function}
+    callback_types::Vector{Cint}
+    # The function set by `MOI.HeuristicCallback`.
+    heuristic_callback::Union{Nothing,Function}
+    # A pointer to the `HighsCallbackDataIn` of the current call to
+    # `heuristic_callback`. It is `C_NULL` outside of `heuristic_callback`.
+    p_data_in::Ptr{HighsCallbackDataIn}
+    # An exception thrown by `heuristic_callback`. We store the exception and
+    # terminate at the next interrupt callback, instead of throwing through
+    # HiGHS. The exception is rethrown after the solve.
+    exception::Any
 end
 
 function Base.unsafe_convert(::Type{Ptr{Cvoid}}, d::_CallbackData)
@@ -2325,7 +2337,11 @@ function MOI.optimize!(model::Optimizer)
         ret = Highs_zeroAllClocks(model)
         _check_ret(ret)
     end
-    has_default_callback = model.callback_data === nothing
+    callback_data = model.callback_data
+    has_default_callback = callback_data === nothing
+    if callback_data !== nothing
+        callback_data.exception = nothing
+    end
     if has_default_callback
         # From the docstring of disable_sigint, "External functions that do not
         # call julia code or julia runtime automatically disable sigint during
@@ -2340,9 +2356,16 @@ function MOI.optimize!(model::Optimizer)
     # try-catch of our CallbackFunction.
     ret = disable_sigint(() -> _Highs_run_workaround_issue_316(model))
     if has_default_callback
-        MOI.set(model, CallbackFunction(), nothing)
+        _unset_default_callback(model)
     end
     _store_solution(model, ret)
+    if callback_data !== nothing
+        err = callback_data.exception
+        callback_data.exception = nothing
+        if err !== nothing && !(err isa InterruptException)
+            throw(err)
+        end
+    end
     # TODO(odow): resetting the bounds here invalidates previously stored
     #             solutions.
     # for info in model.binaries
@@ -3217,6 +3240,7 @@ function _check_input_data(dest::Optimizer, src::MOI.ModelLike)
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
             MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{Float64}}(),
             MOI.ObjectiveSense(),
+            MOI.HeuristicCallback(),
         )
             continue
         else
@@ -3348,6 +3372,11 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
             MOI.set(dest, start_attr, mapping[x], start)
         end
     end
+    # HeuristicCallback
+    heuristic_attr = MOI.HeuristicCallback()
+    if heuristic_attr in MOI.get(src, MOI.ListOfModelAttributesSet())
+        MOI.set(dest, heuristic_attr, MOI.get(src, heuristic_attr))
+    end
     return mapping
 end
 
@@ -3434,6 +3463,12 @@ function _cfn_default_callback(
     return
 end
 
+const _INTERRUPT_CALLBACK_TYPES = (
+    kHighsCallbackSimplexInterrupt,
+    kHighsCallbackIpmInterrupt,
+    kHighsCallbackMipInterrupt,
+)
+
 function _set_default_callback(model::Optimizer)
     callback_cfn = @cfunction(
         _cfn_default_callback,
@@ -3448,12 +3483,20 @@ function _set_default_callback(model::Optimizer)
     )
     ret = Highs_setCallback(model, callback_cfn, C_NULL)
     _check_ret(ret)
-    ret = Highs_startCallback(model, kHighsCallbackSimplexInterrupt)
+    for callback_type in _INTERRUPT_CALLBACK_TYPES
+        ret = Highs_startCallback(model, callback_type)
+        _check_ret(ret)
+    end
+    return
+end
+
+function _unset_default_callback(model::Optimizer)
+    ret = Highs_setCallback(model, C_NULL, C_NULL)
     _check_ret(ret)
-    ret = Highs_startCallback(model, kHighsCallbackIpmInterrupt)
-    _check_ret(ret)
-    ret = Highs_startCallback(model, kHighsCallbackMipInterrupt)
-    _check_ret(ret)
+    for callback_type in _INTERRUPT_CALLBACK_TYPES
+        ret = Highs_stopCallback(model, callback_type)
+        _check_ret(ret)
+    end
     return
 end
 
@@ -3474,6 +3517,30 @@ function _terminate(fn::F, p_data_in::Ptr{HighsCallbackDataIn}) where {F}
     return
 end
 
+function _call_heuristic_callback(
+    user_data::_CallbackData,
+    p_data_in::Ptr{HighsCallbackDataIn},
+)
+    heuristic_callback = user_data.heuristic_callback
+    if heuristic_callback === nothing || user_data.exception !== nothing
+        # If a previous call threw an exception, skip the callback until HiGHS
+        # terminates at the next interrupt callback.
+        return
+    end
+    user_data.p_data_in = p_data_in
+    try
+        reenable_sigint() do
+            heuristic_callback(user_data)
+            return
+        end
+    catch err
+        user_data.exception = err
+    finally
+        user_data.p_data_in = C_NULL
+    end
+    return
+end
+
 function _cfn_user_callback(
     callback_type::Cint,
     message::Ptr{Cchar},
@@ -3485,22 +3552,44 @@ function _cfn_user_callback(
     @assert p_data_in !== C_NULL
     @assert p_user_data !== C_NULL
     user_data = unsafe_pointer_to_objref(p_user_data)::_CallbackData
-    data_out = unsafe_load(p_data_out)::HighsCallbackDataOut
-    if callback_type in (
-        kHighsCallbackSimplexInterrupt,
-        kHighsCallbackIpmInterrupt,
-        kHighsCallbackMipInterrupt,
-    )
-        _terminate(p_data_in) do
-            return user_data.f(callback_type, message, data_out)
+    if callback_type == kHighsCallbackCallbackMipUserSolution
+        _call_heuristic_callback(user_data, p_data_in)
+    end
+    f = user_data.f
+    is_interrupt = callback_type in _INTERRUPT_CALLBACK_TYPES
+    if f !== nothing && callback_type in user_data.callback_types
+        data_out = unsafe_load(p_data_out)::HighsCallbackDataOut
+        if is_interrupt
+            _terminate(p_data_in) do
+                if user_data.exception !== nothing
+                    return Cint(1)
+                end
+                return f(callback_type, message, data_out)
+            end
+        else
+            _ = f(callback_type, message, data_out)
         end
-    else
-        _ = user_data.f(callback_type, message, data_out)
+    elseif is_interrupt
+        _terminate(p_data_in) do
+            return Cint(user_data.exception !== nothing)
+        end
     end
     return
 end
 
-function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
+function _set_callback(
+    model::Optimizer,
+    f::Union{Nothing,Function},
+    callback_types::Vector{Cint},
+    heuristic_callback::Union{Nothing,Function},
+)
+    if f === nothing && heuristic_callback === nothing
+        model.callback_data = nothing
+        # This also stops all callback types
+        ret = Highs_setCallback(model, C_NULL, C_NULL)
+        _check_ret(ret)
+        return
+    end
     callback_cfn = @cfunction(
         _cfn_user_callback,
         Cvoid,
@@ -3512,25 +3601,155 @@ function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
             Ptr{Cvoid},
         ),
     )
-    model.callback_data = _CallbackData(f)
+    if f === nothing
+        callback_types = Cint[]
+    end
+    model.callback_data =
+        _CallbackData(f, callback_types, heuristic_callback, C_NULL, nothing)
+    # This also stops all callback types
     ret = Highs_setCallback(model, callback_cfn, model.callback_data)
     _check_ret(ret)
-    for callback_type in attr.callback_types
+    start_types = copy(callback_types)
+    if heuristic_callback !== nothing
+        # We start the interrupt callbacks so that we can terminate if the
+        # heuristic callback throws an error.
+        append!(start_types, _INTERRUPT_CALLBACK_TYPES)
+        push!(start_types, kHighsCallbackCallbackMipUserSolution)
+    end
+    for callback_type in unique!(start_types)
         ret = Highs_startCallback(model, callback_type)
         _check_ret(ret)
     end
     return
 end
 
-function MOI.set(model::Optimizer, attr::CallbackFunction, ::Nothing)
-    model.callback_data = nothing
-    ret = Highs_setCallback(model, C_NULL, C_NULL)
-    _check_ret(ret)
-    for callback_type in attr.callback_types
-        ret = Highs_stopCallback(model, callback_type)
-        _check_ret(ret)
+function MOI.set(model::Optimizer, attr::CallbackFunction, f::Function)
+    heuristic_callback = MOI.get(model, MOI.HeuristicCallback())
+    _set_callback(model, f, copy(attr.callback_types), heuristic_callback)
+    return
+end
+
+function MOI.set(model::Optimizer, ::CallbackFunction, ::Nothing)
+    heuristic_callback = MOI.get(model, MOI.HeuristicCallback())
+    _set_callback(model, nothing, Cint[], heuristic_callback)
+    return
+end
+
+MOI.supports(::Optimizer, ::MOI.HeuristicCallback) = true
+
+function MOI.get(model::Optimizer, ::MOI.HeuristicCallback)
+    data = model.callback_data
+    if data === nothing
+        return nothing
+    end
+    return data.heuristic_callback
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.HeuristicCallback,
+    f::Union{Nothing,Function},
+)
+    data = model.callback_data
+    if data === nothing
+        _set_callback(model, nothing, Cint[], f)
+    else
+        _set_callback(model, data.f, data.callback_types, f)
     end
     return
+end
+
+MOI.supports(::Optimizer, ::MOI.HeuristicSolution{_CallbackData}) = true
+
+function _set_user_has_solution(
+    p_data_in::Ptr{HighsCallbackDataIn},
+    has_solution::Bool,
+)
+    # The C API copies `user_has_solution` from this struct back into HiGHS
+    # when the callback returns, so we must set it ourselves.
+    data_in = unsafe_load(p_data_in)
+    new_data_in = HighsCallbackDataIn(
+        data_in.user_interrupt,
+        data_in.user_solution,
+        data_in.cbdata,
+        Cint(has_solution),
+        data_in.user_solution_size,
+    )
+    unsafe_store!(p_data_in, new_data_in)
+    return
+end
+
+"""
+    MOI.submit(
+        model::Optimizer,
+        sub::MOI.HeuristicSolution,
+        variables::Vector{MOI.VariableIndex},
+        values::Vector{Float64},
+    )
+
+Submit a heuristic solution from inside a `MOI.HeuristicCallback`.
+
+If `variables` contains every variable in `model`, the solution is passed to
+HiGHS as-is. If it contains a subset of the variables, HiGHS attempts to
+complete the partial solution by fixing the given variables and solving a
+sub-MIP. This sub-MIP may be expensive to solve.
+
+Only the most recent solution submitted in each call to the heuristic callback
+is used by HiGHS.
+
+Returns `MOI.HEURISTIC_SOLUTION_REJECTED` if HiGHS could not use the solution,
+for example, because a partial solution could not be completed, and
+`MOI.HEURISTIC_SOLUTION_UNKNOWN` otherwise. HiGHS checks the feasibility of the
+solution after the callback returns.
+"""
+function MOI.submit(
+    model::Optimizer,
+    sub::MOI.HeuristicSolution{_CallbackData},
+    variables::Vector{MOI.VariableIndex},
+    values::Vector{Float64},
+)
+    p_data_in = sub.callback_data.p_data_in
+    if p_data_in == C_NULL || sub.callback_data !== model.callback_data
+        error(
+            "`MOI.HeuristicSolution` can be submitted only from inside a " *
+            "`MOI.HeuristicCallback`.",
+        )
+    elseif length(variables) != length(values)
+        throw(
+            DimensionMismatch(
+                "number of variables ($(length(variables))) does not match " *
+                "the number of values ($(length(values)))",
+            ),
+        )
+    end
+    # Columns without a value are `kHighsUndefined`, which is `Inf`.
+    solution = fill(Inf, Highs_getNumCols(model))
+    for (x, value) in zip(variables, values)
+        solution[column(model, x)+1] = value
+    end
+    ret = Highs_setCallbackSolution(p_data_in, length(solution), solution)
+    if ret == kHighsStatusError
+        _set_user_has_solution(p_data_in, false)
+        return MOI.HEURISTIC_SOLUTION_REJECTED
+    end
+    if any(isinf, solution)
+        ret = Highs_repairCallbackSolution(p_data_in)
+        if ret == kHighsStatusError
+            _set_user_has_solution(p_data_in, false)
+            return MOI.HEURISTIC_SOLUTION_REJECTED
+        end
+    end
+    _set_user_has_solution(p_data_in, true)
+    return MOI.HEURISTIC_SOLUTION_UNKNOWN
+end
+
+function MOI.get(
+    ::Optimizer,
+    attr::MOI.CallbackVariablePrimal{_CallbackData},
+    ::MOI.VariableIndex,
+)
+    msg = "HiGHS does not provide primal values in a `MOI.HeuristicCallback`"
+    return throw(MOI.GetAttributeNotAllowed(attr, msg))
 end
 
 function MOI.write_to_file(model::Optimizer, filename::String)
