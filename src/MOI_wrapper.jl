@@ -3459,14 +3459,16 @@ end
 
 function _terminate(fn::F, p_data_in::Ptr{HighsCallbackDataIn}) where {F}
     @assert p_data_in !== C_NULL
+    # .user_interrupt is the first field. There is no offset.
+    p_user_interrupt = convert(Ptr{Cint}, p_data_in)
     try
         reenable_sigint() do
-            terminate = fn()
-            unsafe_store!(p_data_in, HighsCallbackDataIn(terminate))
+            terminate = convert(Cint, fn())
+            unsafe_store!(p_user_interrupt, terminate)
             return
         end
     catch err
-        unsafe_store!(p_data_in, HighsCallbackDataIn(Cint(1)))
+        unsafe_store!(p_user_interrupt, Cint(1))
         if !(err isa InterruptException)
             rethrow(err)
         end
