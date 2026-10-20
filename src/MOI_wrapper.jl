@@ -582,14 +582,14 @@ function _set_option(
     return
 end
 
-# Capture the type in the closure instead of erasing it in sprint's varargs.
-function _type_name(::Type{T}) where {T}
-    return sprint(io -> show(io, T))
-end
-
-function _set_option(::Optimizer, ::Type{T}, name::String, value::Any) where {T}
-    value_type = _type_name(typeof(value))
-    expected_type = _type_name(T)
+function _set_option(
+    ::Optimizer,
+    ::Type{T},
+    name::String,
+    value::V,
+) where {T,V}
+    value_type = sprint(io -> show(io, V))
+    expected_type = sprint(io -> show(io, T))
     msg = """
     Invalid value `$value::$value_type` for option \"$name\".
 
