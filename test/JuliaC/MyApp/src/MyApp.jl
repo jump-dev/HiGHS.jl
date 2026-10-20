@@ -18,6 +18,17 @@ function @main(args::Vector{String})::Cint
     profit = [5.0, 3.0, 2.0, 7.0, 4.0]
     weight = [2.0, 8.0, 4.0, 2.0, 5.0]
     model = HiGHS.Optimizer()
+    silent = "--silent" in args
+    MOI.set(model, MOI.Silent(), silent)
+    @assert MOI.get(model, MOI.Silent()) == silent
+    param = MOI.RawOptimizerAttribute("presolve")
+    try
+        MOI.set(model, param, length(args))
+        error("Expected SetAttributeNotAllowed")
+    catch err
+        @assert err isa MOI.SetAttributeNotAllowed{MOI.RawOptimizerAttribute}
+        @assert occursin("Expected a value of type `String`.", err.message)
+    end
     x = MOI.add_variables(model, 5)
     MOI.add_constraint.(model, x, MOI.ZeroOne())
     MOI.add_constraint(model, weight' * x, MOI.LessThan(capacity))

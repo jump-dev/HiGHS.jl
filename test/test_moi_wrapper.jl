@@ -156,6 +156,13 @@ function test_option_unknown_option()
     return
 end
 
+function test_type_name()
+    for T in (Bool, HiGHS.HighsInt, Float64, String, Vector{Float32}, Nothing)
+        @test (@inferred HiGHS._type_name(T)) == sprint(show, T)
+    end
+    return
+end
+
 function test_copy_to()
     src = MOI.Utilities.Model{Float64}()
     MOI.Utilities.loadfromstring!(
