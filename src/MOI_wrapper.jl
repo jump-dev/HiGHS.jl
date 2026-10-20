@@ -582,12 +582,7 @@ function _set_option(
     return
 end
 
-function _set_option(
-    ::Optimizer,
-    ::Type{T},
-    name::String,
-    value::V,
-) where {T,V}
+function _set_option(::Optimizer, ::Type{T}, name::String, value::V) where {T,V}
     value_type = sprint(io -> show(io, V))
     expected_type = sprint(io -> show(io, T))
     msg = """
