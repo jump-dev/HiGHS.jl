@@ -585,12 +585,13 @@ function _set_option(
     return
 end
 
-function _set_option(::Optimizer, ::Type{T}, name::String, value::Any) where {T}
-    value_type = sprint(show, typeof(value))
+function _set_option(::Optimizer, ::Type{T}, name::String, value::V) where {T,V}
+    value_type = sprint(io -> show(io, V))
+    expected_type = sprint(io -> show(io, T))
     msg = """
     Invalid value `$value::$value_type` for option \"$name\".
 
-    Expected a value of type `$T`.
+    Expected a value of type `$expected_type`.
     """
     param = MOI.RawOptimizerAttribute(name)
     return throw(MOI.SetAttributeNotAllowed(param, msg))

@@ -33,4 +33,6 @@ end
     output = sprint(io -> run(pipeline(`$app`; stdout = io)))
     @test occursin("HiGHS", output)
     @test occursin("Optimal", output)
+    output = sprint(io -> run(pipeline(`$app --silent`; stdout = io)))
+    @test isempty(output)
 end
