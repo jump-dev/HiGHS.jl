@@ -21,6 +21,10 @@ function @main(args::Vector{String})::Cint
     x = MOI.add_variables(model, 5)
     MOI.add_constraint.(model, x, MOI.ZeroOne())
     MOI.add_constraint(model, weight' * x, MOI.LessThan(capacity))
+    types = MOI.get(model, MOI.ListOfConstraintTypesPresent())
+    @assert length(types) == 2
+    @assert (MOI.VariableIndex, MOI.ZeroOne) in types
+    @assert (MOI.ScalarAffineFunction{Float64}, MOI.LessThan{Float64}) in types
     MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     f = profit' * x
     MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
