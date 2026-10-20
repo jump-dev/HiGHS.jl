@@ -464,7 +464,8 @@ end
 
 # Keep the set type concrete before inserting into the type-erased collection.
 function _push_affine_constraint_type!(constraints, ::S) where {S}
-    return push!(constraints, (MOI.ScalarAffineFunction{Float64}, S))
+    push!(constraints, (MOI.ScalarAffineFunction{Float64}, S))
+    return
 end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
