@@ -77,6 +77,36 @@ function test_HiGHS_custom_options()
     return
 end
 
+function test_ListOfConstraintTypesPresent_affine_sets()
+    model = HiGHS.Optimizer()
+    @test isempty(MOI.get(model, MOI.ListOfConstraintTypesPresent()))
+    x = MOI.add_variable(model)
+    func = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+    sets = (
+        MOI.LessThan(1.0),
+        MOI.GreaterThan(-1.0),
+        MOI.EqualTo(0.0),
+        MOI.Interval(-1.0, 1.0),
+    )
+    for set in sets
+        MOI.add_constraint(model, func, set)
+        MOI.add_constraint(model, func, set)
+    end
+    types = MOI.get(model, MOI.ListOfConstraintTypesPresent())
+    @test types isa Vector{Tuple{Type,Type}}
+    @test length(types) == length(sets)
+    expected =
+        Set((MOI.ScalarAffineFunction{Float64}, typeof(set)) for set in sets)
+    @test Set(types) == expected
+    bound = MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    push!(expected, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
+    @test Set(MOI.get(model, MOI.ListOfConstraintTypesPresent())) == expected
+    MOI.delete(model, bound)
+    MOI.empty!(model)
+    @test isempty(MOI.get(model, MOI.ListOfConstraintTypesPresent()))
+    return
+end
+
 function test_show()
     model = HiGHS.Optimizer()
     @test sprint(show, model) == "A HiGHS model with 0 columns and 0 rows."
