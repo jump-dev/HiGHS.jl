@@ -1640,7 +1640,8 @@ function MOI.add_constraints(
     end
     # Ordered variable blocks need no auxiliary set to detect duplicates.
     # Reject duplicates before either the native model or metadata changes.
-    if !issorted(columns; lt = <=)
+    ordered = issorted(columns; lt = <=)
+    if !ordered
         sorted = sort(columns)
         for i in 2:n
             if sorted[i-1] == sorted[i]
@@ -1652,7 +1653,13 @@ function MOI.add_constraints(
             end
         end
     end
-    ret = Highs_changeColsBoundsBySet(model, n, columns, lower, upper)
+    # The set API sorts column indices internally, even when already ordered.
+    # Use the range API when the selected columns are contiguous.
+    ret = if ordered && columns[end] - columns[1] == n - 1
+        Highs_changeColsBoundsByRange(model, columns[1], columns[end], lower, upper)
+    else
+        Highs_changeColsBoundsBySet(model, n, columns, lower, upper)
+    end
     _check_ret(ret)
     for i in 1:n
         _update_info(_info(model, variables[i]), sets[i])

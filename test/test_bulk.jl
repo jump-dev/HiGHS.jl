@@ -147,6 +147,52 @@ function test_add_bounds()
     return
 end
 
+function test_bound_column_ranges()
+    for S in SETS,
+        deleted in (false, true),
+        order in ([2, 3, 4], [2, 4, 6], [4, 2, 3], [3])
+
+        model = optimizer()
+        variables = MOI.add_variables(model, 7)
+        if deleted
+            MOI.delete(model, variables[3])
+            deleteat!(variables, 3)
+        end
+        n = length(variables)
+        lower, upper = fill(-Inf, n), fill(Inf, n)
+        if S == MOI.GreaterThan{Float64}
+            MOI.add_constraints(model, variables, fill(MOI.LessThan(100.0), n))
+            fill!(upper, 100.0)
+        elseif S == MOI.LessThan{Float64}
+            MOI.add_constraints(
+                model,
+                variables,
+                fill(MOI.GreaterThan(-100.0), n),
+            )
+            fill!(lower, -100.0)
+        end
+        sets = [set(S, i) for i in eachindex(order)]
+        indices = MOI.add_constraints(model, variables[order], sets)
+        @test all(MOI.is_valid.(model, indices))
+        @test MOI.get(model, MOI.ConstraintSet(), indices) == sets
+        for (column, bound) in zip(order, sets)
+            if S != MOI.LessThan{Float64}
+                lower[column] =
+                    S == MOI.EqualTo{Float64} ? bound.value : bound.lower
+            end
+            if S != MOI.GreaterThan{Float64}
+                upper[column] =
+                    S == MOI.EqualTo{Float64} ? bound.value : bound.upper
+            end
+        end
+        cost, actual_lower, actual_upper = native_columns(model)
+        @test cost == zeros(n)
+        @test actual_lower == lower
+        @test actual_upper == upper
+    end
+    return
+end
+
 function test_bounds_reject_without_partial_updates()
     for S in SETS
         model = optimizer()
