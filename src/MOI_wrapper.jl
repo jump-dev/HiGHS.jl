@@ -876,7 +876,9 @@ function MOI.add_variable(model::Optimizer)
 end
 
 function MOI.add_variables(model::Optimizer, n::Int)
-    n >= 0 || throw(ArgumentError("number of variables must be nonnegative"))
+    if n < 0
+        throw(ArgumentError("number of variables must be nonnegative"))
+    end
     indices = Vector{MOI.VariableIndex}(undef, n)
     if n == 0
         return indices
