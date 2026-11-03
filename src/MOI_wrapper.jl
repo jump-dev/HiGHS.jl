@@ -875,6 +875,36 @@ function MOI.add_variable(model::Optimizer)
     return index
 end
 
+function MOI.add_variables(model::Optimizer, n::Int)
+    if n < 0
+        throw(ArgumentError("number of variables must be nonnegative"))
+    end
+    indices = Vector{MOI.VariableIndex}(undef, n)
+    if n == 0
+        return indices
+    end
+    first_column = length(model.variable_info)
+    ret = Highs_addCols(
+        model,
+        n,
+        zeros(Cdouble, n),
+        fill(-Inf, n),
+        fill(Inf, n),
+        0,
+        C_NULL,
+        C_NULL,
+        C_NULL,
+    )
+    _check_ret(ret)
+    for i in 1:n
+        info =
+            _VariableInfo(MOI.VariableIndex(0), HighsInt(first_column + i - 1))
+        indices[i] = CleverDicts.add_item(model.variable_info, info)
+        info.index = indices[i]
+    end
+    return indices
+end
+
 function MOI.supports_add_constrained_variable(
     ::Optimizer,
     ::Type{
@@ -1572,6 +1602,73 @@ function MOI.add_constraint(
     return index
 end
 
+function MOI.add_constraints(
+    model::Optimizer,
+    variables::Vector{MOI.VariableIndex},
+    sets::Vector{S},
+) where {S<:_SCALAR_SETS}
+    n = length(variables)
+    n == length(sets) || throw(
+        DimensionMismatch("number of variables does not match number of sets"),
+    )
+    # Mixed set types retain the scalar fallback's concrete index types and
+    # permit adding opposite bounds on the same variable in one call.
+    if !isconcretetype(S)
+        return [
+            MOI.add_constraint(model, variable, set) for
+            (variable, set) in zip(variables, sets)
+        ]
+    end
+    indices = Vector{MOI.ConstraintIndex{MOI.VariableIndex,S}}(undef, n)
+    if n == 0
+        return indices
+    end
+    columns = Vector{HighsInt}(undef, n)
+    lower, upper = Vector{Cdouble}(undef, n), Vector{Cdouble}(undef, n)
+    for i in 1:n
+        info = _info(model, variables[i])
+        if S != MOI.LessThan{Float64}
+            _throw_if_existing_lower(info, sets[i])
+        end
+        if S != MOI.GreaterThan{Float64}
+            _throw_if_existing_upper(info, sets[i])
+        end
+        l, u = _bounds(sets[i])
+        columns[i] = info.column
+        lower[i] = S == MOI.LessThan{Float64} ? info.lower : l
+        upper[i] = S == MOI.GreaterThan{Float64} ? info.upper : u
+        indices[i] =
+            MOI.ConstraintIndex{MOI.VariableIndex,S}(variables[i].value)
+    end
+    # Ordered variable blocks need no auxiliary set to detect duplicates.
+    # Reject duplicates before either the native model or metadata changes.
+    ordered = issorted(columns; lt = <=)
+    if !ordered
+        sorted = sort(columns)
+        for i in 2:n
+            if sorted[i-1] == sorted[i]
+                variable = variables[findfirst(==(sorted[i]), columns)]
+                if S == MOI.LessThan{Float64}
+                    throw(MOI.UpperBoundAlreadySet{S,S}(variable))
+                end
+                throw(MOI.LowerBoundAlreadySet{S,S}(variable))
+            end
+        end
+    end
+    # The set API sorts column indices internally, even when already ordered.
+    # Use the range API when the selected columns are contiguous.
+    ret = if ordered && columns[end] - columns[1] == n - 1
+        Highs_changeColsBoundsByRange(model, columns[1], columns[end], lower, upper)
+    else
+        Highs_changeColsBoundsBySet(model, n, columns, lower, upper)
+    end
+    _check_ret(ret)
+    for i in 1:n
+        _update_info(_info(model, variables[i]), sets[i])
+    end
+    return indices
+end
+
 function MOI.delete(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
@@ -1841,6 +1938,68 @@ function MOI.add_constraint(
     )
     _check_ret(ret)
     return MOI.ConstraintIndex{typeof(f),typeof(s)}(key.value)
+end
+
+function MOI.add_constraints(
+    model::Optimizer,
+    functions::Vector{MOI.ScalarAffineFunction{Float64}},
+    sets::Vector{S},
+) where {S<:_SCALAR_SETS}
+    n = length(functions)
+    n == length(sets) || throw(
+        DimensionMismatch("number of functions does not match number of sets"),
+    )
+    if !isconcretetype(S)
+        return [
+            MOI.add_constraint(model, f, s) for (f, s) in zip(functions, sets)
+        ]
+    end
+    F = MOI.ScalarAffineFunction{Float64}
+    constraints = Vector{MOI.ConstraintIndex{F,S}}(undef, n)
+    if n == 0
+        return constraints
+    end
+    canonical = map(functions) do f
+        if !iszero(f.constant)
+            throw(MOI.ScalarFunctionConstantNotZero{Float64,F,S}(f.constant))
+        end
+        return MOI.Utilities.is_canonical(f) ? f : MOI.Utilities.canonical(f)
+    end
+    nnz = sum(f -> length(f.terms), canonical)
+    starts = Vector{HighsInt}(undef, n + 1)
+    columns = Vector{HighsInt}(undef, nnz)
+    coefficients = Vector{Cdouble}(undef, nnz)
+    lower, upper = Vector{Cdouble}(undef, n), Vector{Cdouble}(undef, n)
+    position = 1
+    for i in 1:n
+        starts[i] = position - 1
+        lower[i], upper[i] = _bounds(sets[i])
+        for term in canonical[i].terms
+            columns[position] = column(model, term.variable)
+            coefficients[position] = term.coefficient
+            position += 1
+        end
+    end
+    starts[end] = position - 1
+    ret = Highs_addRows(
+        model,
+        n,
+        lower,
+        upper,
+        nnz,
+        starts,
+        columns,
+        coefficients,
+    )
+    _check_ret(ret)
+    first_row = length(model.affine_constraint_info)
+    for i in 1:n
+        info = _ConstraintInfo(sets[i])
+        info.row = HighsInt(first_row + i - 1)
+        key = CleverDicts.add_item(model.affine_constraint_info, info)
+        constraints[i] = MOI.ConstraintIndex{F,S}(key.value)
+    end
+    return constraints
 end
 
 function MOI.delete(
