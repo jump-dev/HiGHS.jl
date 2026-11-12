@@ -42,11 +42,14 @@ function test_runtests_no_crossover()
         Float64,
     )
     MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("parallel"), "on")
     MOI.set(model, MOI.RawOptimizerAttribute("run_crossover"), "off")
     MOI.set(model, MOI.RawOptimizerAttribute("solver"), "ipm")
     # Slightly loosen tolerances, particularly for QP tests
-    MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
+    config = MOI.Test.Config(;
+        atol = 1e-7,
+        exclude = [MOI.ConstraintBasisStatus, MOI.VariableBasisStatus],
+    )
+    MOI.Test.runtests(model, config)
     return
 end
 
