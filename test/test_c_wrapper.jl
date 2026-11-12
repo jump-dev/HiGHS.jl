@@ -8,6 +8,8 @@ module TestCHighs
 using HiGHS
 using Test
 
+import HiGHS_jll
+
 function runtests()
     is_test(name) = startswith("$name", "test_")
     @testset "$name" for name in filter(is_test, names(@__MODULE__; all = true))
@@ -90,14 +92,9 @@ function test_create()
 end
 
 function test_libblastrampoline()
-    function run()
-        highs = Highs_create()
-        Highs_addCol(highs, 1.0, 0.0, 1.0, 0, C_NULL, C_NULL)
-        return Highs_destroy(highs)
+    contents = sprint() do io
+        return run(pipeline(`$(HiGHS_jll.highs()) --help`; stdout = io))
     end
-    filename = joinpath(mktempdir(), "log.txt")
-    open(io -> redirect_stdout(run, io), filename, "w")
-    contents = read(filename, String)
     @test occursin("Using BLAS: libblastrampoline", contents)
     return
 end
