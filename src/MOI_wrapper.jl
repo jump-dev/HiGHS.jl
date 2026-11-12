@@ -393,8 +393,6 @@ function MOI.empty!(model::Optimizer)
     model.name_to_variable = nothing
     model.name_to_constraint_index = nothing
     empty!(model.solution)
-    ret = Highs_changeObjectiveOffset(model, 0.0)
-    _check_ret(ret)
     model.callback_data = nothing
     model.conflict_solver = nothing
     return
