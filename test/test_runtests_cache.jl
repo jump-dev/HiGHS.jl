@@ -47,7 +47,7 @@ function test_runtests_no_crossover()
     # Slightly loosen tolerances, particularly for QP tests
     config = MOI.Test.Config(;
         atol = 1e-7,
-        exclude = [MOI.ConstraintBasisStatus, MOI.VariableBasisStatus],
+        exclude = Any[MOI.ConstraintBasisStatus, MOI.VariableBasisStatus],
     )
     MOI.Test.runtests(model, config)
     return
