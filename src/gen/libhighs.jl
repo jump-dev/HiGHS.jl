@@ -7,6 +7,8 @@
 #!format:off
 
 
+const HighsBool = UInt8
+
 const HighsInt = Cint
 
 """
@@ -21,6 +23,7 @@ struct HighsCallbackDataOut
     simplex_iteration_count::HighsInt
     ipm_iteration_count::HighsInt
     pdlp_iteration_count::HighsInt
+    qpasm_iteration_count::HighsInt
     objective_function_value::Cdouble
     mip_node_count::Int64
     mip_total_lp_iterations::Int64
@@ -37,6 +40,8 @@ struct HighsCallbackDataOut
     cutpool_value::Ptr{Cdouble}
     cutpool_lower::Ptr{Cdouble}
     cutpool_upper::Ptr{Cdouble}
+    qp_solution::Ptr{Cdouble}
+    qp_solution_size::HighsInt
     external_solution_query_origin::HighsInt
 end
 
@@ -50,6 +55,9 @@ end
 
 # typedef void ( * HighsCCallbackType ) ( int , const char * , const HighsCallbackDataOut * , HighsCallbackDataIn * , void * )
 const HighsCCallbackType = Ptr{Cvoid}
+
+# typedef HighsInt ( * HighsCHessianFunctionType ) ( const HighsInt , const HighsInt * , const HighsInt * , const double * , HighsInt * , HighsInt * , double * , void * )
+const HighsCHessianFunctionType = Ptr{Cvoid}
 
 """
     Highs_lpCall(num_col, num_row, num_nz, a_format, sense, offset, col_cost, col_lower, col_upper, row_lower, row_upper, a_start, a_index, a_value, col_value, col_dual, row_value, row_dual, col_basis_status, row_basis_status, model_status)
@@ -126,7 +134,7 @@ end
 
 Create a Highs instance and return the reference.
 
-Call [`Highs_destroy`](@ref) on the returned reference to clean up allocated memory.
+Call [`Highs_destroy`](@ref) on the returned reference to clean up memory allocated for this instance.
 
 # Returns
 A pointer to the Highs instance.
@@ -138,7 +146,9 @@ end
 """
     Highs_destroy(highs)
 
-Destroy the model `highs` created by [`Highs_create`](@ref) and free all corresponding memory. Future calls using `highs` are not allowed.
+Destroy the model `highs` created by [`Highs_create`](@ref) and free all memory allocated for this instance. Future calls using `highs` are not allowed.
+
+Since the scheduler is owned by the thread and not by the Highs instances, its memory cannot be freed by [`Highs_destroy`](@ref). Hence, to free all memory used by HiGHS on this thread, [`Highs_resetThreadScheduler`](@ref) must also be called.
 
 To empty a model without invalidating `highs`, see [`Highs_clearModel`](@ref).
 
@@ -335,6 +345,8 @@ end
 
 Optimize a model. The algorithm used by HiGHS depends on the options that have been set.
 
+If this function returns `kHighsStatusError`, the solve failed. If this function returns `kHighsStatusWarning`, something unusual happened, but the model may have been solved correctly. In each case, look at the log for an explanation, and use information such as the model and solution status, and the number of primal and dual infeasibilities to understand the quality of the solution (if one is available).
+
 # Arguments
 * `highs`: A pointer to the Highs instance.
 # Returns
@@ -475,6 +487,37 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_passHessian(highs, dim, num_nz, format, start, index, value)
     ccall((:Highs_passHessian, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsInt, HighsInt, Ptr{HighsInt}, Ptr{HighsInt}, Ptr{Cdouble}), highs, dim, num_nz, format, start, index, value)
+end
+
+"""
+    Highs_passHessianOracle(highs, dim, oracleCall, oracle_data)
+
+Set the Hessian oracle callback method
+
+# Arguments
+* `highs`: A pointer to the Highs instance.
+* `dim`: Dimension of the Hessian
+* `oracleCall`: A pointer to the Hessian oracle callback
+* `oracle_data`: A pointer to the Hessian oracle callback data
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_passHessianOracle(highs, dim, oracleCall, oracle_data)
+    ccall((:Highs_passHessianOracle, libhighs), HighsInt, (Ptr{Cvoid}, HighsInt, HighsCHessianFunctionType, Ptr{Cvoid}), highs, dim, oracleCall, oracle_data)
+end
+
+"""
+    Highs_checkHessianOracle(highs)
+
+Check the Hessian oracle callback method
+
+# Arguments
+* `highs`: A pointer to the Highs instance.
+# Returns
+A `kHighsStatus` constant indicating whether the call succeeded.
+"""
+function Highs_checkHessianOracle(highs)
+    ccall((:Highs_checkHessianOracle, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
 """
@@ -955,7 +998,7 @@ Get the primal and dual solution from an optimized model.
 * `row_value`: An array of length [num\\_row], to be filled with primal row values.
 * `row_dual`: An array of length [num\\_row], to be filled with dual row values.
 # Returns
-A `kHighsStatus` constant indicating whether the call succeeded.
+A `kHighsStatus` constant indicating whether a primal solution exists.
 """
 function Highs_getSolution(highs, col_value, col_dual, row_value, row_dual)
     ccall((:Highs_getSolution, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), highs, col_value, col_dual, row_value, row_dual)
@@ -971,7 +1014,7 @@ Given a linear program with a basic feasible solution, get the column and row ba
 * `col_status`: An array of length [num\\_col], to be filled with the column basis statuses in the form of a `kHighsBasisStatus` constant.
 * `row_status`: An array of length [num\\_row], to be filled with the row basis statuses in the form of a `kHighsBasisStatus` constant.
 # Returns
-A `kHighsStatus` constant indicating whether the call succeeded.
+A `kHighsStatus` constant indicating whether the basis is valid.
 """
 function Highs_getBasis(highs, col_status, row_status)
     ccall((:Highs_getBasis, libhighs), HighsInt, (Ptr{Cvoid}, Ptr{HighsInt}, Ptr{HighsInt}), highs, col_status, row_status)
@@ -2527,11 +2570,13 @@ function Highs_getIis(highs, iis_num_col, iis_num_row, col_index, row_index, col
 end
 
 """
-    Highs_resetGlobalScheduler(blocking)
+    Highs_resetThreadScheduler(blocking)
 
-Releases all resources held by the global scheduler instance.
+Releases all resources held by the scheduler owned by the calling thread, if any.
 
-It is not thread-safe to call this function while calling [`Highs_run`](@ref) or one of the `Highs_XXXcall` methods on any other Highs instance in any thread.
+Although the scheduler instance is created internally by a Highs instance, any subsequent Highs instances on the same thread share the scheduler. Hence, calling [`Highs_destroy`](@ref) does not free the scheduler's memory, so [`Highs_resetThreadScheduler`](@ref) must also be called.
+
+It is thread-safe to call this function only from the thread that owns the scheduler (not from a worker thread) and when no run() or presolve() is in progress on that thread.
 
 After this function has terminated, it is guaranteed that eventually all previously created scheduler threads will terminate and allocated memory will be released.
 
@@ -2540,10 +2585,10 @@ After this function has returned, the option value for the number of threads may
 # Arguments
 * `blocking`: If the `blocking` parameter has a nonzero value, then this function will not return until all memory is freed, which might be desirable when debugging heap memory, but it requires the calling thread to wait for all scheduler threads to wake-up which is usually not necessary.
 # Returns
-No status is returned since the function call cannot fail. Calling this function while any Highs instance is in use on any thread is undefined behavior and may cause crashes, but cannot be detected and hence is fully in the callers responsibility.
+No status is returned since the function call cannot fail. Calling this function while on a worker thread or during the execution of a Highs function may cause crashes, but cannot be detected and hence is fully the caller's responsibility.
 """
-function Highs_resetGlobalScheduler(blocking)
-    ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
+function Highs_resetThreadScheduler(blocking)
+    ccall((:Highs_resetThreadScheduler, libhighs), Cvoid, (HighsInt,), blocking)
 end
 
 """
@@ -2608,6 +2653,23 @@ A `kHighsStatus` constant indicating whether the call succeeded.
 """
 function Highs_repairCallbackSolution(data_in)
     ccall((:Highs_repairCallbackSolution, libhighs), HighsInt, (Ptr{HighsCallbackDataIn},), data_in)
+end
+
+"""
+    Highs_initializeExtras(directory, search_if_empty)
+
+Initialize optional extras and cache the result.
+
+Only the first call attempts initialization; subsequent calls return the cached result, regardless of arguments, unless extras are explicitly unloaded. Not needed for statically linked extras.
+
+# Arguments
+* `directory`: Directory containing the extras library. NULL means empty.
+* `search_if_empty`: If nonzero, search default library directories when directory is NULL or empty.
+# Returns
+kHighsStatusOk on success, kHighsStatusError on failure.
+"""
+function Highs_initializeExtras(directory, search_if_empty)
+    ccall((:Highs_initializeExtras, libhighs), HighsInt, (Ptr{Cchar}, HighsInt), directory, search_if_empty)
 end
 
 """
@@ -2722,15 +2784,19 @@ function Highs_getScaledModelStatus(highs)
     ccall((:Highs_getScaledModelStatus, libhighs), HighsInt, (Ptr{Cvoid},), highs)
 end
 
+function Highs_resetGlobalScheduler(blocking)
+    ccall((:Highs_resetGlobalScheduler, libhighs), Cvoid, (HighsInt,), blocking)
+end
+
 const HighsUInt = Cuint
 
 const CMAKE_BUILD_TYPE = "Release"
 
-const HIGHS_GITHASH = "8396001901"
+const HIGHS_GITHASH = "f3f113d230"
 
 const HIGHS_VERSION_MAJOR = 1
 
-const HIGHS_VERSION_MINOR = 15
+const HIGHS_VERSION_MINOR = 16
 
 const HIGHS_VERSION_PATCH = 0
 
@@ -2772,6 +2838,7 @@ const kHighsPresolveStatusTimeout = HighsInt(5)
 const kHighsPresolveStatusNullError = HighsInt(6)
 const kHighsPresolveStatusOptionsError = HighsInt(7)
 const kHighsPresolveStatusOutOfMemory = HighsInt(8)
+const kHighsPresolveStatusException = HighsInt(9)
 const kHighsModelStatusNotset = HighsInt(0)
 const kHighsModelStatusLoadError = HighsInt(1)
 const kHighsModelStatusModelError = HighsInt(2)
@@ -2790,6 +2857,8 @@ const kHighsModelStatusIterationLimit = HighsInt(14)
 const kHighsModelStatusUnknown = HighsInt(15)
 const kHighsModelStatusSolutionLimit = HighsInt(16)
 const kHighsModelStatusInterrupt = HighsInt(17)
+const kHighsModelStatusMemoryLimit = HighsInt(18)
+const kHighsModelStatusHighsInterrupt = HighsInt(19)
 const kHighsBasisStatusLower = HighsInt(0)
 const kHighsBasisStatusBasic = HighsInt(1)
 const kHighsBasisStatusUpper = HighsInt(2)
@@ -2805,6 +2874,8 @@ const kHighsCallbackMipInterrupt = HighsInt(6)
 const kHighsCallbackMipGetCutPool = HighsInt(7)
 const kHighsCallbackMipDefineLazyConstraints = HighsInt(8)
 const kHighsCallbackCallbackMipUserSolution = HighsInt(9)
+const kHighsCallbackQpFirstFeasiblePoint = HighsInt(10)
+const kHighsCallbackQpInterrupt = HighsInt(11)
 const kHighsIisStrategyLight = HighsInt(0)
 const kHighsIisStrategyFromLpRowPriority = HighsInt(6)
 const kHighsIisStrategyFromLpColPriority = HighsInt(14)
@@ -2815,3 +2886,32 @@ const kHighsIisBoundBoxed = HighsInt(4)
 const kHighsIisStatusNotInConflict = HighsInt(-1)
 const kHighsIisStatusMaybeInConflict = HighsInt(0)
 const kHighsIisStatusInConflict = HighsInt(1)
+const kHighsHessianOracleCallTypeMin = HighsInt(0)
+const kHighsHessianOracleCallTypeEntry = HighsInt(0)
+const kHighsHessianOracleCallTypeColumn = HighsInt(1)
+const kHighsHessianOracleCallTypeProduct = HighsInt(2)
+const kHighsHessianOracleCallTypeMax = HighsInt(2)
+const kHighsPresolveRuleEmptyRow = HighsInt(0)
+const kHighsPresolveRuleSingletonRow = HighsInt(1)
+const kHighsPresolveRuleRedundantRow = HighsInt(2)
+const kHighsPresolveRuleEmptyCol = HighsInt(3)
+const kHighsPresolveRuleFixedCol = HighsInt(4)
+const kHighsPresolveRuleDominatedCol = HighsInt(5)
+const kHighsPresolveRuleForcingRow = HighsInt(6)
+const kHighsPresolveRuleForcingCol = HighsInt(7)
+const kHighsPresolveRuleFreeColSubstitution = HighsInt(8)
+const kHighsPresolveRuleDoubletonEquation = HighsInt(9)
+const kHighsPresolveRuleDependentEquations = HighsInt(10)
+const kHighsPresolveRuleDependentFreeCols = HighsInt(11)
+const kHighsPresolveRuleAggregator = HighsInt(12)
+const kHighsPresolveRuleParallelRowsAndCols = HighsInt(13)
+const kHighsPresolveRuleSparsify = HighsInt(14)
+const kHighsPresolveRuleProbing = HighsInt(15)
+const kHighsPresolveRuleEnumeration = HighsInt(16)
+const kHighsPresolveRuleDualFixing = HighsInt(17)
+const kHighsPresolveRuleZeroCostSingleton = HighsInt(18)
+const kHighsPresolveRuleColStuffing = HighsInt(19)
+const kHighsPresolveRuleDualFixProbing = HighsInt(20)
+const kHighsPresolveRuleInitialSweep = HighsInt(21)
+const kHighsPresolveRuleFourierMotzkin = HighsInt(22)
+const kHighsPresolveRuleWeaklyDominatedCol = HighsInt(23)
