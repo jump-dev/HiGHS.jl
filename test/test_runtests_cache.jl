@@ -27,7 +27,6 @@ function test_runtests_cache()
         Float64,
     )
     MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("parallel"), "on")
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return

@@ -21,7 +21,6 @@ end
 function test_runtests()
     model = MOI.Bridges.full_bridge_optimizer(HiGHS.Optimizer(), Float64)
     MOI.set(model, MOI.Silent(), true)
-    MOI.set(model, MOI.RawOptimizerAttribute("parallel"), "on")
     # Slightly loosen tolerances, particularly for QP tests
     MOI.Test.runtests(model, MOI.Test.Config(; atol = 1e-7))
     return
