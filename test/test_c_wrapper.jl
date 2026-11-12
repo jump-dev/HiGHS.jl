@@ -98,11 +98,7 @@ function test_libblastrampoline()
     filename = joinpath(mktempdir(), "log.txt")
     open(io -> redirect_stdout(run, io), filename, "w")
     contents = read(filename, String)
-    if Sys.isapple()
-        @test_broken occursin("Using BLAS: blastrampoline", contents)
-    else
-        @test occursin("Using BLAS: blastrampoline", contents)
-    end
+    @test occursin("Using BLAS: libblastrampoline", contents)
     return
 end
 
