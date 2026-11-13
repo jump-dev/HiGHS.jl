@@ -8,6 +8,8 @@ module TestCHighs
 using HiGHS
 using Test
 
+import HiGHS_jll
+
 function runtests()
     is_test(name) = startswith("$name", "test_")
     @testset "$name" for name in filter(is_test, names(@__MODULE__; all = true))
@@ -86,6 +88,14 @@ function test_create()
     modelstatus = Highs_getModelStatus(ptr)
     @test modelstatus[] == 0 # uninitialized LP
     Highs_destroy(ptr)
+    return
+end
+
+function test_libblastrampoline()
+    contents = sprint() do io
+        return run(pipeline(`$(HiGHS_jll.highs()) --help`; stdout = io))
+    end
+    @test occursin("Using BLAS: libblastrampoline", contents)
     return
 end
 
